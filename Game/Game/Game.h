@@ -2,8 +2,9 @@
 #include <SDL.h>
 
 enum Game_State {
-	RUNNING,
-	PAUSED
+	GAME_STATE_RUNNING,
+	GAME_STATE_PAUSED,
+	GAME_STATE_QUIT
 };
 
 struct Game 
@@ -12,8 +13,11 @@ struct Game
 	SDL_Renderer* renderer;
 };
 
-Game* create_game();
-void destroy_game();
-int game_renderer();
-int game_input();
-int game_update();
+Game* create_game(SDL_Renderer *renderer);
+void destroy_game(Game *game);
+int game_render(Game *game);
+int game_update(Game* game, float delta_time);
+int game_handle_event(Game *game, const SDL_Event *e);
+int game_input(Game *game, const Uint8 *const keyboard_state, SDL_Joystick *joystick);
+
+bool game_is_running(const Game *game);
