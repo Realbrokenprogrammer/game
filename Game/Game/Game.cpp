@@ -8,8 +8,10 @@ Game *create_game(SDL_Renderer *renderer)
 		return NULL;
 	}
 
+	Level* level = create_level();
 	game->renderer = renderer;
 	game->state = GAME_STATE_RUNNING;
+	game->level = level;
 
 	return game;
 }
@@ -26,17 +28,9 @@ int game_render(Game *game)
 		return 0;
 	}
 
-	// Do render stuff here.
-	SDL_Rect rect;
-	rect.h = 100;
-	rect.w = 100;
-	rect.x = 0;
-	rect.y = 0;
-
-
-	SDL_SetRenderDrawColor(game->renderer, 255, 0, 0, 255);
-	SDL_RenderDrawRect(game->renderer, &rect);
-
+	if (level_render(game->level, game->renderer) < 0) {
+		return -1;
+	}
 
 	return 0;
 }

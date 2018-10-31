@@ -1,5 +1,6 @@
 #pragma once
 #include <SDL.h>
+#include "Level.h"
 
 enum Game_State {
 	GAME_STATE_RUNNING,
@@ -11,6 +12,7 @@ struct Game
 {
 	Game_State state;
 	SDL_Renderer* renderer;
+	Level* level;
 };
 
 Game* create_game(SDL_Renderer *renderer);

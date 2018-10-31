@@ -11,7 +11,7 @@ struct Platform {
 	size_t rect_size;
 };
 
-Platform *create_platform();
+Platform *create_platform(int x, int y, int w, int h);
 void destroy_platform();
 
-int platform_render();
+int platform_render(Platform *platform, SDL_Renderer *renderer);
