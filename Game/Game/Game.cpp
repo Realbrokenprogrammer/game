@@ -1,25 +1,25 @@
 #include "Game.h"
 
-Game * Game::create_game()
+Game * create_game()
 {
 	return nullptr;
 }
 
-void Game::destroy_game()
+void destroy_game()
 {
 }
 
-int Game::game_renderer()
-{
-	return 0;
-}
-
-int Game::game_input()
+int game_renderer()
 {
 	return 0;
 }
 
-int Game::game_update()
+int game_input()
+{
+	return 0;
+}
+
+int game_update()
 {
 	return 0;
 }
