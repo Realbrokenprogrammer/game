@@ -44,7 +44,7 @@ int main(int argc, char* args[])
 
 	//TODO(#1): Support for SDL joysticks
 
-	//TODO: Initialize Sound
+	//TODO(#2): Initialize Sound
 	
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 	SDL_Rect rect;
