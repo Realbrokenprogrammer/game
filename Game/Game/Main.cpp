@@ -1,5 +1,6 @@
 #include <SDL.h>
 #include <stdio.h>
+#include "om_tool.h"
 
 //Screen dimension constants
 const int SCREEN_WIDTH = 800;
@@ -9,6 +10,8 @@ bool isRunning = true;
 
 int main(int argc, char* args[])
 {
+	int fps = 60;
+
 	//The window we'll be rendering to
 	SDL_Window* window = NULL;
 
@@ -54,11 +57,15 @@ int main(int argc, char* args[])
 	rect.y = 0;
 
 	const Uint8 *const keyboardState = SDL_GetKeyboardState(NULL);
+	int frames = 0;
 
 	SDL_Event e;
+	const int64_t delta_time = (int64_t)roundf(1000.0f / 60.0f);
+	int64_t render_time = (int64_t)roundf(1000.0f / (float)fps);
 	while (isRunning) {
+		const int64_t begin_frame_time = (int64_t)SDL_GetTicks();
+
 		SDL_RenderFillRect(renderer, &rect);
-		SDL_RenderPresent(renderer);
 
 		if (keyboardState[SDL_SCANCODE_A]) {
 			SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
@@ -79,6 +86,15 @@ int main(int argc, char* args[])
 			}
 		}
 		
+		render_time -= delta_time;
+		if (render_time <= 0) {
+
+			SDL_RenderPresent(renderer);
+			render_time = (int64_t)roundf(1000.0f / (float)fps);
+		}
+
+		const int64_t end_frame_time = (int64_t)SDL_GetTicks();
+		SDL_Delay((unsigned int)OM_MAX(10, delta_time - (end_frame_time - begin_frame_time)));
 	}
 
 	//Destroy Renderer
