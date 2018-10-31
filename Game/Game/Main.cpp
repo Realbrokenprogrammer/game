@@ -48,7 +48,7 @@ int main(int argc, char* args[])
 	//TODO(#1): Support for SDL joysticks
 
 	//TODO(#2): Initialize Sound
-	
+
 	SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
 	SDL_Rect rect;
 	rect.h = SCREEN_HEIGHT;
@@ -85,7 +85,7 @@ int main(int argc, char* args[])
 				break;
 			}
 		}
-		
+
 		render_time -= delta_time;
 		if (render_time <= 0) {
 
