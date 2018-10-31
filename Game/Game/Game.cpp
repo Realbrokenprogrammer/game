@@ -42,7 +42,7 @@ int main(int argc, char* args[])
 		return 1;
 	}
 
-	//TODO: Support for SDL joysticks
+	//TODO(#1): Support for SDL joysticks
 
 	//TODO: Initialize Sound
 	
