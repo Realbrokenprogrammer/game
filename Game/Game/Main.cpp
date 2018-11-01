@@ -37,6 +37,12 @@ om_global_variable sdl_offscreen_buffer GlobalBackbuffer;
 om_global_variable SDL_GameController *ControllerHandles[MAX_CONTROLLERS];
 om_global_variable SDL_Haptic *RumbleHandles[MAX_CONTROLLERS];
 
+void *
+PlatformLoadFile(char *FileName)
+{
+	return (0);
+}
+
 om_internal void
 SDLOpenGameControllers()
 {
@@ -78,21 +84,43 @@ SDLCloseGameControllers()
 }
 
 om_internal void
-SDLInitAudio()
+SDLInitAudio(i32 SamplesPerSecond, i32 BufferSize)
 {
-	//TODO:
+	SDL_AudioSpec AudioSettings = {};
+
+	AudioSettings.freq = SamplesPerSecond;
+	AudioSettings.format = AUDIO_S16LSB;
+	AudioSettings.channels = 2;
+	AudioSettings.samples = 512;
+
+	SDL_OpenAudio(&AudioSettings, 0);
+
+	if (AudioSettings.format != AUDIO_S16LSB)
+	{
+		SDL_CloseAudio();
+	}
 }
 
 om_internal void
-SDLClearSoundBuffer()
+SDLClearSoundBuffer(sdl_sound_output *SoundOutput)
 {
-	//TODO:
+	SDL_ClearQueuedAudio(1);
 }
 
 om_internal void
 SDLFillSoundBuffer(sdl_sound_output *SoundOutput, int BytesToWrite, game_sound_output_buffer *SoundBuffer)
 {
-	//TODO:
+	SDL_QueueAudio(1, SoundBuffer->Samples, BytesToWrite);
+}
+
+om_internal void
+SDLProcessKeyboardEvent(game_button_state *NewState, b32 IsDown)
+{
+	if (NewState->EndedDown != IsDown)
+	{
+		NewState->EndedDown = IsDown;
+		++NewState->HalfTransitionCount;
+	}
 }
 
 om_internal void 
@@ -100,6 +128,112 @@ SDLProcessGameControllerButton(game_button_state *OldState, bool Value, game_but
 {
 	NewState->EndedDown = Value;
 	NewState->HalfTransitionCount = (OldState->EndedDown != NewState->EndedDown) ? 1 : 0;
+}
+
+om_internal void 
+SDLProcessEvents(game_controller_input *KeyboardController)
+{
+	SDL_Event Event;
+	while (SDL_PollEvent(&Event))
+	{
+		switch (Event.type)
+		{
+			case SDL_QUIT:
+			{
+				GlobalRunning = false;
+			} break;
+			case SDL_KEYDOWN:
+			case SDL_KEYUP:
+			{
+				SDL_Keycode KeyCode = Event.key.keysym.sym;
+				bool IsDown = (Event.key.state == SDL_PRESSED);
+
+				if (Event.key.repeat == 0)
+				{
+					if (KeyCode == SDLK_w)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->Up, IsDown);
+					}
+					else if (KeyCode == SDLK_a)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->Left, IsDown);
+					}
+					else if (KeyCode == SDLK_s)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->Down, IsDown);
+					}
+					else if (KeyCode == SDLK_d)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->Right, IsDown);
+					}
+					else if (KeyCode == SDLK_q)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->LeftShoulder, IsDown);
+					}
+					else if (KeyCode == SDLK_e)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->RightShoulder, IsDown);
+					}
+					else if (KeyCode == SDLK_UP)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->Up, IsDown);
+					}
+					else if (KeyCode == SDLK_LEFT)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->Left, IsDown);
+					}
+					else if (KeyCode == SDLK_DOWN)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->Down, IsDown);
+					}
+					else if (KeyCode == SDLK_RIGHT)
+					{
+						SDLProcessKeyboardEvent(&KeyboardController->Right, IsDown);
+					}
+					else if (KeyCode == SDLK_ESCAPE)
+					{
+
+					}
+					else if (KeyCode == SDLK_SPACE)
+					{
+
+					}
+
+					if (IsDown)
+					{
+						bool AltKeyWasDown = (Event.key.keysym.mod & KMOD_ALT);
+						if (KeyCode == SDLK_F4 && AltKeyWasDown)
+						{
+							GlobalRunning = false;
+						}
+						if ((KeyCode == SDLK_RETURN) && AltKeyWasDown)
+						{
+							SDL_Window *Window = SDL_GetWindowFromID(Event.window.windowID);
+							if (Window)
+							{
+								//SDLToggleFullscreen(Window);
+							}
+						}
+					}
+				}
+			} break;
+			case SDL_WINDOWEVENT:
+			{
+				switch (Event.window.event)
+				{
+					case SDL_WINDOWEVENT_SIZE_CHANGED:
+					{
+					} break;
+					case SDL_WINDOWEVENT_FOCUS_GAINED:
+					{
+					} break;
+					case SDL_WINDOWEVENT_EXPOSED:
+					{
+					} break;
+				}
+			} break;
+		}
+	}
 }
 
 om_internal sdl_window_dimension
@@ -236,6 +370,12 @@ int main(int argc, char *argv[]) {
 			SoundOutput.BytesPerSample = sizeof(i16) * 2;
 			SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample;
 			SoundOutput.LatencySampleCount = SoundOutput.SamplesPerSecond / 15;
+			int SquareWavePeriod = SoundOutput.SamplesPerSecond / 256;
+			int HalfSquareWavePeriod = SquareWavePeriod / 2;
+
+			SDLInitAudio(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
+			SDLClearSoundBuffer(&SoundOutput);
+			SDL_PauseAudio(0);
 
 			GlobalRunning = true;
 
@@ -268,6 +408,23 @@ int main(int argc, char *argv[]) {
 
 				i64 LastCycleCount = __rdtsc();
 				while (GlobalRunning) {
+
+					// TODO(casey): Zeroing macro
+					// TODO(casey): We can't zero everything because the up/down state will
+					// be wrong!!!
+					/*game_controller_input *OldKeyboardController = GetController(OldInput, 0);
+					game_controller_input *NewKeyboardController = GetController(NewInput, 0);
+					*NewKeyboardController = {};
+					NewKeyboardController->IsConnected = true;
+					for (int ButtonIndex = 0;
+						ButtonIndex < OM_ARRAYCOUNT(NewKeyboardController->Buttons);
+						++ButtonIndex)
+					{
+						NewKeyboardController->Buttons[ButtonIndex].EndedDown =
+							OldKeyboardController->Buttons[ButtonIndex].EndedDown;
+					}*/
+
+					//SDLProcessEvents(NewKeyboardController);
 
 					int MaxControllerCount = MAX_CONTROLLERS;
 					if (MaxControllerCount > OM_ARRAYCOUNT(NewInput->Controllers))
@@ -379,35 +536,10 @@ int main(int argc, char *argv[]) {
 						}
 					}
 
-					DWORD ByteToLock = 0;
-					DWORD TargetCursor = 0;
-					DWORD BytesToWrite = 0;
-					DWORD PlayCursor = 0;
-					DWORD WriteCursor = 0;
-					b32 SoundIsValid = false;
-					//TODO: Tightn up sound logic. Make it clear where we should be writing to and anticipate
-					//		the time spent in the game update.
-					/*if (SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor)))
-					{
-						ByteToLock = ((SoundOutput.RunningSampleIndex * SoundOutput.BytesPerSample) %
-							SoundOutput.SecondaryBufferSize);
-						TargetCursor =
-							((PlayCursor + (SoundOutput.LatencySampleCount* SoundOutput.BytesPerSample)) %
-								SoundOutput.SecondaryBufferSize);
-						BytesToWrite;
-
-						if (ByteToLock > TargetCursor)
-						{
-							BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
-							BytesToWrite += TargetCursor;
-						}
-						else
-						{
-							BytesToWrite = TargetCursor - ByteToLock;
-						}
-
-						SoundIsValid = true;
-					}*/
+					b32 SoundIsValid = true;
+					
+					//TODO: More robust BytesToWrite..
+					int BytesToWrite = 800 * SoundOutput.BytesPerSample;
 
 					game_sound_output_buffer SoundBuffer = {};
 					SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
@@ -422,7 +554,7 @@ int main(int argc, char *argv[]) {
 
 					GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 
-					//NOTE: DirectSound output test
+					//NOTE: Sound output test.
 					if (SoundIsValid)
 					{
 						SDLFillSoundBuffer(&SoundOutput, BytesToWrite, &SoundBuffer);
