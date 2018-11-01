@@ -1,8 +1,30 @@
 #include <SDL.h>
 #include <windows.h>
 #include <stdio.h>
+
+// Define to enable debugging functionality
+#define OM_DEBUG
+
 #include "om_tool.h"
 #include "Game.cpp"
+
+/*
+	TODO:
+		* Saved game locations
+		* Get handle to our own executable file
+		* Asset loading path
+		* Threading (Launch a thread)
+		* Raw Input (support for multiple keyboards
+		* Sleep/timeBeginPeriod
+		* ClipCursor() (Multimonitor support)
+		* Fullscreen support
+		* WM_SETCURSOR (Control cursor visibility)
+		* QueryCancelAutoplay
+		* WM_ACTIVEAPP (When this app is not the active one)
+		* Blit speed improvements (BitBlt)
+		* Hadware acceleration (OpenGL)
+		* GetKeyboardLayout (International WASD support)
+*/
 
 struct sdl_offscreen_buffer
 {
@@ -37,10 +59,97 @@ om_global_variable sdl_offscreen_buffer GlobalBackbuffer;
 om_global_variable SDL_GameController *ControllerHandles[MAX_CONTROLLERS];
 om_global_variable SDL_Haptic *RumbleHandles[MAX_CONTROLLERS];
 
-void *
-PlatformLoadFile(char *FileName)
+inline u32
+SafeTruncateUInt64(u64 Value)
 {
-	return (0);
+	OM_ASSERT(Value <= 0xFFFFFFFF);
+	u32 Result = (u32)Value;
+	return (Result);
+}
+
+debug_read_file_result
+DEBUGPlatformReadEntireFile(char *FileName)
+{
+	debug_read_file_result Result = {};
+
+	HANDLE FileHandle = CreateFile(FileName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, NULL, NULL);
+	if (FileHandle != INVALID_HANDLE_VALUE) 
+	{
+		LARGE_INTEGER FileSize;
+		if (GetFileSizeEx(FileHandle, &FileSize))
+		{
+			//TODO: Defines for maximum values.
+			u32 FileSize32 = SafeTruncateUInt64(FileSize.QuadPart);
+			Result.Contents = VirtualAlloc(0, FileSize32, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			if (Result.Contents)
+			{ 
+				DWORD BytesRead;
+				if (ReadFile(FileHandle, Result.Contents, FileSize.QuadPart, &BytesRead, NULL) && 
+					(FileSize32 == BytesRead))
+				{
+					// File read successfully.
+					Result.ContentsSize = FileSize32;
+				}
+				else
+				{
+					//TODO: Logging
+					DEBUGPlatformFreeFileMemory(Result.Contents);
+					Result.Contents = 0;
+				}
+			}
+			else
+			{
+				//TODO: Logging
+			}
+		}
+		else
+		{
+			//TODO: Logging
+		}
+
+		CloseHandle(FileHandle);
+	}
+
+	return (Result);
+}
+
+void 
+DEBUGPlatformFreeFileMemory(void *Memory)
+{
+	if (Memory)
+	{
+		VirtualFree(Memory, NULL, MEM_RELEASE);
+	}
+}
+
+b32 
+DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory)
+{
+	b32 Result = false;
+
+	HANDLE FileHandle = CreateFile(FileName, GENERIC_WRITE, NULL, NULL, CREATE_ALWAYS, NULL, NULL);
+	if (FileHandle != INVALID_HANDLE_VALUE) 
+	{
+		DWORD BytesWritten;
+		if (WriteFile(FileHandle, Memory, MemorySize, &BytesWritten, NULL))
+		{
+			// File read successfully.
+			Result = (BytesWritten == MemorySize);
+		}
+		else
+		{
+			//TODO: Logging
+		}
+
+		CloseHandle(FileHandle);
+	}
+	else
+	{
+		//TODO: Logging
+	}
+
+
+	return (Result);
 }
 
 om_internal void
@@ -152,6 +261,7 @@ SDLProcessEvents(game_controller_input *KeyboardController)
 				{
 					if (KeyCode == SDLK_w)
 					{
+						OutputDebugStringA("IsDown W");
 						SDLProcessKeyboardEvent(&KeyboardController->Up, IsDown);
 					}
 					else if (KeyCode == SDLK_a)
@@ -502,7 +612,7 @@ int main(int argc, char *argv[]) {
 								&OldController->MoveUp,
 								NewController->StickAverageY > Threshold,
 								&NewController->MoveUp);*/
-
+							
 							SDLProcessGameControllerButton(&OldController->Down,
 								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_A),
 								&NewController->Down);

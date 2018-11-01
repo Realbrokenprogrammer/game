@@ -48,6 +48,18 @@ GameUpdateAndRender(game_memory *Memory,
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	if (!Memory->IsInitialized)
 	{
+		char test[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\README.md";
+		char test2[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\README2.md";
+		char *FileName = test;
+		char *TestFile = test2;
+		
+		debug_read_file_result BitmapMemory = DEBUGPlatformReadEntireFile(FileName);
+		if (BitmapMemory.Contents)
+		{
+			DEBUGPlatformWriteEntireFile(TestFile, BitmapMemory.ContentsSize, BitmapMemory.Contents);
+			DEBUGPlatformFreeFileMemory(BitmapMemory.Contents);
+		}
+
 		GameState->ToneHz = 256;
 
 		//TODO: This may be more appropriate to let the platform layer do.
@@ -68,18 +80,6 @@ GameUpdateAndRender(game_memory *Memory,
 	//Input.AButtonEndedDown;
 	//Input.AButtonHalfTransitionCount;
 	if (Input0->Down.EndedDown)
-	{
-		GameState->GreenOffset += 1;
-	}
-	if (Input0->Up.EndedDown)
-	{
-		GameState->GreenOffset += 1;
-	}
-	if (Input0->Left.EndedDown)
-	{
-		GameState->GreenOffset += 1;
-	}
-	if (Input0->LeftShoulder.EndedDown)
 	{
 		GameState->GreenOffset += 1;
 	}

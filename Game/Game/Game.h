@@ -9,6 +9,18 @@
 	Services that the platform provides to the game
 */
 
+// These are NOT for doing anything in the release version of the game. They are blocking 
+// and the write doesn't protect against lost data.
+struct debug_read_file_result
+{
+	u32 ContentsSize;
+	void *Contents;
+};
+debug_read_file_result DEBUGPlatformReadEntireFile(char *FileName);
+void DEBUGPlatformFreeFileMemory(void *Memory);
+
+b32 DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory);
+
 /*
 	Services that the game provides to the platform
 */
@@ -86,10 +98,6 @@ om_internal void GameUpdateAndRender(game_memory *Memory,
 	game_input *Input, game_offscreen_buffer *Buffer,
 	game_sound_output_buffer *SoundBuffer);
 
-
-//
-//
-//
 
 struct game_state
 {
