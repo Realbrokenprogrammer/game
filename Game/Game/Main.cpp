@@ -7,6 +7,7 @@
 
 #include "om_tool.h"
 #include "Game.cpp"
+#include "Main.h"
 
 /*
 	TODO:
@@ -25,31 +26,6 @@
 		* Hadware acceleration (OpenGL)
 		* GetKeyboardLayout (International WASD support)
 */
-
-struct sdl_offscreen_buffer
-{
-	SDL_Texture *Texture;
-	void *Memory;
-	int Width;
-	int Height;
-	int Pitch;
-};
-
-struct sdl_window_dimension
-{
-	int Width;
-	int Height;
-};
-
-struct sdl_sound_output
-{
-	int SamplesPerSecond;
-	u32 RunningSampleIndex;
-	int BytesPerSample;
-	int SecondaryBufferSize;
-	r32 tSine;
-	int LatencySampleCount;
-};
 
 om_global_variable b32 GlobalRunning;
 om_global_variable sdl_offscreen_buffer GlobalBackbuffer;

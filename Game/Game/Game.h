@@ -1,4 +1,7 @@
 #pragma once
+#ifndef GAME_H
+#define GAME_H
+
 
 #include <math.h>
 #include "om_tool.h"
@@ -95,8 +98,8 @@ struct game_memory
 };
 
 om_internal void GameUpdateAndRender(game_memory *Memory,
-	game_input *Input, game_offscreen_buffer *Buffer,
-	game_sound_output_buffer *SoundBuffer);
+									 game_input *Input, game_offscreen_buffer *Buffer,
+									 game_sound_output_buffer *SoundBuffer);
 
 
 struct game_state
@@ -105,3 +108,5 @@ struct game_state
 	int GreenOffset;
 	int BlueOffset;
 };
+
+#endif // GAME_H
