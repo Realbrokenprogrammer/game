@@ -1,90 +1,90 @@
 #include "Game.h"
 
-Game *create_game(SDL_Renderer *renderer)
+om_internal void
+GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 {
-	Game *game = (Game *) malloc(sizeof(Game));
-	if (game == NULL) {
-		//TODO: Throw some kind of error?
-		return NULL;
+	om_local_persist r32 tSine;
+	i16 ToneVolume = 3000;
+	int WavePeriod = SoundBuffer->SamplesPerSecond / ToneHz;
+
+	i16 *SampleOut = SoundBuffer->Samples;
+	for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
+	{
+		r32 SineValue = sinf(tSine);
+		i16 SampleValue = (i16)(SineValue * ToneVolume);
+		*SampleOut++ = SampleValue;
+		*SampleOut++ = SampleValue;
+
+		tSine += 2.0f * OM_PI32 * 1.0f / (r32)WavePeriod;
 	}
-
-	Level* level = create_level();
-	game->renderer = renderer;
-	game->state = GAME_STATE_RUNNING;
-	game->level = level;
-
-	return game;
 }
 
-void destroy_game(Game *game)
+om_internal void
+RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
 {
-	//TODO: Check that game isn't null
-	free(game);
-}
-
-int game_render(Game *game)
-{
-	if (game->state == GAME_STATE_QUIT) {
-		return 0;
-	}
-
-	if (level_render(game->level, game->renderer) < 0) {
-		return -1;
-	}
-
-	return 0;
-}
-
-int game_update(Game* game, float delta_time)
-{
-	if (game->state == GAME_STATE_QUIT) {
-		return 0;
-	}
-
-	if (game->state == GAME_STATE_RUNNING) {
-		// Do game update here
-	}
-
-	return 0;
-}
-
-int game_handle_running_event(Game *game, const SDL_Event *e) {
-	switch (e->type) {
-		case SDL_QUIT:
+	u8 *Row = (u8 *)Buffer->Memory;
+	for (int Y = 0; Y < Buffer->Height; ++Y)
+	{
+		u32 *Pixel = (u32 *)Row;
+		for (int X = 0; X < Buffer->Width; ++X)
 		{
-			game->state = GAME_STATE_QUIT;
-		} break;
-	}
+			u8 Blue = (X + BlueOffset);
+			u8 Green = (Y + GreenOffset);
 
-	return 0;
+			*Pixel++ = ((Green << 8) | Blue);
+		}
+
+		Row += Buffer->Pitch;
+	}
 }
 
-int game_handle_event(Game *game, const SDL_Event *e) {
-
-	switch (game->state) {
-		case GAME_STATE_RUNNING: 
-		{
-			return game_handle_running_event(game, e);
-		} break;
-		case GAME_STATE_PAUSED:
-		{
-
-		} break;
-		default: break;
-	}
-
-	return 0;
-}
-
-int game_input(Game *game, const Uint8 *const keyboard_state, SDL_Joystick *joystick)
+om_internal void
+GameUpdateAndRender(game_memory *Memory,
+	game_input *Input, game_offscreen_buffer *Buffer,
+	game_sound_output_buffer *SoundBuffer)
 {
-	if (game->state == GAME_STATE_QUIT || game->state == GAME_STATE_PAUSED) {
-		return 0;
+	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
+
+	game_state *GameState = (game_state *)Memory->PermanentStorage;
+	if (!Memory->IsInitialized)
+	{
+		GameState->ToneHz = 256;
+
+		//TODO: This may be more appropriate to let the platform layer do.
+		Memory->IsInitialized = true;
 	}
 
-	return 0;
-}
+	game_controller_input *Input0 = &Input->Controllers[0];
+	if (Input0->IsAnalog)
+	{
+		GameState->BlueOffset += (int)(4.0f*(Input0->EndX));
+		GameState->ToneHz = 256 + (int)(128.0f*(Input0->EndY));
+	}
+	else
+	{
 
-bool game_is_running(const Game *game) {
-	return game->state == GAME_STATE_QUIT;
+	}
+
+	//Input.AButtonEndedDown;
+	//Input.AButtonHalfTransitionCount;
+	if (Input0->Down.EndedDown)
+	{
+		GameState->GreenOffset += 1;
+	}
+	if (Input0->Up.EndedDown)
+	{
+		GameState->GreenOffset += 1;
+	}
+	if (Input0->Left.EndedDown)
+	{
+		GameState->GreenOffset += 1;
+	}
+	if (Input0->LeftShoulder.EndedDown)
+	{
+		GameState->GreenOffset += 1;
+	}
+
+	//TODO: Allow sample offsets here for more robust platform options
+	GameOutputSound(SoundBuffer, GameState->ToneHz);
+	RenderGradient(Buffer, GameState->BlueOffset, GameState->GreenOffset);
 }
