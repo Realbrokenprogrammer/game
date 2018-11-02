@@ -53,6 +53,30 @@ typedef i32				b32;
 #define OM_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define OM_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+union vector2
+{
+	struct
+	{
+		r32 x, y;
+	};
+
+	r32 E[2];
+};
+
+union vector3
+{
+	struct
+	{
+		r32 x, y, z;
+	};
+
+	struct
+	{
+		r32 r, g, b;
+	};
+
+	r32 E[3];
+};
 
 inline u32
 SafeTruncateUInt64(u64 Value)
