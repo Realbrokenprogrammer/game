@@ -1,10 +1,6 @@
-#pragma once
 #ifndef GAME_H
 #define GAME_H
-
-
-#include <math.h>
-#include "om_tool.h"
+#pragma once
 
 //TODO: SWAP, MIN, MAX ... Macros?
 
@@ -19,10 +15,10 @@ struct debug_read_file_result
 	u32 ContentsSize;
 	void *Contents;
 };
-debug_read_file_result DEBUGPlatformReadEntireFile(char *FileName);
-void DEBUGPlatformFreeFileMemory(void *Memory);
+om_internal debug_read_file_result DEBUGPlatformReadEntireFile(char *FileName);
+om_internal void DEBUGPlatformFreeFileMemory(void *Memory);
 
-b32 DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory);
+om_internal b32 DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory);
 
 /*
 	Services that the game provides to the platform
@@ -114,7 +110,7 @@ om_internal void GameUpdateAndRender(game_memory *Memory,
 struct game_state
 {
 	int ToneHz;
-	int GreenOffset;
+	int RedOffset;
 	int BlueOffset;
 };
 

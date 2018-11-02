@@ -1,13 +1,22 @@
+
+#include "Platform.h"
+#include "om_tool.h"
+//#include "Intristrics.h"
+//#include "Math.h"
+
 #include <SDL.h>
+
+// Define to enable debugging functionality
+#define OM_DEBUG 1
+
 #include <windows.h>
 #include <stdio.h>
 
-// Define to enable debugging functionality
-#define OM_DEBUG
-
-#include "om_tool.h"
+#include "Game.h"
 #include "Game.cpp"
+
 #include "Main.h"
+
 
 /*
 	TODO:
@@ -43,7 +52,7 @@ SafeTruncateUInt64(u64 Value)
 	return (Result);
 }
 
-debug_read_file_result
+om_internal debug_read_file_result
 DEBUGPlatformReadEntireFile(char *FileName)
 {
 	debug_read_file_result Result = {};
@@ -89,7 +98,7 @@ DEBUGPlatformReadEntireFile(char *FileName)
 	return (Result);
 }
 
-void 
+om_internal void 
 DEBUGPlatformFreeFileMemory(void *Memory)
 {
 	if (Memory)
@@ -98,7 +107,7 @@ DEBUGPlatformFreeFileMemory(void *Memory)
 	}
 }
 
-b32 
+om_internal b32 
 DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory)
 {
 	b32 Result = false;

@@ -20,7 +20,7 @@ GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 }
 
 om_internal void
-RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
+RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 {
 	u8 *Row = (u8 *)Buffer->Memory;
 	for (int Y = 0; Y < Buffer->Height; ++Y)
@@ -29,9 +29,9 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
 		for (int X = 0; X < Buffer->Width; ++X)
 		{
 			u8 Blue = (u8)(X + BlueOffset);
-			u8 Green = (u8)(Y + GreenOffset);
+			u8 Red = (u8)(Y + RedOffset);
 
-			*Pixel++ = ((Green << 8) | Blue);
+			*Pixel++ = ((Red << 16) | Blue);
 		}
 
 		Row += Buffer->Pitch;
@@ -90,5 +90,5 @@ GameUpdateAndRender(game_memory *Memory,
 
 	//TODO: Allow sample offsets here for more robust platform options
 	GameOutputSound(SoundBuffer, GameState->ToneHz);
-	RenderGradient(Buffer, GameState->BlueOffset, GameState->GreenOffset);
+	RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);
 }

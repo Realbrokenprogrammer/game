@@ -45,7 +45,7 @@ typedef i32				b32;
 		1 - No slow code allowed. Performance code.
 */
 
-#ifdef OM_DEBUG
+#if OM_DEBUG
 #define OM_ASSERT(Expression) if(!(Expression)) {*(int *)0 = 0;}
 #else
 #define OM_ASSERT(Expression)
