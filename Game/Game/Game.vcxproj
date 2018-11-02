@@ -81,6 +81,7 @@
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
       <ExceptionHandling>false</ExceptionHandling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <DebugInformationFormat>OldStyle</DebugInformationFormat>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>D:\SDL\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>

@@ -66,19 +66,26 @@ GameUpdateAndRender(game_memory *Memory,
 		Memory->IsInitialized = true;
 	}
 
-	game_controller_input *Input0 = &Input->Controllers[0];
-	if (Input0->IsAnalog)
+	for (int ControllerIndex = 0; ControllerIndex < OM_ARRAYCOUNT(Input->Controllers); ++ControllerIndex)
 	{
-		GameState->BlueOffset += (int)(4.0f*(Input0->EndX));
-		GameState->ToneHz = 256 + (int)(128.0f*(Input0->EndY));
-	}
-	else
-	{
-	}
-
-	if (Input0->Up.EndedDown)
-	{
-		GameState->GreenOffset += 1;
+		game_controller_input *Controller = GetController(Input, ControllerIndex);
+		
+		if (Controller->IsAnalog)
+		{
+			GameState->BlueOffset += (int)(4.0f*(Controller->StickAverageX));
+			GameState->ToneHz = 256 + (int)(128.0f*(Controller->StickAverageY));
+		}
+		else
+		{
+			if (Controller->MoveLeft.EndedDown)
+			{
+				GameState->BlueOffset -= 1;
+			}
+			if (Controller->MoveRight.EndedDown)
+			{
+				GameState->BlueOffset += 1;
+			}
+		}
 	}
 
 	//TODO: Allow sample offsets here for more robust platform options

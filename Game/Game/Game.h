@@ -54,28 +54,28 @@ struct game_controller_input
 	b32 IsConnected;
 	b32 IsAnalog;
 
-	r32 StartX;
-	r32 StartY;
-
-	r32 MinX;
-	r32 MinY;
-
-	r32 MaxX;
-	r32 MaxY;
-
-	r32 EndY;
-	r32 EndX;
+	r32 StickAverageX;
+	r32 StickAverageY;
 
 	union
 	{
-		game_button_state Buttons[6];
+		game_button_state Buttons[12];
 		struct {
-			game_button_state Up;
-			game_button_state Down;
-			game_button_state Left;
-			game_button_state Right;
+			game_button_state MoveUp;
+			game_button_state MoveDown;
+			game_button_state MoveLeft;
+			game_button_state MoveRight;
+
+			game_button_state ActionUp;
+			game_button_state ActionDown;
+			game_button_state ActionLeft;
+			game_button_state ActionRight;
+
 			game_button_state LeftShoulder;
 			game_button_state RightShoulder;
+
+			game_button_state Start;
+			game_button_state Back;
 		};
 	};
 };
@@ -83,8 +83,17 @@ struct game_controller_input
 struct game_input
 {
 	//TODO: Insert clock value here.
-	game_controller_input Controllers[4];
+	game_controller_input Controllers[5];
 };
+
+inline game_controller_input *
+GetController(game_input *Input, int ControllerIndex)
+{
+	OM_ASSERT(ControllerIndex < OM_ARRAYCOUNT(Input->Controllers));
+	game_controller_input *Result = &Input->Controllers[ControllerIndex];
+
+	return (Result);
+}
 
 struct game_memory
 {
