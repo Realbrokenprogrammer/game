@@ -1,13 +1,11 @@
+// Define to enable debugging functionality
+#define OM_DEBUG 1
 
 #include "Platform.h"
-#include "om_tool.h"
 //#include "Intristrics.h"
 //#include "Math.h"
 
 #include <SDL.h>
-
-// Define to enable debugging functionality
-#define OM_DEBUG 1
 
 #include <windows.h>
 #include <stdio.h>
@@ -15,7 +13,7 @@
 #include "Game.h"
 #include "Game.cpp"
 
-#include "Main.h"
+#include "Main.h" //TODO: Main.h should be renamed, same with Main.cpp.
 
 
 /*
@@ -43,14 +41,6 @@ om_global_variable sdl_offscreen_buffer GlobalBackbuffer;
 #define CONTROLLER_AXIS_LEFT_DEADZONE 7849
 om_global_variable SDL_GameController *ControllerHandles[MAX_CONTROLLERS];
 om_global_variable SDL_Haptic *RumbleHandles[MAX_CONTROLLERS];
-
-inline u32
-SafeTruncateUInt64(u64 Value)
-{
-	OM_ASSERT(Value <= 0xFFFFFFFF);
-	u32 Result = (u32)Value;
-	return (Result);
-}
 
 om_internal debug_read_file_result
 DEBUGPlatformReadEntireFile(char *FileName)
