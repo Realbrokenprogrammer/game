@@ -1,19 +1,28 @@
+#ifndef GAME_H
+#define GAME_H
 #pragma once
-#include <SDL.h>
 
-enum Game_State {
-	RUNNING,
-	PAUSED
-};
-
-struct Game 
+struct game_memory
 {
-	Game_State state;
-	SDL_Renderer* renderer;
+	b32 IsInitialized;
+
+	u64 PermanentStorageSize;
+	void *PermanentStorage;			//NOTE: Required to be cleared to zero at startup.
+
+	u64 TransientStorageSize;
+	void *TransientStorage;
 };
 
-Game* create_game();
-void destroy_game();
-int game_renderer();
-int game_input();
-int game_update();
+om_internal void GameUpdateAndRender(game_memory *Memory,
+									 game_input *Input, game_offscreen_buffer *Buffer,
+									 game_sound_output_buffer *SoundBuffer);
+
+
+struct game_state
+{
+	int ToneHz;
+	int RedOffset;
+	int BlueOffset;
+};
+
+#endif // GAME_H
