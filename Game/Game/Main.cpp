@@ -60,7 +60,7 @@ DEBUGPlatformReadEntireFile(char *FileName)
 			if (Result.Contents)
 			{ 
 				DWORD BytesRead;
-				if (ReadFile(FileHandle, Result.Contents, FileSize.QuadPart, &BytesRead, NULL) && 
+				if (ReadFile(FileHandle, Result.Contents, FileSize32, &BytesRead, NULL) && 
 					(FileSize32 == BytesRead))
 				{
 					// File read successfully.
@@ -278,7 +278,7 @@ SDLProcessEvents(game_controller_input *KeyboardController)
 					}
 					else if (KeyCode == SDLK_ESCAPE)
 					{
-
+						GlobalRunning = false;
 					}
 					else if (KeyCode == SDLK_SPACE)
 					{
@@ -456,8 +456,6 @@ int main(int argc, char *argv[]) {
 			SoundOutput.BytesPerSample = sizeof(i16) * 2;
 			SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample;
 			SoundOutput.LatencySampleCount = SoundOutput.SamplesPerSecond / 15;
-			int SquareWavePeriod = SoundOutput.SamplesPerSecond / 256;
-			int HalfSquareWavePeriod = SquareWavePeriod / 2;
 
 			SDLInitAudio(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
 			SDLClearSoundBuffer(&SoundOutput);
@@ -475,10 +473,10 @@ int main(int argc, char *argv[]) {
 #endif
 			game_memory GameMemory = {};
 			GameMemory.PermanentStorageSize = om_megabytes(64);
-			GameMemory.TransientStorageSize = om_gigabytes((u64)4);
+			GameMemory.TransientStorageSize = om_gigabytes(1);
 
 			u64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
-			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?
+			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, (size_t)TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?
 
 			GameMemory.TransientStorage = ((u8 *)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize);
 
@@ -495,12 +493,13 @@ int main(int argc, char *argv[]) {
 				i64 LastCycleCount = __rdtsc();
 				while (GlobalRunning) {
 
-					// TODO(casey): Zeroing macro
 					// TODO(casey): We can't zero everything because the up/down state will
 					// be wrong!!!
-					/*game_controller_input *OldKeyboardController = GetController(OldInput, 0);
-					game_controller_input *NewKeyboardController = GetController(NewInput, 0);
+					game_controller_input *OldKeyboardController = &OldInput->Controllers[0];
+					game_controller_input *NewKeyboardController = &OldInput->Controllers[0];
+					// TODO(casey): Zeroing macro
 					*NewKeyboardController = {};
+
 					NewKeyboardController->IsConnected = true;
 					for (int ButtonIndex = 0;
 						ButtonIndex < OM_ARRAYCOUNT(NewKeyboardController->Buttons);
@@ -508,11 +507,11 @@ int main(int argc, char *argv[]) {
 					{
 						NewKeyboardController->Buttons[ButtonIndex].EndedDown =
 							OldKeyboardController->Buttons[ButtonIndex].EndedDown;
-					}*/
+					}
 
-					//SDLProcessEvents(NewKeyboardController);
+					SDLProcessEvents(NewKeyboardController);
 
-					int MaxControllerCount = MAX_CONTROLLERS;
+					DWORD MaxControllerCount = MAX_CONTROLLERS;
 					if (MaxControllerCount > OM_ARRAYCOUNT(NewInput->Controllers))
 					{
 						MaxControllerCount = OM_ARRAYCOUNT(NewInput->Controllers);
@@ -680,5 +679,8 @@ int main(int argc, char *argv[]) {
 	{
 
 	}
+
+
+
 	return (0);
 }

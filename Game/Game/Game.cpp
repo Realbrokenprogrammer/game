@@ -28,8 +28,8 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
 		u32 *Pixel = (u32 *)Row;
 		for (int X = 0; X < Buffer->Width; ++X)
 		{
-			u8 Blue = (X + BlueOffset);
-			u8 Green = (Y + GreenOffset);
+			u8 Blue = (u8)(X + BlueOffset);
+			u8 Green = (u8)(Y + GreenOffset);
 
 			*Pixel++ = ((Green << 8) | Blue);
 		}
@@ -74,12 +74,9 @@ GameUpdateAndRender(game_memory *Memory,
 	}
 	else
 	{
-
 	}
 
-	//Input.AButtonEndedDown;
-	//Input.AButtonHalfTransitionCount;
-	if (Input0->Down.EndedDown)
+	if (Input0->Up.EndedDown)
 	{
 		GameState->GreenOffset += 1;
 	}
