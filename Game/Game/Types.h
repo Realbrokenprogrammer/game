@@ -20,6 +20,11 @@ typedef uint32_t		u32;
 typedef int64_t			i64;
 typedef uint64_t		u64;
 typedef i32				b32;
+
+typedef i8 s8;
+typedef i16 s16;
+typedef i32 s32;
+typedef i64 s64;
 #endif
 
 /*

@@ -2,7 +2,7 @@
 #define OM_DEBUG 1
 
 #include "Platform.h"
-//#include "Intristrics.h"
+#include "Game_Intristics.h"
 #include "Game_Math.h"
 
 #include <SDL.h>
@@ -35,6 +35,7 @@
 
 om_global_variable b32 GlobalRunning;
 om_global_variable sdl_offscreen_buffer GlobalBackbuffer;
+om_global_variable u64 GlobalPerfCountFrequency;
 
 #define MAX_CONTROLLERS 4
 #define CONTROLLER_AXIS_LEFT_DEADZONE 7849
@@ -432,22 +433,28 @@ SDLGetWallClock(void)
 }
 
 om_internal r32
-SDLGetSecondsElapsed(u64 Start, u64 End, r32 GlobalPerfCountFrequency)
+SDLGetSecondsElapsed(u64 Start, u64 End)
 {
 	r32 Result;
 
-	Result = ((r32)(End - Start) / GlobalPerfCountFrequency);
+	Result = ((r32)(End - Start) / (r32)GlobalPerfCountFrequency);
 
 	return (Result);
 }
 
 int main(int argc, char *argv[]) {
 
-	u64 PerfCountFrequencyResult = SDL_GetPerformanceFrequency();
+	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
+	b32 SleepIsGranular = (timeBeginPeriod(1) == TIMERR_NOERROR);
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC | SDL_INIT_AUDIO);
 
 	SDLOpenGameControllers();
+
+	//SDLRezieBuffer(&GlobalBackBuffer, 192, 108);
+	//SDLRezieBuffer(&GlobalBackBuffer, 480, 270);
+	//SDLRezieBuffer(&GlobalBackBuffer, 960, 540);
+	//SDLResizeBuffer(&GlobalBackBuffer, 1920, 1080);
 
 	// Create SDL Window.
 	SDL_Window *Window = SDL_CreateWindow("Game",
@@ -460,10 +467,22 @@ int main(int argc, char *argv[]) {
 	if (Window) {
 		// TODO: Show cursor if debug global
 
+		u32 MaxQuadCountPerFrame = (1 << 18);
+
 		SDL_Renderer *Renderer = SDL_CreateRenderer(Window, -1, SDL_RENDERER_PRESENTVSYNC);
 
 		if (Renderer) {
 			SDLResizeTexture(&GlobalBackbuffer, Renderer, 1920, 1080);
+			
+			int MonitorRefreshHz = 60;
+			int DisplayIndex = SDL_GetWindowDisplayIndex(Window);
+			SDL_DisplayMode Mode = {};
+			int DisplayModeResult = SDL_GetDesktopDisplayMode(DisplayIndex, &Mode);
+			if (DisplayModeResult == 0 && Mode.refresh_rate > 1) 
+			{
+				MonitorRefreshHz = Mode.refresh_rate;
+			}
+			r32 GameUpdateHz = (r32)(MonitorRefreshHz);
 
 			sdl_sound_output SoundOutput = {};
 			SoundOutput.SamplesPerSecond = 48000;
@@ -500,12 +519,13 @@ int main(int argc, char *argv[]) {
 				game_input Input[2] = {};
 				game_input *NewInput = &Input[0];
 				game_input *OldInput = &Input[1];
-
-				//TODO: ??
+				
 				u64 LastCounter = SDLGetWallClock();
 				u64 FlipWallClock = SDLGetWallClock();
 
-				i64 LastCycleCount = __rdtsc();
+				SDL_ShowWindow(Window);
+				u32 ExpectedFramesPerUpdate = 1;
+				r32 TargetSecondsPerFrame = (r32)ExpectedFramesPerUpdate / (r32)GameUpdateHz;
 				while (GlobalRunning) {
 
 					// TODO(casey): We can't zero everything because the up/down state will
@@ -652,6 +672,7 @@ int main(int argc, char *argv[]) {
 					//TODO: More robust BytesToWrite..
 					int BytesToWrite = 800 * SoundOutput.BytesPerSample;
 
+					//TODO: Currently wrong.
 					game_sound_output_buffer SoundBuffer = {};
 					SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
 					SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
@@ -665,21 +686,49 @@ int main(int argc, char *argv[]) {
 
 					GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 
-					//NOTE: Sound output test.
 					if (SoundIsValid)
 					{
 						SDLFillSoundBuffer(&SoundOutput, BytesToWrite, &SoundBuffer);
 					}
+					
+
+					//TODO: Leave this off untill there is v support.
+#if 0
+					u64 WorkCounter = SDLGetWallClock();
+					r32 WorkSecondsElapsed = SDLGetSecondsElapsed(LastCounter, WorkCounter);
+
+					//TODO: Might be bugged
+					r32 SecondsElapsedForFrame = WorkSecondsElapsed;
+					if (SecondsElapsedForFrame < TargetSecondsPerFrame)
+					{
+						u32 SleepMS = (u32)(1000.0f (TargetSecondsPerFrame - SecondsElapsedForFrame));
+
+						if (SleepMS > 0)
+						{
+							SDL_Delay(SleepMS);
+						}
+
+						r32 TestSecondsElapsedForFrame = SDLGetSecondsElapsed(LastCounter, SDLGetWallClock());
+
+						if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
+						{
+							//TODO: Missed sleep, logging
+						}
+
+						while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+						{
+							SecondsElapsedForFrame = SDLGetSecondsElapsed(LastCounter, SDLGetWallClock());
+						}
+					}
+					else
+					{
+						//TODO: Missed Frame, Logging
+					}
+#endif
 
 					sdl_window_dimension Dimension = SDLGetWindowDimension(Window);
 					SDLDisplayBufferInWindow(&GlobalBackbuffer, Renderer,
 						Dimension.Width, Dimension.Height);
-
-					i64 EndCycleCount = __rdtsc();
-
-					u64 EndCounter = SDLGetWallClock();
-					r32 MSPerFrame = 1000.0f*SDLGetSecondsElapsed(LastCounter, EndCounter, PerfCountFrequencyResult);
-					LastCounter = EndCounter;
 
 					FlipWallClock = SDLGetWallClock();
 
@@ -687,8 +736,15 @@ int main(int argc, char *argv[]) {
 					NewInput = OldInput;
 					OldInput = Temp;
 
+					u64 EndCounter = SDLGetWallClock();
+					r32 MeasuredSecondsPerFrame = SDLGetSecondsElapsed(LastCounter, EndCounter);
+					r32 ExactTargetFramesPerUpdate = MeasuredSecondsPerFrame * (r32)MonitorRefreshHz;
+					u32 NewExpectedFramesPerUpdate = RoundReal32ToInt32(ExactTargetFramesPerUpdate);
+					ExpectedFramesPerUpdate = NewExpectedFramesPerUpdate;
+
+					TargetSecondsPerFrame = MeasuredSecondsPerFrame;
+
 					LastCounter = EndCounter;
-					LastCycleCount = EndCycleCount;
 				}
 			}
 			else

@@ -88,7 +88,7 @@
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>D:\SDL\lib\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL2.lib;SDL2main.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL2.lib;SDL2main.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Windows</SubSystem>
       <MinimumRequiredVersion>5.1</MinimumRequiredVersion>
     </Link>
@@ -142,6 +142,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Game.h">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </ClInclude>
+    <ClInclude Include="Game_Intristics.h">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </ClInclude>
     <ClInclude Include="Game_Math.h">
