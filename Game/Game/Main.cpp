@@ -3,7 +3,7 @@
 
 #include "Platform.h"
 //#include "Intristrics.h"
-//#include "Math.h"
+#include "Game_Math.h"
 
 #include <SDL.h>
 
@@ -14,7 +14,6 @@
 #include "Game.cpp"
 
 #include "Main.h" //TODO: Main.h should be renamed, same with Main.cpp.
-
 
 /*
 	TODO:
