@@ -34,6 +34,7 @@
 */
 
 om_global_variable b32 GlobalRunning;
+om_global_variable b32 GlobalPause;
 om_global_variable sdl_offscreen_buffer GlobalBackbuffer;
 om_global_variable sdl_audio_ring_buffer GlobalSecondaryBuffer;
 om_global_variable u64 GlobalPerfCountFrequency;
@@ -454,8 +455,8 @@ SDLDisplayBufferInWindow(sdl_offscreen_buffer *Buffer, SDL_Renderer *Renderer, i
 	}
 	else
 	{
-		int OffsetX = 10;
-		int OffsetY = 10;
+		int OffsetX = 0;
+		int OffsetY = 0;
 
 		SDL_SetRenderDrawColor(Renderer, 0, 0, 0, 255);
 		SDL_Rect BlackRects[4] = {
@@ -483,9 +484,7 @@ SDLDisplayBufferInWindow(sdl_offscreen_buffer *Buffer, SDL_Renderer *Renderer, i
 inline u64
 SDLGetWallClock(void)
 {
-	u64 Result;
-
-	Result = SDL_GetPerformanceCounter();
+	u64 Result = SDL_GetPerformanceCounter();
 
 	return (Result);
 }
@@ -517,8 +516,8 @@ int main(int argc, char *argv[]) {
 	SDL_Window *Window = SDL_CreateWindow("Game",
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
-		1920,
-		1080,
+		1280,
+		720,
 		SDL_WINDOW_RESIZABLE);
 
 	if (Window) {
@@ -529,7 +528,7 @@ int main(int argc, char *argv[]) {
 		SDL_Renderer *Renderer = SDL_CreateRenderer(Window, -1, SDL_RENDERER_PRESENTVSYNC);
 
 		if (Renderer) {
-			SDLResizeTexture(&GlobalBackbuffer, Renderer, 1920, 1080);
+			SDLResizeTexture(&GlobalBackbuffer, Renderer, 1280, 720);
 			
 			int MonitorRefreshHz = 60;
 			int DisplayIndex = SDL_GetWindowDisplayIndex(Window);
@@ -546,7 +545,7 @@ int main(int argc, char *argv[]) {
 			SoundOutput.RunningSampleIndex = 0;
 			SoundOutput.BytesPerSample = sizeof(i16) * 2;
 			SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample;
-			SoundOutput.SafetyBytes = (int)(((r32)SoundOutput.SamplesPerSecond*(r32)SoundOutput.BytesPerSample / GameUpdateHz)); // / 2.0f);
+			SoundOutput.SafetyBytes = (int)(((r32)SoundOutput.SamplesPerSecond*(r32)SoundOutput.BytesPerSample / GameUpdateHz));
 			
 			SDLInitAudio(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
 			SDLClearSoundBuffer(&SoundOutput); //TODO: Redundant?
@@ -556,8 +555,7 @@ int main(int argc, char *argv[]) {
 
 			//TODO: Pool with bitmap VirtualAlloc.
 			u32 MaxPossibleOverrun = 2 * 8 * sizeof(u16);
-			i16 *Samples = (i16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize + MaxPossibleOverrun, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-
+			i16 *Samples = (i16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 #ifdef OM_DEBUG
 			void *BaseAddress = (void *)om_terabytes(2);
 #else
@@ -569,7 +567,6 @@ int main(int argc, char *argv[]) {
 
 			u64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
 			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, (size_t)TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?
-
 			GameMemory.TransientStorage = ((u8 *)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize);
 
 			if (Samples && GameMemory.PermanentStorage && GameMemory.TransientStorage)
@@ -589,7 +586,9 @@ int main(int argc, char *argv[]) {
 				SDL_ShowWindow(Window);
 				u32 ExpectedFramesPerUpdate = 1;
 				r32 TargetSecondsPerFrame = (r32)ExpectedFramesPerUpdate / (r32)GameUpdateHz;
-				while (GlobalRunning) {
+				while (GlobalRunning) 
+				{
+					sdl_window_dimension Dimension = SDLGetWindowDimension(Window);
 
 					// TODO(casey): We can't zero everything because the up/down state will
 					// be wrong!!!
@@ -730,12 +729,6 @@ int main(int argc, char *argv[]) {
 						}
 					}
 
-					game_offscreen_buffer Buffer = {};
-					Buffer.Memory = GlobalBackbuffer.Memory;
-					Buffer.Width = GlobalBackbuffer.Width;
-					Buffer.Height = GlobalBackbuffer.Height;
-					Buffer.Pitch = GlobalBackbuffer.Pitch;
-
 					if (!SoundIsValid)
 					{
 						SoundIsValid = true;
@@ -743,8 +736,8 @@ int main(int argc, char *argv[]) {
 
 					SDL_LockAudio();
 					int ByteToLock = (SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) % SoundOutput.SecondaryBufferSize;
-					int TargetCursor = ((GlobalSecondaryBuffer.PlayCursor + 
-						(SoundOutput.SafetyBytes*SoundOutput.BytesPerSample)) % 
+					int TargetCursor = ((GlobalSecondaryBuffer.PlayCursor +
+						(SoundOutput.SafetyBytes*SoundOutput.BytesPerSample)) %
 						SoundOutput.SecondaryBufferSize);
 					int BytesToWrite;
 					if (ByteToLock > TargetCursor)
@@ -758,14 +751,20 @@ int main(int argc, char *argv[]) {
 					}
 					SDL_UnlockAudio();
 
+					game_offscreen_buffer Buffer = {};
+					Buffer.Memory = GlobalBackbuffer.Memory;
+					Buffer.Width = GlobalBackbuffer.Width;
+					Buffer.Height = GlobalBackbuffer.Height;
+					Buffer.Pitch = GlobalBackbuffer.Pitch;
+					GameUpdateAndRender(&GameMemory, NewInput, &Buffer);
+
 					game_sound_output_buffer SoundBuffer = {};
 					SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
 					SoundBuffer.SampleCount = Align8(BytesToWrite / SoundOutput.BytesPerSample);
 					BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
 					SoundBuffer.Samples = Samples;
+					GameGetSoundSamples(&GameMemory, &SoundBuffer);
 
-
-					GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 					SDLFillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
 
 					//TODO: Leave this off untill there is v support.
@@ -781,7 +780,7 @@ int main(int argc, char *argv[]) {
 
 						if (SleepMS > 0)
 						{
-							SDL_Delay(SleepMS);
+							SDL_Delay(SleepMS - 1);
 						}
 
 						r32 TestSecondsElapsedForFrame = SDLGetSecondsElapsed(LastCounter, SDLGetWallClock());
@@ -802,7 +801,6 @@ int main(int argc, char *argv[]) {
 					}
 #endif
 
-					sdl_window_dimension Dimension = SDLGetWindowDimension(Window);
 					SDLDisplayBufferInWindow(&GlobalBackbuffer, Renderer,
 						Dimension.Width, Dimension.Height);
 
