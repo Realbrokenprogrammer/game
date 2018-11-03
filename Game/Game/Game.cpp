@@ -171,6 +171,8 @@ AddEntity(game_state *GameState, entity_type Type, world_position *Position)
 om_internal entity
 AddWall(game_state *GameState, u32 PosX, u32 PosY)
 {
+	//TODO: The Position times the constant value is temporary. Remove this when entities got position representation
+	// within the world tiles.
 	world_position Position = {(r32)PosX * 70, (r32)PosY * 80}; // Get position based on tile x and y
 	entity Entity = *AddEntity(GameState, EntityType_Wall, &Position);
 
