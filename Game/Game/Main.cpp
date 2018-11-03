@@ -129,6 +129,39 @@ DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory)
 	return (Result);
 }
 
+//TODO: Assert its actually a BMP file sent into this function.
+om_internal loaded_bitmap
+DEBUGLoadBitmap(char *FileName)
+{
+	loaded_bitmap Result = {};
+
+	SDL_Surface *Image = SDL_LoadBMP(FileName);
+	if (Image == NULL)
+	{
+		//TODO: Logging
+	}
+	else
+	{
+		SDL_PixelFormat *Format = Image->format;
+		SDL_Surface *FormattedImage = SDL_ConvertSurfaceFormat(Image, SDL_PIXELFORMAT_BGRA32, 0);
+
+		if (FormattedImage == NULL)
+		{
+			//TODO: Logging
+		}
+		else
+		{
+			Result.Width = FormattedImage->w;
+			Result.Height = FormattedImage->h;
+			Result.Pixels = ((u32 *)FormattedImage->pixels);
+		}
+
+		SDL_FreeSurface(Image);
+	}
+
+	return (Result);
+}
+
 om_internal void
 SDLOpenGameControllers()
 {

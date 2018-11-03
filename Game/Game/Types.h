@@ -85,6 +85,26 @@ union vector3
 	r32 E[3];
 };
 
+struct rect2I
+{
+	i32 MinX;
+	i32 MinY;
+	i32 MaxX;
+	i32 MaxY;
+};
+
+struct rect2
+{
+	vector2 Min;
+	vector2 Max;
+};
+
+struct rect3
+{
+	vector3 Min;
+	vector3 Max;
+};
+
 inline u32
 SafeTruncateUInt64(u64 Value)
 {

@@ -2,12 +2,8 @@
 #define GAME_H
 #pragma once
 
-struct bitmap
-{
-	i32 Width;
-	i32 Height;
-	u32 *Pixels;
-};
+#include "Game_World.h"
+#include "Game_Entity.h"
 
 struct game_memory
 {
@@ -26,9 +22,18 @@ om_internal void GameGetSoundSamples(game_memory *Memory, game_sound_output_buff
 
 struct game_state
 {
+	world *World;
+
+	world_position CameraPosition;
+
+	u32 EntityCount;
+	entity Entities[10000];
+
 	int ToneHz;
 	int RedOffset;
 	int BlueOffset;
+
+	loaded_bitmap Bitmap;
 };
 
 #endif // GAME_H

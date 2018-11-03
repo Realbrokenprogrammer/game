@@ -8,6 +8,13 @@
 	Services that the platform provides to the game
 */
 
+struct loaded_bitmap
+{
+	i32 Width;
+	i32 Height;
+	u32 *Pixels;
+};
+
 #if OM_DEBUG
 // These are NOT for doing anything in the release version of the game. They are blocking 
 // and the write doesn't protect against lost data.
@@ -20,6 +27,8 @@ om_internal debug_read_file_result DEBUGPlatformReadEntireFile(char *FileName);
 om_internal void DEBUGPlatformFreeFileMemory(void *Memory);
 
 om_internal b32 DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory);
+
+om_internal loaded_bitmap DEBUGLoadBitmap(char * FileName);
 #endif
 
 /*

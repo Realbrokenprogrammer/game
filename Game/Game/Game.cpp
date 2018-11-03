@@ -1,4 +1,5 @@
 #include "Game.h"
+#include "Game_World.cpp"
 
 om_internal void
 GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -66,6 +67,52 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 }
 
 om_internal void
+DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, r32 TargetX, r32 TargetY, r32 ColorAlpha)
+{
+	i32 MinX = RoundReal32ToInt32(TargetX);
+	i32 MinY = RoundReal32ToInt32(TargetY);
+	i32 MaxX = MinX + Bitmap->Width;
+	i32 MaxY = MinY + Bitmap->Height;
+
+	i32 SourceOffsetX = 0;
+	if (MinX < 0)
+	{
+		SourceOffsetX = -MinX;
+		MinX = 0;
+	}
+
+	i32 SourceOffsetY = 0;
+	if (MinY < 0)
+	{
+		SourceOffsetY = -MinY;
+		MinY = 0;
+	}
+
+	if (MaxX > Buffer->Width)
+	{
+		MaxX = Buffer->Width;
+	}
+
+	if (MaxY > Buffer->Height)
+	{
+		MaxY = Buffer->Height;
+	}
+
+	u32 *Source = Bitmap->Pixels;
+	u8 *Row = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
+	for (int Y = MinY; Y < MaxY; ++Y)
+	{
+		u32 *Pixel = (u32 *)Row;
+		for (int X = MinX; X < MaxX; ++X)
+		{
+			*Pixel++ = *Source++;
+		}
+
+		Row += Buffer->Pitch;
+	}
+}
+
+om_internal void
 RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 {
 	u8 *Row = (u8 *)Buffer->Memory;
@@ -82,6 +129,54 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 
 		Row += Buffer->Pitch;
 	}
+}
+
+inline vector2
+GetCamera(game_state *GameState)
+{
+	world_difference Diff = SubtractPosition2D(GameState->World, 0, &GameState->CameraPosition);
+	vector2 Result = Diff.deltaXY;
+
+	return (Result);
+}
+
+om_internal void 
+SetCamera()
+{
+
+}
+
+om_internal void
+AddPlayer()
+{
+
+}
+
+//TODO: Perhaps don't return pointer to the entity?
+om_internal entity *
+AddEntity(game_state *GameState, entity_type Type, world_position *Position)
+{
+	//TODO: Assert that we're not adding more entities than what the GameState can hold.
+	u32 EntityIndex = GameState->EntityCount++;
+
+	entity *Entity = GameState->Entities + EntityIndex;
+	*Entity = {};
+	Entity->Type = Type;
+
+	ChangeEntityLocation(GameState->World, EntityIndex, Entity, 0, Position);
+
+	return (Entity);
+}
+
+om_internal entity
+AddWall(game_state *GameState, u32 PosX, u32 PosY)
+{
+	//TODO: The Position times the constant value is temporary. Remove this when entities got position representation
+	// within the world tiles.
+	world_position Position = {(r32)PosX * 70, (r32)PosY * 80}; // Get position based on tile x and y
+	entity Entity = *AddEntity(GameState, EntityType_Wall, &Position);
+
+	return (Entity);
 }
 
 om_internal void
@@ -106,6 +201,39 @@ GameUpdateAndRender(game_memory *Memory,
 		}
 
 		GameState->ToneHz = 256;
+
+		GameState->EntityCount = 0;
+
+		// Initializing World
+		world *World = GameState->World;
+		if (World == NULL)
+		{
+			// TODO: Temporary call. Don't use Virtual Alloc here and let Platform layer handle allocation.
+			World = (world *)VirtualAlloc(0, sizeof(world), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		}
+		InitializeWorld(World, 1.4);
+
+		u32 TilesPerWidth = 17;
+		u32 TilesPerHeight = 9;
+
+		for (u32 TileY = 0; TileY < TilesPerHeight; ++TileY)
+		{
+			for (u32 TileX = 0; TileX < TilesPerWidth; ++TileX)
+			{
+				u32 TileValue = 1;
+
+				if ((TileX == 0) || (TileY == 0) || (TileY == (TilesPerHeight -1)) || (TileX == (TilesPerWidth -1)))
+				{
+					TileValue = 2;
+				}
+
+				if (TileValue == 2)
+				{
+					AddWall(GameState, TileX, TileY);
+				}
+
+			}
+		}
 
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
@@ -134,12 +262,32 @@ GameUpdateAndRender(game_memory *Memory,
 	}
 
 	//TODO: Allow sample offsets here for more robust platform options
-	RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);
+	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);
 
 	vector2 min = Vector2(150, 150);
 	vector2 max = Vector2(200, 200);
 	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 1.0f, 0.0f, 0.0f);
 	DrawRect(Buffer, min, max, 0.0f, 0.0f, 1.0f);
+
+
+	DrawBitmap(Buffer, &GameState->Bitmap, 500, 300, 0.0f);*/
+
+	for (u32 EntityIndex = 0; EntityIndex < GameState->EntityCount; ++EntityIndex)
+	{
+		entity Entity = GameState->Entities[EntityIndex];
+
+		switch (Entity.Type)
+		{
+			case EntityType_Wall:
+			{
+				DrawBitmap(Buffer, &GameState->Bitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+			} break;
+			case EntityType_Null:
+				break;
+			default:
+				break;
+		}
+	}
 }
 
 om_internal void
