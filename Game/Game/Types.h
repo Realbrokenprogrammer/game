@@ -55,6 +55,8 @@ typedef i64 s64;
 
 #define OM_ARRAYCOUNT(Array) (sizeof(Array) / sizeof((Array)[0]))
 
+#define Align8(Value) ((Value + 7) & ~7)
+
 #define OM_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define OM_MAX(a, b) ((a) > (b) ? (a) : (b))
 

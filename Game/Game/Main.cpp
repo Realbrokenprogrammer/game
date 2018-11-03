@@ -35,6 +35,7 @@
 
 om_global_variable b32 GlobalRunning;
 om_global_variable sdl_offscreen_buffer GlobalBackbuffer;
+om_global_variable sdl_audio_ring_buffer GlobalSecondaryBuffer;
 om_global_variable u64 GlobalPerfCountFrequency;
 
 #define MAX_CONTROLLERS 4
@@ -168,6 +169,25 @@ SDLCloseGameControllers()
 }
 
 om_internal void
+SDLAudioCallback(void *UserData, u8 *AudioData, int Length)
+{
+	sdl_audio_ring_buffer *RingBuffer = (sdl_audio_ring_buffer *)UserData;
+
+	int Region1Size = Length;
+	int Region2Size = 0;
+	if ((RingBuffer->PlayCursor + Length) > RingBuffer->Size) 
+	{
+		Region1Size = RingBuffer->Size - RingBuffer->PlayCursor;
+		Region2Size = Length - Region1Size;
+	}
+
+	memcpy(AudioData, (u8*)RingBuffer->Data + RingBuffer->PlayCursor, Region1Size);
+	memcpy(AudioData + Region1Size, RingBuffer->Data, Region2Size);
+	RingBuffer->PlayCursor = (RingBuffer->PlayCursor + Length) % RingBuffer->Size;
+	RingBuffer->WriteCursor = (RingBuffer->PlayCursor + Length) % RingBuffer->Size;
+}
+
+om_internal void
 SDLInitAudio(i32 SamplesPerSecond, i32 BufferSize)
 {
 	SDL_AudioSpec AudioSettings = {};
@@ -176,6 +196,12 @@ SDLInitAudio(i32 SamplesPerSecond, i32 BufferSize)
 	AudioSettings.format = AUDIO_S16LSB;
 	AudioSettings.channels = 2;
 	AudioSettings.samples = 512;
+	AudioSettings.callback = &SDLAudioCallback;
+	AudioSettings.userdata = &GlobalSecondaryBuffer;
+
+	GlobalSecondaryBuffer.Size = BufferSize;
+	GlobalSecondaryBuffer.Data = calloc(BufferSize, 1);
+	GlobalSecondaryBuffer.PlayCursor = GlobalSecondaryBuffer.WriteCursor = 0;
 
 	SDL_OpenAudio(&AudioSettings, 0);
 
@@ -192,9 +218,41 @@ SDLClearSoundBuffer(sdl_sound_output *SoundOutput)
 }
 
 om_internal void
-SDLFillSoundBuffer(sdl_sound_output *SoundOutput, int BytesToWrite, game_sound_output_buffer *SoundBuffer)
+SDLFillSoundBuffer(sdl_sound_output *SoundOutput, int ByteToLock, int BytesToWrite, 
+	game_sound_output_buffer *SourceBuffer)
 {
-	SDL_QueueAudio(1, SoundBuffer->Samples, BytesToWrite);
+	void *Region1 = (u8 *)GlobalSecondaryBuffer.Data + ByteToLock;
+	int Region1Size = BytesToWrite;
+	if (Region1Size + ByteToLock > SoundOutput->SecondaryBufferSize)
+	{
+		Region1Size = SoundOutput->SecondaryBufferSize - ByteToLock;
+	}
+	void *Region2 = GlobalSecondaryBuffer.Data;
+	int Region2Size = BytesToWrite - Region1Size;
+
+	// TODO(casey): Collapse these two loops
+	int Region1SampleCount = Region1Size / SoundOutput->BytesPerSample;
+	i16 *DestSample = (i16 *)Region1;
+	i16 *SourceSample = SourceBuffer->Samples;
+	for (int SampleIndex = 0;
+		SampleIndex < Region1SampleCount;
+		++SampleIndex)
+	{
+		*DestSample++ = *SourceSample++;
+		*DestSample++ = *SourceSample++;
+		++SoundOutput->RunningSampleIndex;
+	}
+
+	int Region2SampleCount = Region2Size / SoundOutput->BytesPerSample;
+	DestSample = (i16 *)Region2;
+	for (int SampleIndex = 0;
+		SampleIndex < Region2SampleCount;
+		++SampleIndex)
+	{
+		*DestSample++ = *SourceSample++;
+		*DestSample++ = *SourceSample++;
+		++SoundOutput->RunningSampleIndex;
+	}
 }
 
 om_internal void
@@ -363,7 +421,7 @@ SDLResizeTexture(sdl_offscreen_buffer *Buffer, SDL_Renderer *Renderer, int Width
 		Buffer->Height = Height;
 
 		int BytesPerPixel = 4;
-		//Buffer->BytesPerPixel = BytesPerPixel;
+		Buffer->BytesPerPixel = BytesPerPixel;
 
 		if (Buffer->Texture)
 		{
@@ -445,8 +503,7 @@ SDLGetSecondsElapsed(u64 Start, u64 End)
 int main(int argc, char *argv[]) {
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
-	b32 SleepIsGranular = (timeBeginPeriod(1) == TIMERR_NOERROR);
-
+	
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC | SDL_INIT_AUDIO);
 
 	SDLOpenGameControllers();
@@ -489,10 +546,10 @@ int main(int argc, char *argv[]) {
 			SoundOutput.RunningSampleIndex = 0;
 			SoundOutput.BytesPerSample = sizeof(i16) * 2;
 			SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample;
-			SoundOutput.LatencySampleCount = SoundOutput.SamplesPerSecond / 15;
-
+			SoundOutput.SafetyBytes = (int)(((r32)SoundOutput.SamplesPerSecond*(r32)SoundOutput.BytesPerSample / GameUpdateHz));// / 2.0f);
+			
 			SDLInitAudio(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
-			SDLClearSoundBuffer(&SoundOutput);
+			SDLClearSoundBuffer(&SoundOutput); //TODO: Redundant?
 			SDL_PauseAudio(0);
 
 			GlobalRunning = true;
@@ -522,6 +579,11 @@ int main(int argc, char *argv[]) {
 				
 				u64 LastCounter = SDLGetWallClock();
 				u64 FlipWallClock = SDLGetWallClock();
+
+				int DebugTimeMarkerIndex = 0;
+				sdl_debug_time_marker DebugTimeMarkers[30] = { 0 };
+
+				b32 SoundIsValid = false;
 
 				SDL_ShowWindow(Window);
 				u32 ExpectedFramesPerUpdate = 1;
@@ -667,30 +729,43 @@ int main(int argc, char *argv[]) {
 						}
 					}
 
-					b32 SoundIsValid = true;
-					
-					//TODO: More robust BytesToWrite..
-					int BytesToWrite = 800 * SoundOutput.BytesPerSample;
-
-					//TODO: Currently wrong.
-					game_sound_output_buffer SoundBuffer = {};
-					SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
-					SoundBuffer.SampleCount = BytesToWrite / SoundOutput.BytesPerSample;
-					SoundBuffer.Samples = Samples;
-
 					game_offscreen_buffer Buffer = {};
 					Buffer.Memory = GlobalBackbuffer.Memory;
 					Buffer.Width = GlobalBackbuffer.Width;
 					Buffer.Height = GlobalBackbuffer.Height;
 					Buffer.Pitch = GlobalBackbuffer.Pitch;
 
+					if (!SoundIsValid)
+					{
+						SoundIsValid = true;
+					}
+
+					SDL_LockAudio();
+					int ByteToLock = (SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) % SoundOutput.SecondaryBufferSize;
+					int TargetCursor = ((GlobalSecondaryBuffer.PlayCursor + 
+						(SoundOutput.SafetyBytes*SoundOutput.BytesPerSample)) % 
+						SoundOutput.SecondaryBufferSize);
+					int BytesToWrite;
+					if (ByteToLock > TargetCursor)
+					{
+						BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
+						BytesToWrite += TargetCursor;
+					}
+					else
+					{
+						BytesToWrite = TargetCursor - ByteToLock;
+					}
+					SDL_UnlockAudio();
+
+					game_sound_output_buffer SoundBuffer = {};
+					SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
+					SoundBuffer.SampleCount = Align8(BytesToWrite / SoundOutput.BytesPerSample);
+					BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
+					SoundBuffer.Samples = Samples;
+
 					GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 
-					if (SoundIsValid)
-					{
-						SDLFillSoundBuffer(&SoundOutput, BytesToWrite, &SoundBuffer);
-					}
-					
+					SDLFillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
 
 					//TODO: Leave this off untill there is v support.
 #if 0
@@ -743,7 +818,7 @@ int main(int argc, char *argv[]) {
 					ExpectedFramesPerUpdate = NewExpectedFramesPerUpdate;
 
 					TargetSecondsPerFrame = MeasuredSecondsPerFrame;
-
+					
 					LastCounter = EndCounter;
 				}
 			}
