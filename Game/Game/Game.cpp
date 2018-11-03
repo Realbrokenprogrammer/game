@@ -66,6 +66,52 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 }
 
 om_internal void
+DrawBitmap(game_offscreen_buffer *Buffer, bitmap *Bitmap, r32 TargetX, r32 TargetY, r32 ColorAlpha)
+{
+	i32 MinX = RoundReal32ToInt32(TargetX);
+	i32 MinY = RoundReal32ToInt32(TargetY);
+	i32 MaxX = MinX + Bitmap->Width;
+	i32 MaxY = MinY + Bitmap->Height;
+
+	i32 SourceOffsetX = 0;
+	if (MinX < 0)
+	{
+		SourceOffsetX = -MinX;
+		MinX = 0;
+	}
+
+	i32 SourceOffsetY = 0;
+	if (MinY < 0)
+	{
+		SourceOffsetY = -MinY;
+		MinY = 0;
+	}
+
+	if (MaxX > Buffer->Width)
+	{
+		MaxX = Buffer->Width;
+	}
+
+	if (MaxY > Buffer->Height)
+	{
+		MaxY = Buffer->Height;
+	}
+
+	u32 *Source = Bitmap->Pixels;
+	u8 *Row = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
+	for (int Y = MinY; Y < MaxY; ++Y)
+	{
+		u32 *Pixel = (u32 *)Row;
+		for (int X = MinX; X < MaxX; ++X)
+		{
+			*Pixel++ = *Source++;
+		}
+
+		Row += Buffer->Pitch;
+	}
+}
+
+om_internal void
 RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 {
 	u8 *Row = (u8 *)Buffer->Memory;

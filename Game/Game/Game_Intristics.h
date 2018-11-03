@@ -12,4 +12,28 @@ RoundReal32ToInt32(r32 Real32)
 	return (Result);
 }
 
+struct bit_scan_result
+{
+	b32 Found;
+	u32 Index;
+};
+
+inline bit_scan_result
+FindLeastSignificantSetBit(u32 Value)
+{
+	bit_scan_result Result = {};
+
+	for (u32 Test = 0; Test < 32; ++Test)
+	{
+		if (Value & (1 << Test))
+		{
+			Result.Index = Test;
+			Result.Found = true;
+			break;
+		}
+	}
+
+	return (Result);
+}
+
 #endif // GAME_INTRISTICS_H
