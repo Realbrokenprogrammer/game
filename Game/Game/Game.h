@@ -26,6 +26,9 @@ struct game_state
 
 	world_position CameraPosition;
 
+	u32 EntityCount;
+	entity Entities[10000];
+
 	int ToneHz;
 	int RedOffset;
 	int BlueOffset;
