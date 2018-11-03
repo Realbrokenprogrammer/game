@@ -539,14 +539,14 @@ int main(int argc, char *argv[]) {
 			{
 				MonitorRefreshHz = Mode.refresh_rate;
 			}
-			r32 GameUpdateHz = (r32)(MonitorRefreshHz);
+			r32 GameUpdateHz = (r32)(MonitorRefreshHz / 2);
 
 			sdl_sound_output SoundOutput = {};
 			SoundOutput.SamplesPerSecond = 48000;
 			SoundOutput.RunningSampleIndex = 0;
 			SoundOutput.BytesPerSample = sizeof(i16) * 2;
 			SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample;
-			SoundOutput.SafetyBytes = (int)(((r32)SoundOutput.SamplesPerSecond*(r32)SoundOutput.BytesPerSample / GameUpdateHz));// / 2.0f);
+			SoundOutput.SafetyBytes = (int)(((r32)SoundOutput.SamplesPerSecond*(r32)SoundOutput.BytesPerSample / GameUpdateHz)); // / 2.0f);
 			
 			SDLInitAudio(SoundOutput.SamplesPerSecond, SoundOutput.SecondaryBufferSize);
 			SDLClearSoundBuffer(&SoundOutput); //TODO: Redundant?
@@ -555,7 +555,8 @@ int main(int argc, char *argv[]) {
 			GlobalRunning = true;
 
 			//TODO: Pool with bitmap VirtualAlloc.
-			i16 *Samples = (i16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			u32 MaxPossibleOverrun = 2 * 8 * sizeof(u16);
+			i16 *Samples = (i16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize + MaxPossibleOverrun, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 #ifdef OM_DEBUG
 			void *BaseAddress = (void *)om_terabytes(2);
@@ -763,8 +764,8 @@ int main(int argc, char *argv[]) {
 					BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
 					SoundBuffer.Samples = Samples;
 
-					GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 
+					GameUpdateAndRender(&GameMemory, NewInput, &Buffer, &SoundBuffer);
 					SDLFillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
 
 					//TODO: Leave this off untill there is v support.
@@ -776,7 +777,7 @@ int main(int argc, char *argv[]) {
 					r32 SecondsElapsedForFrame = WorkSecondsElapsed;
 					if (SecondsElapsedForFrame < TargetSecondsPerFrame)
 					{
-						u32 SleepMS = (u32)(1000.0f (TargetSecondsPerFrame - SecondsElapsedForFrame));
+						u32 SleepMS = (u32)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
 
 						if (SleepMS > 0)
 						{
