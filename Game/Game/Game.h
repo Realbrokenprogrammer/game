@@ -14,9 +14,8 @@ struct game_memory
 };
 
 om_internal void GameUpdateAndRender(game_memory *Memory,
-									 game_input *Input, game_offscreen_buffer *Buffer,
-									 game_sound_output_buffer *SoundBuffer);
-
+									 game_input *Input, game_offscreen_buffer *Buffer);
+om_internal void GameGetSoundSamples(game_memory *Memory, game_sound_output_buffer *SoundBuffer);
 
 struct game_state
 {
