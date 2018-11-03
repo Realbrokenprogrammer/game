@@ -20,6 +20,52 @@ GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 }
 
 om_internal void
+DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, r32 B)
+{
+	i32 MinX = RoundReal32ToInt32(Min.x);
+	i32 MinY = RoundReal32ToInt32(Min.y);
+	i32 MaxX = RoundReal32ToInt32(Max.x);
+	i32 MaxY = RoundReal32ToInt32(Max.y);
+
+	if (MinX < 0)
+	{
+		MinX = 0;
+	}
+
+	if (MinY < 0)
+	{
+		MinY = 0;
+	}
+
+	if (MaxX > Buffer->Width)
+	{
+		MaxX = Buffer->Width;
+	}
+
+	if (MaxY > Buffer->Height)
+	{
+		MaxY = Buffer->Height;
+	}
+
+	u32 Color = 
+		((RoundReal32ToInt32(R * 255.0f) << 16) | 
+		(RoundReal32ToInt32(G * 255.0f) << 8) | 
+		(RoundReal32ToInt32(B * 255.0f)));
+
+	u8 *Row = ((u8 *)Buffer->Memory + MinX*Buffer->BytesPerPixel + MinY * Buffer->Pitch);
+	for (int Y = MinY; Y < MaxY; ++Y)
+	{
+		u32 *Pixel = (u32 *)Row;
+		for (int X = MinX; X < MaxX; ++X)
+		{
+			*Pixel++ = Color;
+		}
+
+		Row += Buffer->Pitch;
+	}
+}
+
+om_internal void
 RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 {
 	u8 *Row = (u8 *)Buffer->Memory;
@@ -88,8 +134,12 @@ GameUpdateAndRender(game_memory *Memory,
 	}
 
 	//TODO: Allow sample offsets here for more robust platform options
-	//GameOutputSound(SoundBuffer, GameState->ToneHz);
 	RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);
+
+	vector2 min = Vector2(150, 150);
+	vector2 max = Vector2(200, 200);
+	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 1.0f, 0.0f, 0.0f);
+	DrawRect(Buffer, min, max, 0.0f, 0.0f, 1.0f);
 }
 
 om_internal void

@@ -41,5 +41,8 @@
     <ClInclude Include="Game_Intristics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Game_World.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

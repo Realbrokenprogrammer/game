@@ -756,6 +756,7 @@ int main(int argc, char *argv[]) {
 					Buffer.Width = GlobalBackbuffer.Width;
 					Buffer.Height = GlobalBackbuffer.Height;
 					Buffer.Pitch = GlobalBackbuffer.Pitch;
+					Buffer.BytesPerPixel = GlobalBackbuffer.BytesPerPixel;
 					GameUpdateAndRender(&GameMemory, NewInput, &Buffer);
 
 					game_sound_output_buffer SoundBuffer = {};

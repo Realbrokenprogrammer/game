@@ -2,6 +2,13 @@
 #define GAME_H
 #pragma once
 
+struct bitmap
+{
+	i32 Width;
+	i32 Height;
+	u32 *Pixels;
+};
+
 struct game_memory
 {
 	b32 IsInitialized;
