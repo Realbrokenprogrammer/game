@@ -66,7 +66,7 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 }
 
 om_internal void
-DrawBitmap(game_offscreen_buffer *Buffer, bitmap *Bitmap, r32 TargetX, r32 TargetY, r32 ColorAlpha)
+DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, r32 TargetX, r32 TargetY, r32 ColorAlpha)
 {
 	i32 MinX = RoundReal32ToInt32(TargetX);
 	i32 MinY = RoundReal32ToInt32(TargetY);
