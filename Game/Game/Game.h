@@ -2,6 +2,9 @@
 #define GAME_H
 #pragma once
 
+#include "Game_World.h"
+#include "Game_Entity.h"
+
 struct game_memory
 {
 	b32 IsInitialized;
@@ -19,6 +22,10 @@ om_internal void GameGetSoundSamples(game_memory *Memory, game_sound_output_buff
 
 struct game_state
 {
+	world *World;
+
+	world_position CameraPosition;
+
 	int ToneHz;
 	int RedOffset;
 	int BlueOffset;
