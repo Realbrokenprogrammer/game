@@ -19,9 +19,4 @@ InitializeWorld(world *World, u32 WorldWidth, u32 WorldHeight)
 {
 	World->WorldWidth = WorldWidth;
 	World->WorldHeight = WorldHeight;
-
-	for (int LayerIndex = 0; LayerIndex < MAX_LAYERS; ++LayerIndex)
-	{
-		World->Layers[LayerIndex].Tiles = (world_tile *)malloc(WorldWidth*WorldHeight*sizeof(world_tile));
-	}
 }

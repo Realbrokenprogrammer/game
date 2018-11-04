@@ -29,13 +29,11 @@ struct world_tile
 };
 
 #define MAX_LAYERS 8
+#define MAX_ENTITIES 10000
 struct world_layer
 {
-	//TODO: Is it possible to make this a 2D array?
-	world_tile *Tiles;
-
 	u32 EntityCount;
-	entity Entities[400];
+	entity Entities[MAX_ENTITIES];
 };
 
 struct world

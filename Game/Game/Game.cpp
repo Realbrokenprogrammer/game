@@ -159,7 +159,7 @@ AddEntity(world_layer *Layer, entity_type Type, world_position *Position)
 }
 
 //TODO: Should return reference or not?
-om_internal entity
+om_internal entity *
 AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 {
 	world_position Position = { PositionX, PositionY, 0 };
@@ -170,7 +170,31 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 
 	//TODO: Set properties.
 
-	return(*Entity);
+	return(Entity);
+}
+
+om_internal entity
+AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
+{
+	world_position Position{ PositionX, PositionY, 0 };
+	entity *Entity = AddEntity(Layer, EntityType_GrassTile, &Position);
+
+	Entity->Collideable = true;
+	Entity->CollisionBox = rect2{ 32, 32 };
+
+	return (*Entity);
+}
+
+om_internal entity
+AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
+{
+	world_position Position{ PositionX, PositionY, 0 };
+	entity *Entity = AddEntity(Layer, EntityType_WaterTile, &Position);
+
+	Entity->Collideable = true;
+	Entity->CollisionBox = rect2{ 32, 32 };
+
+	return (*Entity);
 }
 
 //TODO: Rewrite, should operate on Level of a world
@@ -192,8 +216,6 @@ TestTile(r32 WallX, r32 WallY, entity *Target)
 	b32 Hit = false;
 	r32 X = Target->Position.x;
 	r32 Y = Target->Position.y;
-	WallX *= PIXELS_PER_TILE;
-	WallY *= PIXELS_PER_TILE;
 
 	if (X < WallX + PIXELS_PER_TILE &&
 		X + PIXELS_PER_TILE > WallX &&
@@ -207,25 +229,22 @@ TestTile(r32 WallX, r32 WallY, entity *Target)
 }
 
 om_internal void
-MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 DeltaPosition)
+MoveEntity(world_layer *Layer, entity *TargetEntity, r32 DeltaTime, vector2 DeltaPosition)
 {
 	//TODO: Maybe add this into the entity itself?
 	r32 EntitySpeed = 2.0f;
 	DeltaPosition *= EntitySpeed;
 
-	Entity->Position += DeltaPosition;
+	TargetEntity->Position += DeltaPosition;
 
-	for (int TileY = 0; TileY < 23; ++TileY)
+	for (int EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
 	{
-		for (int TileX = 0; TileX < 40; ++TileX)
+		entity *Entity = &Layer->Entities[EntityIndex];
+		if (Entity->Collideable)
 		{
-			world_tile Tile = Layer->Tiles[TileY * 40 + TileX];
-			if (Tile.Collideable)
+			if (TestTile(Entity->Position.x, Entity->Position.y, TargetEntity))
 			{
-				if (TestTile(TileX, TileY, Entity))
-				{
-					Entity->Position -= DeltaPosition;
-				}
+				TargetEntity->Position -= DeltaPosition;
 			}
 		}
 	}
@@ -279,10 +298,11 @@ GameUpdateAndRender(game_memory *Memory,
 
 				if (TileValue == 2)
 				{
-					World->Layers[0].Tiles[TileY * WorldWidth + TileX].Collideable = true;
+					AddGrass(&World->Layers[0], TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE);
 				}
-
-				World->Layers[0].Tiles[TileY * WorldWidth + TileX].Value = TileValue;
+				else
+				{
+				}
 			}
 		}
 
@@ -292,14 +312,13 @@ GameUpdateAndRender(game_memory *Memory,
 			{
 				u32 TileValue = 1;
 
-				World->Layers[1].Tiles[TileY * WorldWidth + TileX].Value = TileValue;
+				AddWater(&World->Layers[1], TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE);
 			}
 		}
 
 		//TODO: This should be added by the level file later.
 		world_layer *FirstLayer = &GameState->World->Layers[0];
-		AddPlayer(FirstLayer, 1280 / 2, 720 / 2);
-		GameState->ControlledEntity = &FirstLayer->Entities[0];
+		GameState->ControlledEntity = AddPlayer(FirstLayer, 1280 / 2, 720 / 2);
 
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
@@ -350,35 +369,27 @@ GameUpdateAndRender(game_memory *Memory,
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
 		world_layer *Layer = &GameState->World->Layers[LayerIndex];
-		for (u32 TileY = 0; TileY < GameState->World->WorldHeight; ++TileY)
-		{
-			for (u32 TileX = 0; TileX < GameState->World->WorldWidth; ++TileX)
-			{
-				world_tile Tile = Layer->Tiles[TileY * GameState->World->WorldWidth + TileX];
-				if (Tile.Value == 1)
-				{
-					DrawBitmap(Buffer, &GameState->WaterBitmap, TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE, 0.0f);
-				}
-				if (Tile.Value == 2)
-				{
-					DrawBitmap(Buffer, &GameState->GrassBitmap, TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE, 0.0f);
-				}
-			}
-		}
 		for (int EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
 		{
 			entity Entity = Layer->Entities[EntityIndex];
 
 			switch (Entity.Type)
 			{
-			case EntityType_Hero:
-			{
-				DrawBitmap(Buffer, &GameState->PlayerBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
-
-			} break;
-			case EntityType_Monster:
-			default:
-				break;
+				case EntityType_Hero:
+				{
+					DrawBitmap(Buffer, &GameState->PlayerBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+				} break;
+				case EntityType_GrassTile:
+				{
+					DrawBitmap(Buffer, &GameState->GrassBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+				} break;
+				case EntityType_WaterTile:
+				{
+					DrawBitmap(Buffer, &GameState->WaterBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+				} break;
+				case EntityType_Monster:
+				default:
+					break;
 			}
 		}
 	}

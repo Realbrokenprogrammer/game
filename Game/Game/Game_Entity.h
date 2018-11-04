@@ -13,7 +13,8 @@ enum entity_type
 
 	EntityType_Hero,
 	EntityType_Monster,
-	EntityType_Wall
+	EntityType_GrassTile,
+	EntityType_WaterTile
 };
 
 enum entity_flags
@@ -45,6 +46,7 @@ struct entity
 
 	vector2 Position;
 	
+	b32 Collideable;
 	rect2 CollisionBox;
 
 	u32 HitPointMax;
