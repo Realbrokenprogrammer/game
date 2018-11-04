@@ -134,10 +134,7 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 inline vector2
 GetCamera(game_state *GameState)
 {
-	world_difference Diff = SubtractPosition2D(GameState->World, 0, &GameState->CameraPosition);
-	vector2 Result = Diff.deltaXY;
 
-	return (Result);
 }
 
 om_internal void 
@@ -146,37 +143,92 @@ SetCamera()
 
 }
 
-om_internal void
-AddPlayer()
-{
-
-}
-
 //TODO: Perhaps don't return pointer to the entity?
 om_internal entity *
-AddEntity(game_state *GameState, entity_type Type, world_position *Position)
+AddEntity(world_layer *Layer, entity_type Type, world_position *Position)
 {
 	//TODO: Assert that we're not adding more entities than what the GameState can hold.
-	u32 EntityIndex = GameState->EntityCount++;
+	u32 EntityIndex = Layer->EntityCount++;
 
-	entity *Entity = GameState->Entities + EntityIndex;
+	entity *Entity = Layer->Entities + EntityIndex;
 	*Entity = {};
 	Entity->Type = Type;
-
-	ChangeEntityLocation(GameState->World, EntityIndex, Entity, 0, Position);
+	Entity->Position = {(r32)Position->X, (r32)Position->Y};
 
 	return (Entity);
 }
 
+//TODO: Should return reference or not?
 om_internal entity
-AddWall(game_state *GameState, u32 PosX, u32 PosY)
+AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 {
-	//TODO: The Position times the constant value is temporary. Remove this when entities got position representation
-	// within the world tiles.
-	world_position Position = {(r32)PosX * 70, (r32)PosY * 80}; // Get position based on tile x and y
-	entity Entity = *AddEntity(GameState, EntityType_Wall, &Position);
+	world_position Position = { PositionX, PositionY, 0 };
+	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
 
-	return (Entity);
+	Entity->HitPointMax = 3;
+	Entity->CollisionBox = rect2{32, 32};
+
+	//TODO: Set properties.
+
+	return(*Entity);
+}
+
+//TODO: Rewrite, should operate on Level of a world
+//om_internal entity
+//AddWall(game_state *GameState, u32 PosX, u32 PosY)
+//{
+//	//TODO: The Position times the constant value is temporary. Remove this when entities got position representation
+//	// within the world tiles.
+//	world_position Position = {(r32)PosX * 70, (r32)PosY * 80}; // Get position based on tile x and y
+//	entity Entity = *AddEntity(GameState, EntityType_Wall, &Position);
+//
+//	return (Entity);
+//}
+
+//TODO: Don't use the defined PIXELS_PER_TILE later.
+om_internal b32
+TestTile(r32 WallX, r32 WallY, entity *Target)
+{
+	b32 Hit = false;
+	r32 X = Target->Position.x;
+	r32 Y = Target->Position.y;
+	WallX *= PIXELS_PER_TILE;
+	WallY *= PIXELS_PER_TILE;
+
+	if (X < WallX + PIXELS_PER_TILE &&
+		X + PIXELS_PER_TILE > WallX &&
+		Y < WallY + PIXELS_PER_TILE &&
+		Y + PIXELS_PER_TILE > WallY)
+	{
+		Hit = true;
+	}
+
+	return (Hit);
+}
+
+om_internal void
+MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 DeltaPosition)
+{
+	//TODO: Maybe add this into the entity itself?
+	r32 EntitySpeed = 2.0f;
+	DeltaPosition *= EntitySpeed;
+
+	Entity->Position += DeltaPosition;
+
+	for (int TileY = 0; TileY < 23; ++TileY)
+	{
+		for (int TileX = 0; TileX < 40; ++TileX)
+		{
+			world_tile Tile = Layer->Tiles[TileY * 40 + TileX];
+			if (Tile.Collideable)
+			{
+				if (TestTile(TileX, TileY, Entity))
+				{
+					Entity->Position -= DeltaPosition;
+				}
+			}
+		}
+	}
 }
 
 om_internal void
@@ -188,52 +240,66 @@ GameUpdateAndRender(game_memory *Memory,
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	if (!Memory->IsInitialized)
 	{
-		char test[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\README.md";
-		char test2[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\README2.md";
-		char *FileName = test;
-		char *TestFile = test2;
-		
-		debug_read_file_result BitmapMemory = DEBUGPlatformReadEntireFile(FileName);
-		if (BitmapMemory.Contents)
-		{
-			DEBUGPlatformWriteEntireFile(TestFile, BitmapMemory.ContentsSize, BitmapMemory.Contents);
-			DEBUGPlatformFreeFileMemory(BitmapMemory.Contents);
-		}
+		char GrassBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
+		GameState->GrassBitmap = DEBUGLoadBitmap(GrassBitmap);
+
+		char WaterBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
+		GameState->WaterBitmap = DEBUGLoadBitmap(WaterBitmap);
+
+		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
+		GameState->PlayerBitmap = DEBUGLoadBitmap(PlayerBitmap);
 
 		GameState->ToneHz = 256;
 
-		GameState->EntityCount = 0;
-
 		// Initializing World
-		world *World = GameState->World;
+		world *World = nullptr;
 		if (World == NULL)
 		{
 			// TODO: Temporary call. Don't use Virtual Alloc here and let Platform layer handle allocation.
 			World = (world *)VirtualAlloc(0, sizeof(world), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			GameState->World = World;
 		}
-		InitializeWorld(World, 1.4);
 
-		u32 TilesPerWidth = 17;
-		u32 TilesPerHeight = 9;
+		// TODO: Should later be loaded from level file.
+		u32 WorldWidth = 40;
+		u32 WorldHeight = 23;
+		InitializeWorld(World, WorldWidth, WorldHeight);
 
-		for (u32 TileY = 0; TileY < TilesPerHeight; ++TileY)
+		for (u32 TileY = 0; TileY < WorldHeight; ++TileY)
 		{
-			for (u32 TileX = 0; TileX < TilesPerWidth; ++TileX)
+			for (u32 TileX = 0; TileX < WorldWidth; ++TileX)
 			{
 				u32 TileValue = 1;
 
-				if ((TileX == 0) || (TileY == 0) || (TileY == (TilesPerHeight -1)) || (TileX == (TilesPerWidth -1)))
+				if ((TileX == 0) || (TileY == 0) || (TileY == (WorldHeight -1)) || (TileX == (WorldWidth -1)))
 				{
 					TileValue = 2;
+
 				}
 
 				if (TileValue == 2)
 				{
-					AddWall(GameState, TileX, TileY);
+					World->Layers[0].Tiles[TileY * WorldWidth + TileX].Collideable = true;
 				}
 
+				World->Layers[0].Tiles[TileY * WorldWidth + TileX].Value = TileValue;
 			}
 		}
+
+		for (u32 TileY = 0; TileY < WorldHeight; ++TileY)
+		{
+			for (u32 TileX = 0; TileX < WorldWidth; ++TileX)
+			{
+				u32 TileValue = 1;
+
+				World->Layers[1].Tiles[TileY * WorldWidth + TileX].Value = TileValue;
+			}
+		}
+
+		//TODO: This should be added by the level file later.
+		world_layer *FirstLayer = &GameState->World->Layers[0];
+		AddPlayer(FirstLayer, 1280 / 2, 720 / 2);
+		GameState->ControlledEntity = &FirstLayer->Entities[0];
 
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
@@ -250,13 +316,69 @@ GameUpdateAndRender(game_memory *Memory,
 		}
 		else
 		{
+			entity* Player = GameState->ControlledEntity;
+			vector2 DeltaPosition = {};
 			if (Controller->MoveLeft.EndedDown)
 			{
-				GameState->BlueOffset -= 1;
+				//GameState->BlueOffset -= 1;
+				//GameState->ControlledEntity->Position.x -= 1;
+				DeltaPosition.x -= 1;
 			}
 			if (Controller->MoveRight.EndedDown)
 			{
-				GameState->BlueOffset += 1;
+				//GameState->BlueOffset += 1;
+				//GameState->ControlledEntity->Position.x += 1;
+				DeltaPosition.x += 1;
+			}
+			if (Controller->MoveUp.EndedDown)
+			{
+				//GameState->ControlledEntity->Position.y -= 1;
+				DeltaPosition.y -= 1;
+
+			}
+			if (Controller->MoveDown.EndedDown)
+			{
+				//GameState->ControlledEntity->Position.y += 1;
+				DeltaPosition.y += 1;
+			}
+
+			MoveEntity(&GameState->World->Layers[0], Player, 0.0f, DeltaPosition);
+		}
+	}
+
+	world *World = GameState->World;
+	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
+	{
+		world_layer *Layer = &GameState->World->Layers[LayerIndex];
+		for (u32 TileY = 0; TileY < GameState->World->WorldHeight; ++TileY)
+		{
+			for (u32 TileX = 0; TileX < GameState->World->WorldWidth; ++TileX)
+			{
+				world_tile Tile = Layer->Tiles[TileY * GameState->World->WorldWidth + TileX];
+				if (Tile.Value == 1)
+				{
+					DrawBitmap(Buffer, &GameState->WaterBitmap, TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE, 0.0f);
+				}
+				if (Tile.Value == 2)
+				{
+					DrawBitmap(Buffer, &GameState->GrassBitmap, TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE, 0.0f);
+				}
+			}
+		}
+		for (int EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
+		{
+			entity Entity = Layer->Entities[EntityIndex];
+
+			switch (Entity.Type)
+			{
+			case EntityType_Hero:
+			{
+				DrawBitmap(Buffer, &GameState->PlayerBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+
+			} break;
+			case EntityType_Monster:
+			default:
+				break;
 			}
 		}
 	}
@@ -268,31 +390,12 @@ GameUpdateAndRender(game_memory *Memory,
 	vector2 max = Vector2(200, 200);
 	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 1.0f, 0.0f, 0.0f);
 	DrawRect(Buffer, min, max, 0.0f, 0.0f, 1.0f);
-
-
 	DrawBitmap(Buffer, &GameState->Bitmap, 500, 300, 0.0f);*/
-
-	for (u32 EntityIndex = 0; EntityIndex < GameState->EntityCount; ++EntityIndex)
-	{
-		entity Entity = GameState->Entities[EntityIndex];
-
-		switch (Entity.Type)
-		{
-			case EntityType_Wall:
-			{
-				DrawBitmap(Buffer, &GameState->Bitmap, Entity.Position.x, Entity.Position.y, 0.0f);
-			} break;
-			case EntityType_Null:
-				break;
-			default:
-				break;
-		}
-	}
 }
 
 om_internal void
 GameGetSoundSamples(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
 {
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
-	GameOutputSound(SoundBuffer, GameState->ToneHz);
+	//GameOutputSound(SoundBuffer, GameState->ToneHz);
 }
