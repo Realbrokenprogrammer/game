@@ -91,7 +91,8 @@ struct game_controller_input
 
 struct game_input
 {
-	//TODO: Insert clock value here.
+	r32 dtForFrame;
+
 	game_controller_input Controllers[5];
 };
 

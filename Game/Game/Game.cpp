@@ -336,32 +336,51 @@ GameUpdateAndRender(game_memory *Memory,
 		else
 		{
 			entity* Player = GameState->ControlledEntity;
-			vector2 DeltaPosition = {};
+			vector2 ddPosition = {};
 			if (Controller->MoveLeft.EndedDown)
 			{
 				//GameState->BlueOffset -= 1;
 				//GameState->ControlledEntity->Position.x -= 1;
-				DeltaPosition.x -= 1;
+				ddPosition.x -= 1.0f;
 			}
 			if (Controller->MoveRight.EndedDown)
 			{
 				//GameState->BlueOffset += 1;
 				//GameState->ControlledEntity->Position.x += 1;
-				DeltaPosition.x += 1;
+				ddPosition.x += 1.0f;
 			}
 			if (Controller->MoveUp.EndedDown)
 			{
 				//GameState->ControlledEntity->Position.y -= 1;
-				DeltaPosition.y -= 1;
+				ddPosition.y -= 1.0f;
 
 			}
 			if (Controller->MoveDown.EndedDown)
 			{
 				//GameState->ControlledEntity->Position.y += 1;
-				DeltaPosition.y += 1;
+				ddPosition.y += 1.0f;
 			}
 
-			MoveEntity(&GameState->World->Layers[0], Player, 0.0f, DeltaPosition);
+			// Temp fix for diagonal movement.
+			if ((ddPosition.x != 0.0f) && (ddPosition.y != 0.0f))
+			{
+				ddPosition *= 0.707106781187f;
+			}
+
+			r32 PlayerSpeed = 50.0f; // Supposed to be (m/s)^2
+			ddPosition *= PlayerSpeed;
+
+			//TODO: ODE
+			ddPosition += -0.1f*Player->dPosition;
+
+			//TODO: Write short comment with my calculation
+			vector2 newPosition = Player->Position;
+			newPosition = 0.5f*ddPosition*Square(Input->dtForFrame) + Player->dPosition * Input->dtForFrame + newPosition;
+			Player->dPosition = ddPosition * Input->dtForFrame + Player->dPosition;
+
+			Player->Position = newPosition;
+
+			//MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, DeltaPosition);
 		}
 	}
 

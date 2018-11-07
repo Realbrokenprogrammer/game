@@ -45,6 +45,8 @@ struct entity
 	u32 Flags;
 
 	vector2 Position;
+	vector2 dPosition; //Derivative of Position (Velocity)
+	vector2 ddPosition; //Derivative of dPosition (Acceleration)
 	
 	b32 Collideable;
 	rect2 CollisionBox;
