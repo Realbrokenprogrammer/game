@@ -621,6 +621,7 @@ int main(int argc, char *argv[]) {
 				r32 TargetSecondsPerFrame = (r32)ExpectedFramesPerUpdate / (r32)GameUpdateHz;
 				while (GlobalRunning) 
 				{
+					NewInput->dtForFrame = TargetSecondsPerFrame;
 					sdl_window_dimension Dimension = SDLGetWindowDimension(Window);
 
 					// TODO(casey): We can't zero everything because the up/down state will
@@ -851,7 +852,10 @@ int main(int argc, char *argv[]) {
 					ExpectedFramesPerUpdate = NewExpectedFramesPerUpdate;
 
 					TargetSecondsPerFrame = MeasuredSecondsPerFrame;
-					
+					char buffer[245];
+					sprintf_s(buffer, "FramesPerUpdate: %f\n", ExactTargetFramesPerUpdate);
+					OutputDebugString(buffer);
+
 					LastCounter = EndCounter;
 				}
 			}

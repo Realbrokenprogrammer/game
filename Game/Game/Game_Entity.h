@@ -13,7 +13,8 @@ enum entity_type
 
 	EntityType_Hero,
 	EntityType_Monster,
-	EntityType_Wall
+	EntityType_GrassTile,
+	EntityType_WaterTile
 };
 
 enum entity_flags
@@ -44,8 +45,13 @@ struct entity
 	u32 Flags;
 
 	vector2 Position;
+	vector2 dPosition; //Derivative of Position (Velocity)
+	vector2 ddPosition; //Derivative of dPosition (Acceleration)
 	
+	b32 Collideable;
 	rect2 CollisionBox;
+	r32 Width;
+	r32 Height;
 
 	u32 HitPointMax;
 	hit_point HitPoint;

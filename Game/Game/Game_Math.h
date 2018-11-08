@@ -41,13 +41,6 @@ Vector3(r32 X, r32 Y, r32 Z)
 	return (Result);
 }
 
-inline r32
-Square(r32 Value)
-{
-	r32 Result = Value * Value;
-
-	return (Result);
-}
 
 inline vector2
 operator *(r32 A, vector2 B)
@@ -63,7 +56,7 @@ operator *(r32 A, vector2 B)
 inline vector2
 operator *(vector2 B, r32 A)
 {
-	vector2 Result = A*B;
+	vector2 Result = A * B;
 
 	return (Result);
 }
@@ -123,6 +116,51 @@ operator -=(vector2 &A, vector2 B)
 	A = A - B;
 
 	return (A);
+}
+
+inline r32
+Square(r32 Value)
+{
+	r32 Result = Value * Value;
+
+	return (Result);
+}
+
+inline r32
+Inner(vector2 A, vector2 B)
+{
+	r32 Result = A.x * B.x + A.y * B.y;
+
+	return (Result);
+}
+
+inline r32
+LengthSquared(vector2 A)
+{
+	r32 Result = Inner(A, A);
+
+	return (Result);
+}
+
+inline r32
+Length(vector2 A)
+{
+	r32 Result = SquareRoot(LengthSquared(A));
+	return (Result);
+}
+
+inline vector2
+GetDimension(rect2 Rect)
+{
+	vector2 Result = (Rect.Max - Rect.Min);
+	return (Result);
+}
+
+inline vector2
+GetCenter(rect2 Rect)
+{
+	vector2 Result = 0.5f*(Rect.Min + Rect.Max);
+	return (Result);
 }
 
 #endif // GAME_MATH_H
