@@ -852,7 +852,10 @@ int main(int argc, char *argv[]) {
 					ExpectedFramesPerUpdate = NewExpectedFramesPerUpdate;
 
 					TargetSecondsPerFrame = MeasuredSecondsPerFrame;
-					
+					char buffer[245];
+					sprintf_s(buffer, "FramesPerUpdate: %f\n", ExactTargetFramesPerUpdate);
+					OutputDebugString(buffer);
+
 					LastCounter = EndCounter;
 				}
 			}

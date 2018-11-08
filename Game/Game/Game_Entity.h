@@ -50,6 +50,8 @@ struct entity
 	
 	b32 Collideable;
 	rect2 CollisionBox;
+	r32 Width;
+	r32 Height;
 
 	u32 HitPointMax;
 	hit_point HitPoint;

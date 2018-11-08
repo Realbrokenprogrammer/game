@@ -152,6 +152,7 @@ AddEntity(world_layer *Layer, entity_type Type, world_position *Position)
 
 	entity *Entity = Layer->Entities + EntityIndex;
 	*Entity = {};
+	Entity->ID = { EntityIndex };
 	Entity->Type = Type;
 	Entity->Position = {(r32)Position->X, (r32)Position->Y};
 
@@ -166,8 +167,10 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
 
 	Entity->HitPointMax = 3;
+	Entity->Collideable = true;
 	Entity->CollisionBox = rect2{32, 32};
-
+	Entity->Width = 32.0f;
+	Entity->Height = 32.0f;
 	//TODO: Set properties.
 
 	return(Entity);
@@ -181,6 +184,8 @@ AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 
 	Entity->Collideable = true;
 	Entity->CollisionBox = rect2{ 32, 32 };
+	Entity->Width = 32.0f;
+	Entity->Height = 32.0f;
 
 	return (*Entity);
 }
@@ -228,26 +233,164 @@ TestTile(r32 WallX, r32 WallY, entity *Target)
 	return (Hit);
 }
 
-om_internal void
-MoveEntity(world_layer *Layer, entity *TargetEntity, r32 DeltaTime, vector2 DeltaPosition)
+om_internal b32
+ContainsPoint(entity *Entity, r32 PointX, r32 PointY)
 {
-	//TODO: Maybe add this into the entity itself?
-	r32 EntitySpeed = 2.0f;
-	DeltaPosition *= EntitySpeed;
+	return (Entity->Position.x < PointX && Entity->Position.y < PointY &&
+		Entity->Position.x + 32 > PointX &&
+		Entity->Position.y + 32 > PointY);
+}
 
-	TargetEntity->Position += DeltaPosition;
 
-	for (int EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
+om_internal b32
+TestCollision(r32 WallX, r32 RelativeX, r32 RelativeY, r32 DeltaX, r32 DeltaY, r32 *tMin, r32 MinY, r32 MaxY)
+{
+	b32 Hit = false;
+
+	r32 tEpsilon = 0.001f;
+	if (DeltaX != 0.0f)
 	{
-		entity *Entity = &Layer->Entities[EntityIndex];
-		if (Entity->Collideable)
+		r32 tResult = (WallX - RelativeX) / DeltaX;
+		r32 Y = RelativeY + tResult * DeltaY;
+		if ((tResult >= 0.0f) && (*tMin > tResult))
 		{
-			if (TestTile(Entity->Position.x, Entity->Position.y, TargetEntity))
+			if ((Y >= MinY) && (Y <= MaxY))
 			{
-				TargetEntity->Position -= DeltaPosition;
+				*tMin = OM_MAX(0.0f, tResult - tEpsilon);
+				Hit = true;
 			}
 		}
 	}
+
+	return (Hit);
+}
+
+om_internal void
+CanCollide(entity *A, entity *B)
+{
+	//TODO: Implement
+}
+
+//TODO: Collision with slopes / Non rectangle shapes.
+om_internal void
+MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition)
+{
+	r32 ddLength = LengthSquared(ddPosition);
+	if (ddLength > 1.0f)
+	{
+		ddPosition *= (1.0f / SquareRoot(ddLength));
+	}
+
+	//TODO: Maybe add this into the entity itself?
+	r32 EntitySpeed = 50.0f; // m/s^2
+	r32 Drag = 0.8f;
+
+	ddPosition *= EntitySpeed;
+	ddPosition += (-Drag * Entity->dPosition);
+
+	//TODO: Write short comment with calculations
+	vector2 OldPosition = Entity->Position;
+	vector2 EntityDelta = (0.5f * ddPosition * Square(DeltaTime) + Entity->dPosition * DeltaTime);
+	Entity->dPosition = ddPosition * DeltaTime + Entity->dPosition;
+	
+	vector2 NewPosition = OldPosition + EntityDelta;
+
+	for (int Iteration = 0; Iteration < 4; ++Iteration) {
+		r32 tMin = 1.0f;
+		vector2 WallNormal = {};
+		u32 HitEntityIndex = 0;
+
+		vector2 DesiredPosition = Entity->Position + EntityDelta;
+
+		if (Entity->Collideable) {
+			for (u32 TestEntityIndex = 0; TestEntityIndex < Layer->EntityCount; ++TestEntityIndex)
+			{
+				if (TestEntityIndex != Entity->ID.Value)
+				{
+					entity *TestEntity = Layer->Entities + TestEntityIndex;
+					if (TestEntity->Collideable)
+					{
+						r32 DiameterW = TestEntity->Width + Entity->Width;
+						r32 DiameterH = TestEntity->Height + Entity->Height;
+
+						vector2 MinCorner = -0.5f*Vector2(DiameterW, DiameterH);
+						vector2 MaxCorner = 0.5f*Vector2(DiameterW, DiameterH);
+
+						vector2 Rel = Entity->Position - TestEntity->Position;
+
+						if (TestCollision(MinCorner.x, Rel.x, Rel.y, EntityDelta.x, EntityDelta.y, &tMin, MinCorner.y, MaxCorner.y))
+						{
+							WallNormal = vector2{ -1, 0 };
+							HitEntityIndex = TestEntityIndex;
+						}
+
+						if (TestCollision(MaxCorner.x, Rel.x, Rel.y, EntityDelta.x, EntityDelta.y, &tMin, MinCorner.y, MaxCorner.y))
+						{
+							WallNormal = vector2{ 1, 0 };
+							HitEntityIndex = TestEntityIndex;
+						}
+
+						if (TestCollision(MinCorner.y, Rel.y, Rel.x, EntityDelta.y, EntityDelta.x, &tMin, MinCorner.x, MaxCorner.x))
+						{
+							WallNormal = vector2{ 0, -1 };
+							HitEntityIndex = TestEntityIndex;
+						}
+
+						if (TestCollision(MaxCorner.y, Rel.y, Rel.x, EntityDelta.y, EntityDelta.x, &tMin, MinCorner.x, MaxCorner.x))
+						{
+							WallNormal = vector2{ 0, 1 };
+							HitEntityIndex = TestEntityIndex;
+						}
+					}
+				}
+			}
+		}
+
+		if (HitEntityIndex)
+		{
+			Entity->dPosition = Entity->dPosition - 1 * Inner(Entity->dPosition, WallNormal) * WallNormal;
+
+			EntityDelta = DesiredPosition - Entity->Position;
+			EntityDelta = EntityDelta - 1 * Inner(EntityDelta, WallNormal) * WallNormal;
+
+			//TODO: Stairs etc.
+		}
+
+		// TODO: I moved the position update to after the Hit detection statement to make sure
+		// that the entity wouldn't get stuck in the wall first and THEN the velocity would be corrected to
+		// move the player along the wall. Tho this might be incorrect for the calculations. Check this up.
+		Entity->Position += tMin * EntityDelta;
+	}
+
+	//TODO: Change using accel vector
+	if ((Entity->dPosition.x == 0.0f) && (Entity->dPosition.y == 0.0f))
+	{
+		
+	}
+	else if (AbsoluteValue(Entity->dPosition.x) > AbsoluteValue(Entity->dPosition.y))
+	{
+		if (Entity->dPosition.x > 0)
+		{
+			// Change facing direction accordingly.
+		}
+		else
+		{
+			// Change facing direction accordingly.
+		}
+	}
+	else
+	{
+		if (Entity->dPosition.y > 0)
+		{
+			// Change facing direction accordingly.
+		}
+		else
+		{
+			// Change facing direction accordingly.
+		}
+	}
+
+	//TODO: Change the entity world position?
 }
 
 om_internal void
@@ -294,6 +437,10 @@ GameUpdateAndRender(game_memory *Memory,
 				{
 					TileValue = 2;
 
+				}
+				else if (TileX == (WorldWidth / 2) && (TileY+1 == (WorldHeight / 2)))
+				{
+					TileValue = 2;
 				}
 
 				if (TileValue == 2)
@@ -353,7 +500,6 @@ GameUpdateAndRender(game_memory *Memory,
 			{
 				//GameState->ControlledEntity->Position.y -= 1;
 				ddPosition.y -= 1.0f;
-
 			}
 			if (Controller->MoveDown.EndedDown)
 			{
@@ -361,26 +507,20 @@ GameUpdateAndRender(game_memory *Memory,
 				ddPosition.y += 1.0f;
 			}
 
-			// Temp fix for diagonal movement.
-			if ((ddPosition.x != 0.0f) && (ddPosition.y != 0.0f))
-			{
-				ddPosition *= 0.707106781187f;
-			}
+			//r32 PlayerSpeed = 50.0f; // Supposed to be (m/s)^2
+			//ddPosition *= PlayerSpeed;
 
-			r32 PlayerSpeed = 50.0f; // Supposed to be (m/s)^2
-			ddPosition *= PlayerSpeed;
+			////TODO: ODE
+			//ddPosition += -0.2f*Player->dPosition;
 
-			//TODO: ODE
-			ddPosition += -0.1f*Player->dPosition;
+			////TODO: Write short comment with my calculation
+			//vector2 newPosition = Player->Position;
+			//newPosition = 0.5f*ddPosition*Square(Input->dtForFrame) + Player->dPosition * Input->dtForFrame + newPosition;
+			//Player->dPosition = ddPosition * Input->dtForFrame + Player->dPosition;
 
-			//TODO: Write short comment with my calculation
-			vector2 newPosition = Player->Position;
-			newPosition = 0.5f*ddPosition*Square(Input->dtForFrame) + Player->dPosition * Input->dtForFrame + newPosition;
-			Player->dPosition = ddPosition * Input->dtForFrame + Player->dPosition;
+			//Player->Position = newPosition;
 
-			Player->Position = newPosition;
-
-			//MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, DeltaPosition);
+			MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, ddPosition);
 		}
 	}
 

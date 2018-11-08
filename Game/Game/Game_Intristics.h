@@ -36,4 +36,18 @@ FindLeastSignificantSetBit(u32 Value)
 	return (Result);
 }
 
+inline r32
+SquareRoot(r32 Value)
+{
+	r32 Result = sqrtf(Value);
+	return (Result);
+}
+
+inline r32
+AbsoluteValue(r32 Value)
+{
+	r32 Result = fabsf(Value);
+	return(Result);
+}
+
 #endif // GAME_INTRISTICS_H
