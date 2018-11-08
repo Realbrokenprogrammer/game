@@ -15,7 +15,7 @@ struct loaded_bitmap
 	u32 *Pixels;
 };
 
-#if 1//OM_DEBUG
+#if 1 //TODO: Add compiler flag for this define OM_DEBUG
 // These are NOT for doing anything in the release version of the game. They are blocking 
 // and the write doesn't protect against lost data.
 struct debug_read_file_result
@@ -120,7 +120,7 @@ GetController(game_input *Input, int ControllerIndex)
 inline b32
 WasPressed(game_button_state State)
 {
-	b32 Result = ((State.HalfTransitionCount > 1) || 
+	b32 Result = ((State.HalfTransitionCount > 1) ||
 		((State.HalfTransitionCount == 1) && (State.EndedDown)));
 
 	return (Result);
@@ -132,6 +132,34 @@ IsDown(game_button_state State)
 	b32 Result = (State.EndedDown);
 
 	return (Result);
+}
+
+struct game_memory
+{
+	b32 IsInitialized;
+
+	u64 PermanentStorageSize;
+	void *PermanentStorage;			//NOTE: Required to be cleared to zero at startup.
+
+	u64 TransientStorageSize;
+	void *TransientStorage;
+
+	debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
+	debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
+	debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
+	debug_load_bitmap *DEBUGLoadBitmap;
+};
+
+#define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render);
+GAME_UPDATE_AND_RENDER(GameUpdateAndRenderStub)
+{
+}
+
+#define GAME_GET_SOUND_SAMPLES(name) void name(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
+typedef GAME_GET_SOUND_SAMPLES(game_get_sound_samples);
+GAME_GET_SOUND_SAMPLES(GameGetSoundSamplesStub)
+{
 }
 
 #endif // PLATFORM_H

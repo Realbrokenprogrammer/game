@@ -11,7 +11,6 @@
 #include <stdio.h>
 
 #include "Game.h"
-//#include "Game.cpp"
 
 #include "Main.h" //TODO: Main.h should be renamed, same with Main.cpp.
 
@@ -44,8 +43,6 @@ om_global_variable u64 GlobalPerfCountFrequency;
 om_global_variable SDL_GameController *ControllerHandles[MAX_CONTROLLERS];
 om_global_variable SDL_Haptic *RumbleHandles[MAX_CONTROLLERS];
 
-//om_internal void
-//DEBUGPlatformFreeFileMemory(void *Memory)
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 {
 	if (Memory)
@@ -54,8 +51,6 @@ DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 	}
 }
 
-//om_internal debug_read_file_result
-//DEBUGPlatformReadEntireFile(char *FileName)
 DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
 	debug_read_file_result Result = {};
@@ -101,8 +96,6 @@ DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 	return (Result);
 }
 
-//om_internal b32 
-//DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory)
 DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
 	b32 Result = false;
@@ -133,8 +126,6 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 }
 
 //TODO: Assert its actually a BMP file sent into this function.
-//om_internal loaded_bitmap
-//DEBUGLoadBitmap(char *FileName)
 DEBUG_LOAD_BITMAP(DEBUGLoadBitmap)
 {
 	loaded_bitmap Result = {};
@@ -165,15 +156,6 @@ DEBUG_LOAD_BITMAP(DEBUGLoadBitmap)
 
 	return (Result);
 }
-
-struct sdl_game_code
-{
-	HMODULE GameCodeDLL;
-	game_update_and_render *UpdateAndRender;
-	game_get_sound_samples *GetSoundSamples;
-
-	b32 IsValid;
-};
 
 om_internal sdl_game_code
 SDLLoadGameCode(void)
@@ -650,7 +632,7 @@ int main(int argc, char *argv[]) {
 			GameMemory.TransientStorageSize = om_gigabytes(1);
 			GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
 			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
-			//GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 			GameMemory.DEBUGLoadBitmap = DEBUGLoadBitmap;
 
 			u64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;

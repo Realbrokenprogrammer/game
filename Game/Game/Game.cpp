@@ -508,19 +508,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				ddPosition.y += 1.0f;
 			}
 
-			//r32 PlayerSpeed = 50.0f; // Supposed to be (m/s)^2
-			//ddPosition *= PlayerSpeed;
-
-			////TODO: ODE
-			//ddPosition += -0.2f*Player->dPosition;
-
-			////TODO: Write short comment with my calculation
-			//vector2 newPosition = Player->Position;
-			//newPosition = 0.5f*ddPosition*Square(Input->dtForFrame) + Player->dPosition * Input->dtForFrame + newPosition;
-			//Player->dPosition = ddPosition * Input->dtForFrame + Player->dPosition;
-
-			//Player->Position = newPosition;
-
 			MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, ddPosition);
 		}
 	}
@@ -569,12 +556,4 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	//GameOutputSound(SoundBuffer, GameState->ToneHz);
-}
-
-BOOL WINAPI DllMain(
-	_In_ HINSTANCE hinstDLL,
-	_In_ DWORD     fdwReason,
-	_In_ LPVOID    lpvReserved)
-{
-	return(TRUE);
 }
