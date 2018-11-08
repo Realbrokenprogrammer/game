@@ -15,7 +15,7 @@ struct loaded_bitmap
 	u32 *Pixels;
 };
 
-#if OM_DEBUG
+#if 1//OM_DEBUG
 // These are NOT for doing anything in the release version of the game. They are blocking 
 // and the write doesn't protect against lost data.
 struct debug_read_file_result
@@ -23,12 +23,24 @@ struct debug_read_file_result
 	u32 ContentsSize;
 	void *Contents;
 };
-om_internal debug_read_file_result DEBUGPlatformReadEntireFile(char *FileName);
-om_internal void DEBUGPlatformFreeFileMemory(void *Memory);
 
-om_internal b32 DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory);
+//debug_read_file_result DEBUGPlatformReadEntireFile(char *FileName);
+#define DEBUG_PLATFORM_READ_ENTIRE_FILE(name) debug_read_file_result name(char *FileName)
+typedef DEBUG_PLATFORM_READ_ENTIRE_FILE(debug_platform_read_entire_file);
 
-om_internal loaded_bitmap DEBUGLoadBitmap(char * FileName);
+
+//void DEBUGPlatformFreeFileMemory(void *Memory);
+#define DEBUG_PLATFORM_FREE_FILE_MEMORY(name) void name(void *Memory)
+typedef DEBUG_PLATFORM_FREE_FILE_MEMORY(debug_platform_free_file_memory);
+
+//b32 DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory);
+#define DEBUG_PLATFORM_WRITE_ENTIRE_FILE(name) b32 name(char *FileName, u32 MemorySize, void *Memory)
+typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
+
+//loaded_bitmap DEBUGLoadBitmap(char * FileName);
+#define DEBUG_LOAD_BITMAP(name) loaded_bitmap name(char *FileName)
+typedef DEBUG_LOAD_BITMAP(debug_load_bitmap);
+
 #endif
 
 /*

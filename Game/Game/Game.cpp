@@ -1,6 +1,8 @@
 #include "Game.h"
 #include "Game_World.cpp"
 
+#include <Windows.h> //TODO: This should later be removed.
+
 om_internal void
 GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 {
@@ -393,9 +395,8 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 	//TODO: Change the entity world position?
 }
 
-om_internal void
-GameUpdateAndRender(game_memory *Memory,
-	game_input *Input, game_offscreen_buffer *Buffer)
+
+extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
 	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
 
@@ -403,13 +404,13 @@ GameUpdateAndRender(game_memory *Memory,
 	if (!Memory->IsInitialized)
 	{
 		char GrassBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
-		GameState->GrassBitmap = DEBUGLoadBitmap(GrassBitmap);
+		GameState->GrassBitmap = Memory->DEBUGLoadBitmap(GrassBitmap);
 
 		char WaterBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
-		GameState->WaterBitmap = DEBUGLoadBitmap(WaterBitmap);
+		GameState->WaterBitmap = Memory->DEBUGLoadBitmap(WaterBitmap);
 
 		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
-		GameState->PlayerBitmap = DEBUGLoadBitmap(PlayerBitmap);
+		GameState->PlayerBitmap = Memory->DEBUGLoadBitmap(PlayerBitmap);
 
 		GameState->ToneHz = 256;
 
@@ -563,9 +564,17 @@ GameUpdateAndRender(game_memory *Memory,
 	DrawBitmap(Buffer, &GameState->Bitmap, 500, 300, 0.0f);*/
 }
 
-om_internal void
-GameGetSoundSamples(game_memory *Memory, game_sound_output_buffer *SoundBuffer)
+
+extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	//GameOutputSound(SoundBuffer, GameState->ToneHz);
+}
+
+BOOL WINAPI DllMain(
+	_In_ HINSTANCE hinstDLL,
+	_In_ DWORD     fdwReason,
+	_In_ LPVOID    lpvReserved)
+{
+	return(TRUE);
 }

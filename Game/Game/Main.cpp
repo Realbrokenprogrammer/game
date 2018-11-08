@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 #include "Game.h"
-#include "Game.cpp"
+//#include "Game.cpp"
 
 #include "Main.h" //TODO: Main.h should be renamed, same with Main.cpp.
 
@@ -44,8 +44,19 @@ om_global_variable u64 GlobalPerfCountFrequency;
 om_global_variable SDL_GameController *ControllerHandles[MAX_CONTROLLERS];
 om_global_variable SDL_Haptic *RumbleHandles[MAX_CONTROLLERS];
 
-om_internal debug_read_file_result
-DEBUGPlatformReadEntireFile(char *FileName)
+//om_internal void
+//DEBUGPlatformFreeFileMemory(void *Memory)
+DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
+{
+	if (Memory)
+	{
+		VirtualFree(Memory, NULL, MEM_RELEASE);
+	}
+}
+
+//om_internal debug_read_file_result
+//DEBUGPlatformReadEntireFile(char *FileName)
+DEBUG_PLATFORM_READ_ENTIRE_FILE(DEBUGPlatformReadEntireFile)
 {
 	debug_read_file_result Result = {};
 
@@ -90,17 +101,9 @@ DEBUGPlatformReadEntireFile(char *FileName)
 	return (Result);
 }
 
-om_internal void 
-DEBUGPlatformFreeFileMemory(void *Memory)
-{
-	if (Memory)
-	{
-		VirtualFree(Memory, NULL, MEM_RELEASE);
-	}
-}
-
-om_internal b32 
-DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory)
+//om_internal b32 
+//DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory)
+DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 {
 	b32 Result = false;
 
@@ -130,8 +133,9 @@ DEBUGPlatformWriteEntireFile(char *FileName, u32 MemorySize, void *Memory)
 }
 
 //TODO: Assert its actually a BMP file sent into this function.
-om_internal loaded_bitmap
-DEBUGLoadBitmap(char *FileName)
+//om_internal loaded_bitmap
+//DEBUGLoadBitmap(char *FileName)
+DEBUG_LOAD_BITMAP(DEBUGLoadBitmap)
 {
 	loaded_bitmap Result = {};
 
@@ -160,6 +164,53 @@ DEBUGLoadBitmap(char *FileName)
 	}
 
 	return (Result);
+}
+
+struct sdl_game_code
+{
+	HMODULE GameCodeDLL;
+	game_update_and_render *UpdateAndRender;
+	game_get_sound_samples *GetSoundSamples;
+
+	b32 IsValid;
+};
+
+om_internal sdl_game_code
+SDLLoadGameCode(void)
+{
+	sdl_game_code Result = {};
+	
+	CopyFile("GameCode.dll", "GameCodeTemp.dll", FALSE);
+	Result.GameCodeDLL = LoadLibraryA("GameCodeTemp.dll");
+	if (Result.GameCodeDLL)
+	{
+		Result.UpdateAndRender = (game_update_and_render *)GetProcAddress(Result.GameCodeDLL, "GameUpdateAndRender");
+		Result.GetSoundSamples = (game_get_sound_samples *)GetProcAddress(Result.GameCodeDLL, "GameGetSoundSamples");
+
+		Result.IsValid = (Result.UpdateAndRender && Result.GetSoundSamples);
+	}
+
+	if (!Result.IsValid)
+	{
+		Result.UpdateAndRender = GameUpdateAndRenderStub;
+		Result.GetSoundSamples = GameGetSoundSamplesStub;
+	}
+
+	return (Result);
+}
+
+om_internal void
+SDLUnloadGameCode(sdl_game_code *GameCode)
+{
+	if (GameCode->GameCodeDLL)
+	{
+		FreeLibrary(GameCode->GameCodeDLL);
+		GameCode->GameCodeDLL = 0;
+	}
+
+	GameCode->IsValid = false;
+	GameCode->UpdateAndRender = GameUpdateAndRenderStub;
+	GameCode->GetSoundSamples = GameGetSoundSamplesStub;
 }
 
 om_internal void
@@ -597,6 +648,10 @@ int main(int argc, char *argv[]) {
 			game_memory GameMemory = {};
 			GameMemory.PermanentStorageSize = om_megabytes(64);
 			GameMemory.TransientStorageSize = om_gigabytes(1);
+			GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
+			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
+			//GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+			GameMemory.DEBUGLoadBitmap = DEBUGLoadBitmap;
 
 			u64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
 			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, (size_t)TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?
@@ -619,8 +674,19 @@ int main(int argc, char *argv[]) {
 				SDL_ShowWindow(Window);
 				u32 ExpectedFramesPerUpdate = 1;
 				r32 TargetSecondsPerFrame = (r32)ExpectedFramesPerUpdate / (r32)GameUpdateHz;
+				
+				sdl_game_code Game = SDLLoadGameCode();
+				u64 LoadCounter = 0;
+
 				while (GlobalRunning) 
 				{
+					if (LoadCounter++ > 120)
+					{
+						SDLUnloadGameCode(&Game);
+						Game = SDLLoadGameCode();
+						LoadCounter = 0;
+					}
+
 					NewInput->dtForFrame = TargetSecondsPerFrame;
 					sdl_window_dimension Dimension = SDLGetWindowDimension(Window);
 
@@ -791,14 +857,14 @@ int main(int argc, char *argv[]) {
 					Buffer.Height = GlobalBackbuffer.Height;
 					Buffer.Pitch = GlobalBackbuffer.Pitch;
 					Buffer.BytesPerPixel = GlobalBackbuffer.BytesPerPixel;
-					GameUpdateAndRender(&GameMemory, NewInput, &Buffer);
+					Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
 
 					game_sound_output_buffer SoundBuffer = {};
 					SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
 					SoundBuffer.SampleCount = Align8(BytesToWrite / SoundOutput.BytesPerSample);
 					BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
 					SoundBuffer.Samples = Samples;
-					GameGetSoundSamples(&GameMemory, &SoundBuffer);
+					Game.GetSoundSamples(&GameMemory, &SoundBuffer);
 
 					SDLFillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
 
@@ -854,7 +920,7 @@ int main(int argc, char *argv[]) {
 					TargetSecondsPerFrame = MeasuredSecondsPerFrame;
 					char buffer[245];
 					sprintf_s(buffer, "FramesPerUpdate: %f\n", ExactTargetFramesPerUpdate);
-					OutputDebugString(buffer);
+					//OutputDebugString(buffer);
 
 					LastCounter = EndCounter;
 				}
