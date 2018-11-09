@@ -551,9 +551,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	DrawBitmap(Buffer, &GameState->Bitmap, 500, 300, 0.0f);*/
 }
 
-
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
-	//GameOutputSound(SoundBuffer, GameState->ToneHz);
+	GameOutputSound(SoundBuffer, GameState->ToneHz);
 }

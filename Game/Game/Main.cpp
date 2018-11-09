@@ -157,13 +157,31 @@ DEBUG_LOAD_BITMAP(DEBUGLoadBitmap)
 	return (Result);
 }
 
+inline FILETIME
+SDLGetLastWriteTime(const char* FileName)
+{
+	FILETIME Result = {};
+
+	WIN32_FIND_DATA FindData;
+	HANDLE FindHandle = FindFirstFileA(FileName, &FindData);
+	if (FindHandle != INVALID_HANDLE_VALUE)
+	{
+		Result = FindData.ftLastWriteTime;
+		FindClose(FindHandle);
+	}
+
+	return (Result);
+}
+
 om_internal sdl_game_code
-SDLLoadGameCode(void)
+SDLLoadGameCode(const char* SourceDLLName, const char* TempDLLName)
 {
 	sdl_game_code Result = {};
 	
-	CopyFile("GameCode.dll", "GameCodeTemp.dll", FALSE);
-	Result.GameCodeDLL = LoadLibraryA("GameCodeTemp.dll");
+	Result.DLLLastWriteTime = SDLGetLastWriteTime(SourceDLLName);
+
+	CopyFile(SourceDLLName, TempDLLName, FALSE);
+	Result.GameCodeDLL = LoadLibraryA(TempDLLName);
 	if (Result.GameCodeDLL)
 	{
 		Result.UpdateAndRender = (game_update_and_render *)GetProcAddress(Result.GameCodeDLL, "GameUpdateAndRender");
@@ -565,7 +583,49 @@ SDLGetSecondsElapsed(u64 Start, u64 End)
 	return (Result);
 }
 
-int main(int argc, char *argv[]) {
+om_internal void
+ConcatStrings(char *SourceA, size_t SourceACount, char *SourceB, size_t SourceBCount,
+	char *Destination, size_t DestinationCount)
+{
+	for (int Index = 0; Index < SourceACount; ++Index)
+	{
+		*Destination++ = *SourceA++;
+	}
+
+	for (int Index = 0; Index < SourceBCount; ++Index)
+	{
+		*Destination++ = *SourceB++;
+	}
+
+	*Destination++ = 0;
+}
+
+int main(int argc, char *argv[]) 
+{
+	// NOTE: Don't use MAX_PATH in user-facing code since it can lead for wrong results.
+	// This is for debug code only.
+	char EXEFileName[MAX_PATH];
+	DWORD SizeOfFileName = GetModuleFileNameA(0, EXEFileName, sizeof(EXEFileName));
+	char *OnePastLastSlash = EXEFileName;
+	for (char *Scan = EXEFileName; *Scan; ++Scan)
+	{
+		if (*Scan == '\\')
+		{
+			OnePastLastSlash = Scan + 1;
+		}
+	}
+
+	char SourceGameCodeDLLFileName[] = "GameCode.dll";
+	char SourceGameCodeDLLFullPath[MAX_PATH];
+	ConcatStrings(EXEFileName, OnePastLastSlash - EXEFileName,
+		SourceGameCodeDLLFileName, sizeof(SourceGameCodeDLLFileName) - 1,
+		SourceGameCodeDLLFullPath, sizeof(SourceGameCodeDLLFullPath));
+
+	char TempGameCodeDLLFileName[] = "GameCode.dll";
+	char TempGameCodeDLLFullPath[MAX_PATH];
+	ConcatStrings(EXEFileName, OnePastLastSlash - EXEFileName,
+		TempGameCodeDLLFileName, sizeof(TempGameCodeDLLFileName) - 1,
+		TempGameCodeDLLFullPath, sizeof(TempGameCodeDLLFullPath));
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
 	
@@ -657,16 +717,15 @@ int main(int argc, char *argv[]) {
 				u32 ExpectedFramesPerUpdate = 1;
 				r32 TargetSecondsPerFrame = (r32)ExpectedFramesPerUpdate / (r32)GameUpdateHz;
 				
-				sdl_game_code Game = SDLLoadGameCode();
-				u64 LoadCounter = 0;
-
+				sdl_game_code Game = SDLLoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath);
+				
 				while (GlobalRunning) 
 				{
-					if (LoadCounter++ > 120)
+					FILETIME NewDLLWriteTime = SDLGetLastWriteTime(SourceGameCodeDLLFullPath);
+					if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
 					{
 						SDLUnloadGameCode(&Game);
-						Game = SDLLoadGameCode();
-						LoadCounter = 0;
+						Game = SDLLoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath);
 					}
 
 					NewInput->dtForFrame = TargetSecondsPerFrame;

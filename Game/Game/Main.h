@@ -45,6 +45,8 @@ struct sdl_sound_output
 struct sdl_game_code
 {
 	HMODULE GameCodeDLL;
+	FILETIME DLLLastWriteTime;
+
 	game_update_and_render *UpdateAndRender;
 	game_get_sound_samples *GetSoundSamples;
 
