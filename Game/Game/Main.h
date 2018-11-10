@@ -1,3 +1,7 @@
+#ifndef MAIN_H
+#define MAIN_H
+#pragma once
+
 struct sdl_offscreen_buffer
 {
 	SDL_Texture *Texture;
@@ -37,3 +41,25 @@ struct sdl_sound_output
 	r32 tSine;
 	u32 SafetyBytes;
 };
+
+struct sdl_game_code
+{
+	HMODULE GameCodeDLL;
+	FILETIME DLLLastWriteTime;
+
+	game_update_and_render *UpdateAndRender;
+	game_get_sound_samples *GetSoundSamples;
+
+	b32 IsValid;
+};
+
+struct sdl_state
+{
+	u64 TotalSize;
+	void *GameMemoryBlock;
+
+	char EXEFileName[MAX_PATH];
+	char *OnePastLastEXEFileNameSlash;
+};
+
+#endif // MAIN_H
