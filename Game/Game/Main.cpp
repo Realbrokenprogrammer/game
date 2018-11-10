@@ -43,6 +43,59 @@ om_global_variable u64 GlobalPerfCountFrequency;
 om_global_variable SDL_GameController *ControllerHandles[MAX_CONTROLLERS];
 om_global_variable SDL_Haptic *RumbleHandles[MAX_CONTROLLERS];
 
+om_internal void
+ConcatStrings(char *SourceA, size_t SourceACount, char *SourceB, size_t SourceBCount,
+	char *Destination, size_t DestinationCount)
+{
+	for (int Index = 0; Index < SourceACount; ++Index)
+	{
+		*Destination++ = *SourceA++;
+	}
+
+	for (int Index = 0; Index < SourceBCount; ++Index)
+	{
+		*Destination++ = *SourceB++;
+	}
+
+	*Destination++ = 0;
+}
+
+om_internal void
+SDLGetEXEFileName(sdl_state *State)
+{
+	// NOTE: Don't use MAX_PATH in user-facing code since it can lead for wrong results.
+	// This is for debug code only.
+	char EXEFileName[MAX_PATH];
+	DWORD SizeOfFileName = GetModuleFileNameA(0, State->EXEFileName, sizeof(State->EXEFileName));
+	State->OnePastLastEXEFileNameSlash = State->EXEFileName;
+	for (char *Scan = State->EXEFileName; *Scan; ++Scan)
+	{
+		if (*Scan == '\\')
+		{
+			State->OnePastLastEXEFileNameSlash = Scan + 1;
+		}
+	}
+}
+
+om_internal int
+StringLength(char *String)
+{
+	int Count = 0;
+	while (*String++)
+	{
+		++Count;
+	}
+	return (Count);
+}
+
+om_internal void
+SDLBuildEXEPathFileName(sdl_state *State, char *FileName, char *Destination, int DestinationCount)
+{
+	ConcatStrings(State->EXEFileName, State->OnePastLastEXEFileNameSlash - State->EXEFileName,
+		FileName, StringLength(FileName),
+		Destination, DestinationCount);
+}
+
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 {
 	if (Memory)
@@ -162,12 +215,10 @@ SDLGetLastWriteTime(const char* FileName)
 {
 	FILETIME Result = {};
 
-	WIN32_FIND_DATA FindData;
-	HANDLE FindHandle = FindFirstFileA(FileName, &FindData);
-	if (FindHandle != INVALID_HANDLE_VALUE)
+	WIN32_FILE_ATTRIBUTE_DATA Data;
+	if (GetFileAttributesEx(FileName, GetFileExInfoStandard, &Data))
 	{
-		Result = FindData.ftLastWriteTime;
-		FindClose(FindHandle);
+		Result = Data.ftLastWriteTime;
 	}
 
 	return (Result);
@@ -192,8 +243,8 @@ SDLLoadGameCode(const char* SourceDLLName, const char* TempDLLName)
 
 	if (!Result.IsValid)
 	{
-		Result.UpdateAndRender = GameUpdateAndRenderStub;
-		Result.GetSoundSamples = GameGetSoundSamplesStub;
+		Result.UpdateAndRender = 0;
+		Result.GetSoundSamples = 0;
 	}
 
 	return (Result);
@@ -209,8 +260,8 @@ SDLUnloadGameCode(sdl_game_code *GameCode)
 	}
 
 	GameCode->IsValid = false;
-	GameCode->UpdateAndRender = GameUpdateAndRenderStub;
-	GameCode->GetSoundSamples = GameGetSoundSamplesStub;
+	GameCode->UpdateAndRender = 0;
+	GameCode->GetSoundSamples = 0;
 }
 
 om_internal void
@@ -443,6 +494,13 @@ SDLProcessEvents(game_controller_input *KeyboardController)
 					{
 
 					}
+					else if (KeyCode == SDLK_p)
+					{
+						if (IsDown)
+						{
+							GlobalPause = !GlobalPause;
+						}
+					}
 
 					if (IsDown)
 					{
@@ -583,52 +641,24 @@ SDLGetSecondsElapsed(u64 Start, u64 End)
 	return (Result);
 }
 
-om_internal void
-ConcatStrings(char *SourceA, size_t SourceACount, char *SourceB, size_t SourceBCount,
-	char *Destination, size_t DestinationCount)
-{
-	for (int Index = 0; Index < SourceACount; ++Index)
-	{
-		*Destination++ = *SourceA++;
-	}
-
-	for (int Index = 0; Index < SourceBCount; ++Index)
-	{
-		*Destination++ = *SourceB++;
-	}
-
-	*Destination++ = 0;
-}
-
 int main(int argc, char *argv[]) 
 {
-	// NOTE: Don't use MAX_PATH in user-facing code since it can lead for wrong results.
-	// This is for debug code only.
-	char EXEFileName[MAX_PATH];
-	DWORD SizeOfFileName = GetModuleFileNameA(0, EXEFileName, sizeof(EXEFileName));
-	char *OnePastLastSlash = EXEFileName;
-	for (char *Scan = EXEFileName; *Scan; ++Scan)
-	{
-		if (*Scan == '\\')
-		{
-			OnePastLastSlash = Scan + 1;
-		}
-	}
-
-	char SourceGameCodeDLLFileName[] = "GameCode.dll";
-	char SourceGameCodeDLLFullPath[MAX_PATH];
-	ConcatStrings(EXEFileName, OnePastLastSlash - EXEFileName,
-		SourceGameCodeDLLFileName, sizeof(SourceGameCodeDLLFileName) - 1,
-		SourceGameCodeDLLFullPath, sizeof(SourceGameCodeDLLFullPath));
-
-	char TempGameCodeDLLFileName[] = "GameCode.dll";
-	char TempGameCodeDLLFullPath[MAX_PATH];
-	ConcatStrings(EXEFileName, OnePastLastSlash - EXEFileName,
-		TempGameCodeDLLFileName, sizeof(TempGameCodeDLLFileName) - 1,
-		TempGameCodeDLLFullPath, sizeof(TempGameCodeDLLFullPath));
+	sdl_state SDLState = {};
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
 	
+	SDLGetEXEFileName(&SDLState);
+
+	char SourceGameCodeDLLFileName[] = "GameCode.dll";
+	char SourceGameCodeDLLFullPath[MAX_PATH];
+	SDLBuildEXEPathFileName(&SDLState, SourceGameCodeDLLFileName, 
+		SourceGameCodeDLLFullPath, sizeof(SourceGameCodeDLLFullPath));
+
+	char TempGameCodeDLLFileName[] = "GameCode_temp.dll";
+	char TempGameCodeDLLFullPath[MAX_PATH];
+	SDLBuildEXEPathFileName(&SDLState, TempGameCodeDLLFileName, 
+		TempGameCodeDLLFullPath, sizeof(TempGameCodeDLLFullPath));
+
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_HAPTIC | SDL_INIT_AUDIO);
 
 	SDLOpenGameControllers();
@@ -695,8 +725,8 @@ int main(int argc, char *argv[])
 			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 			GameMemory.DEBUGLoadBitmap = DEBUGLoadBitmap;
 
-			u64 TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
-			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, (size_t)TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?
+			SDLState.TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
+			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, (size_t)SDLState.TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?
 			GameMemory.TransientStorage = ((u8 *)GameMemory.PermanentStorage + GameMemory.PermanentStorageSize);
 
 			if (Samples && GameMemory.PermanentStorage && GameMemory.TransientStorage)
@@ -719,7 +749,7 @@ int main(int argc, char *argv[])
 				
 				sdl_game_code Game = SDLLoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath);
 				
-				while (GlobalRunning) 
+				while (GlobalRunning)
 				{
 					FILETIME NewDLLWriteTime = SDLGetLastWriteTime(SourceGameCodeDLLFullPath);
 					if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
@@ -735,7 +765,7 @@ int main(int argc, char *argv[])
 					// be wrong!!!
 					// TODO(casey): Zeroing macro
 					game_controller_input *OldKeyboardController = GetController(OldInput, 0);
-					game_controller_input *NewKeyboardController = GetController(NewInput, 0); 
+					game_controller_input *NewKeyboardController = GetController(NewInput, 0);
 					*NewKeyboardController = {};
 
 					NewKeyboardController->IsConnected = true;
@@ -749,221 +779,231 @@ int main(int argc, char *argv[])
 
 					SDLProcessEvents(NewKeyboardController);
 
-					DWORD MaxControllerCount = MAX_CONTROLLERS;
-					if (MaxControllerCount > (OM_ARRAYCOUNT(NewInput->Controllers) - 1))
+					if (!GlobalPause)
 					{
-						MaxControllerCount = (OM_ARRAYCOUNT(NewInput->Controllers) - 1);
-					}
 
-					//TODO: Don't poll disconnected controllers.
-					for (DWORD ControllerIndex = 0; ControllerIndex < MaxControllerCount; ++ControllerIndex)
-					{
-						i32 OurControllerIndex = ControllerIndex + 1;
-						game_controller_input *OldController = GetController(OldInput, OurControllerIndex);
-						game_controller_input *NewController = GetController(NewInput, OurControllerIndex);
-
-						SDL_GameController *Controller = ControllerHandles[ControllerIndex];
-						if (Controller && SDL_GameControllerGetAttached(Controller))
+						DWORD MaxControllerCount = MAX_CONTROLLERS;
+						if (MaxControllerCount > (OM_ARRAYCOUNT(NewInput->Controllers) - 1))
 						{
-							NewController->IsConnected = true;
-							NewController->IsAnalog = OldController->IsAnalog;
+							MaxControllerCount = (OM_ARRAYCOUNT(NewInput->Controllers) - 1);
+						}
 
-							// NOTE(casey): This controller is plugged in
-							i16 AxisTL = SDL_GameControllerGetAxis(Controller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
-							i16 AxisTR = SDL_GameControllerGetAxis(Controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+						//TODO: Don't poll disconnected controllers.
+						for (DWORD ControllerIndex = 0; ControllerIndex < MaxControllerCount; ++ControllerIndex)
+						{
+							i32 OurControllerIndex = ControllerIndex + 1;
+							game_controller_input *OldController = GetController(OldInput, OurControllerIndex);
+							game_controller_input *NewController = GetController(NewInput, OurControllerIndex);
 
-							i16 TriggerMax = AxisTL;
-							if (TriggerMax < AxisTR)
+							SDL_GameController *Controller = ControllerHandles[ControllerIndex];
+							if (Controller && SDL_GameControllerGetAttached(Controller))
 							{
-								TriggerMax = AxisTR;
+								NewController->IsConnected = true;
+								NewController->IsAnalog = OldController->IsAnalog;
+
+								// NOTE(casey): This controller is plugged in
+								i16 AxisTL = SDL_GameControllerGetAxis(Controller, SDL_CONTROLLER_AXIS_TRIGGERLEFT);
+								i16 AxisTR = SDL_GameControllerGetAxis(Controller, SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
+
+								i16 TriggerMax = AxisTL;
+								if (TriggerMax < AxisTR)
+								{
+									TriggerMax = AxisTR;
+								}
+
+								//TODO: ClutchMax here
+
+								i16 AxisLX = SDL_GameControllerGetAxis(Controller, SDL_CONTROLLER_AXIS_LEFTX);
+								i16 AxisLY = SDL_GameControllerGetAxis(Controller, SDL_CONTROLLER_AXIS_LEFTY);
+
+								// TODO(casey): This is a square deadzone, check XInput to
+								// verify that the deadzone is "round" and show how to do
+								// round deadzone processing.
+								NewController->StickAverageX = SDLProcessGameControllerAxisValue(AxisLX, CONTROLLER_AXIS_LEFT_DEADZONE);
+								NewController->StickAverageY = -SDLProcessGameControllerAxisValue(AxisLY, CONTROLLER_AXIS_LEFT_DEADZONE);
+								if ((NewController->StickAverageX != 0.0f) || (NewController->StickAverageY != 0.0f))
+								{
+									NewController->IsAnalog = true;
+								}
+
+								if (SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_DPAD_UP))
+								{
+									NewController->StickAverageY = 1.0f;
+									NewController->IsAnalog = false;
+								}
+
+								if (SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN))
+								{
+									NewController->StickAverageY = -1.0f;
+									NewController->IsAnalog = false;
+								}
+
+								if (SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT))
+								{
+									NewController->StickAverageX = -1.0f;
+									NewController->IsAnalog = false;
+								}
+
+								if (SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))
+								{
+									NewController->StickAverageX = 1.0f;
+									NewController->IsAnalog = false;
+								}
+
+
+								r32 Threshold = 0.5f;
+								SDLProcessGameControllerButton(
+									&OldController->MoveLeft,
+									NewController->StickAverageX < -Threshold,
+									&NewController->MoveLeft);
+								SDLProcessGameControllerButton(
+									&OldController->MoveRight,
+									NewController->StickAverageX > Threshold,
+									&NewController->MoveRight);
+								SDLProcessGameControllerButton(
+									&OldController->MoveDown,
+									NewController->StickAverageY < -Threshold,
+									&NewController->MoveDown);
+								SDLProcessGameControllerButton(
+									&OldController->MoveUp,
+									NewController->StickAverageY > Threshold,
+									&NewController->MoveUp);
+
+								SDLProcessGameControllerButton(&OldController->ActionDown,
+									SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_A),
+									&NewController->ActionDown);
+								SDLProcessGameControllerButton(&OldController->ActionRight,
+									SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_B),
+									&NewController->ActionRight);
+								SDLProcessGameControllerButton(&OldController->ActionLeft,
+									SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_X),
+									&NewController->ActionLeft);
+								SDLProcessGameControllerButton(&OldController->ActionUp,
+									SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_Y),
+									&NewController->ActionUp);
+								SDLProcessGameControllerButton(&OldController->LeftShoulder,
+									SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_LEFTSHOULDER),
+									&NewController->LeftShoulder);
+								SDLProcessGameControllerButton(&OldController->RightShoulder,
+									SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER),
+									&NewController->RightShoulder);
+
+								SDLProcessGameControllerButton(&OldController->Start,
+									SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_START),
+									&NewController->Start);
+								SDLProcessGameControllerButton(&OldController->Back,
+									SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_BACK),
+									&NewController->Back);
+
 							}
-
-							//TODO: ClutchMax here
-
-							i16 AxisLX = SDL_GameControllerGetAxis(Controller, SDL_CONTROLLER_AXIS_LEFTX);
-							i16 AxisLY = SDL_GameControllerGetAxis(Controller, SDL_CONTROLLER_AXIS_LEFTY);
-
-							// TODO(casey): This is a square deadzone, check XInput to
-							// verify that the deadzone is "round" and show how to do
-							// round deadzone processing.
-							NewController->StickAverageX = SDLProcessGameControllerAxisValue(AxisLX, CONTROLLER_AXIS_LEFT_DEADZONE);
-							NewController->StickAverageY = -SDLProcessGameControllerAxisValue(AxisLY, CONTROLLER_AXIS_LEFT_DEADZONE);
-							if ((NewController->StickAverageX != 0.0f) || (NewController->StickAverageY != 0.0f))
+							else
 							{
-								NewController->IsAnalog = true;
+								// NOTE(casey): The controller is not available
+								NewController->IsConnected = false;
 							}
+						}
 
-							if (SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_DPAD_UP))
-							{
-								NewController->StickAverageY = 1.0f;
-								NewController->IsAnalog = false;
-							}
+						if (!SoundIsValid)
+						{
+							SoundIsValid = true;
+						}
 
-							if (SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN))
-							{
-								NewController->StickAverageY = -1.0f;
-								NewController->IsAnalog = false;
-							}
-
-							if (SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT))
-							{
-								NewController->StickAverageX = -1.0f;
-								NewController->IsAnalog = false;
-							}
-
-							if (SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT))
-							{
-								NewController->StickAverageX = 1.0f;
-								NewController->IsAnalog = false;
-							}
-
-
-							r32 Threshold = 0.5f;
-							SDLProcessGameControllerButton(
-								&OldController->MoveLeft,
-								NewController->StickAverageX < -Threshold,
-								&NewController->MoveLeft);
-							SDLProcessGameControllerButton(
-								&OldController->MoveRight,
-								NewController->StickAverageX > Threshold,
-								&NewController->MoveRight);
-							SDLProcessGameControllerButton(
-								&OldController->MoveDown,
-								NewController->StickAverageY < -Threshold,
-								&NewController->MoveDown);
-							SDLProcessGameControllerButton(
-								&OldController->MoveUp,
-								NewController->StickAverageY > Threshold,
-								&NewController->MoveUp);
-							
-							SDLProcessGameControllerButton(&OldController->ActionDown,
-								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_A),
-								&NewController->ActionDown);
-							SDLProcessGameControllerButton(&OldController->ActionRight,
-								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_B),
-								&NewController->ActionRight);
-							SDLProcessGameControllerButton(&OldController->ActionLeft,
-								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_X),
-								&NewController->ActionLeft);
-							SDLProcessGameControllerButton(&OldController->ActionUp,
-								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_Y),
-								&NewController->ActionUp);
-							SDLProcessGameControllerButton(&OldController->LeftShoulder,
-								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_LEFTSHOULDER),
-								&NewController->LeftShoulder);
-							SDLProcessGameControllerButton(&OldController->RightShoulder,
-								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER),
-								&NewController->RightShoulder);
-
-							SDLProcessGameControllerButton(&OldController->Start,
-								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_START),
-								&NewController->Start);
-							SDLProcessGameControllerButton(&OldController->Back,
-								SDL_GameControllerGetButton(Controller, SDL_CONTROLLER_BUTTON_BACK),
-								&NewController->Back);
-
+						SDL_LockAudio();
+						int ByteToLock = (SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) % SoundOutput.SecondaryBufferSize;
+						int TargetCursor = ((GlobalSecondaryBuffer.PlayCursor +
+							(SoundOutput.SafetyBytes*SoundOutput.BytesPerSample)) %
+							SoundOutput.SecondaryBufferSize);
+						int BytesToWrite;
+						if (ByteToLock > TargetCursor)
+						{
+							BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
+							BytesToWrite += TargetCursor;
 						}
 						else
 						{
-							// NOTE(casey): The controller is not available
-							NewController->IsConnected = false;
+							BytesToWrite = TargetCursor - ByteToLock;
 						}
-					}
+						SDL_UnlockAudio();
 
-					if (!SoundIsValid)
-					{
-						SoundIsValid = true;
-					}
+						game_offscreen_buffer Buffer = {};
+						Buffer.Memory = GlobalBackbuffer.Memory;
+						Buffer.Width = GlobalBackbuffer.Width;
+						Buffer.Height = GlobalBackbuffer.Height;
+						Buffer.Pitch = GlobalBackbuffer.Pitch;
+						Buffer.BytesPerPixel = GlobalBackbuffer.BytesPerPixel;
+						if (Game.UpdateAndRender)
+						{
+							Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
+						}
 
-					SDL_LockAudio();
-					int ByteToLock = (SoundOutput.RunningSampleIndex*SoundOutput.BytesPerSample) % SoundOutput.SecondaryBufferSize;
-					int TargetCursor = ((GlobalSecondaryBuffer.PlayCursor +
-						(SoundOutput.SafetyBytes*SoundOutput.BytesPerSample)) %
-						SoundOutput.SecondaryBufferSize);
-					int BytesToWrite;
-					if (ByteToLock > TargetCursor)
-					{
-						BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
-						BytesToWrite += TargetCursor;
-					}
-					else
-					{
-						BytesToWrite = TargetCursor - ByteToLock;
-					}
-					SDL_UnlockAudio();
+						game_sound_output_buffer SoundBuffer = {};
+						SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
+						SoundBuffer.SampleCount = Align8(BytesToWrite / SoundOutput.BytesPerSample);
+						BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
+						SoundBuffer.Samples = Samples;
+						if (Game.GetSoundSamples)
+						{
+							Game.GetSoundSamples(&GameMemory, &SoundBuffer);
+						}
 
-					game_offscreen_buffer Buffer = {};
-					Buffer.Memory = GlobalBackbuffer.Memory;
-					Buffer.Width = GlobalBackbuffer.Width;
-					Buffer.Height = GlobalBackbuffer.Height;
-					Buffer.Pitch = GlobalBackbuffer.Pitch;
-					Buffer.BytesPerPixel = GlobalBackbuffer.BytesPerPixel;
-					Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
+						SDLFillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
 
-					game_sound_output_buffer SoundBuffer = {};
-					SoundBuffer.SamplesPerSecond = SoundOutput.SamplesPerSecond;
-					SoundBuffer.SampleCount = Align8(BytesToWrite / SoundOutput.BytesPerSample);
-					BytesToWrite = SoundBuffer.SampleCount*SoundOutput.BytesPerSample;
-					SoundBuffer.Samples = Samples;
-					Game.GetSoundSamples(&GameMemory, &SoundBuffer);
-
-					SDLFillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite, &SoundBuffer);
-
-					//TODO: Leave this off untill there is v support.
+						//TODO: Leave this off untill there is v support.
 #if 0
-					u64 WorkCounter = SDLGetWallClock();
-					r32 WorkSecondsElapsed = SDLGetSecondsElapsed(LastCounter, WorkCounter);
+						u64 WorkCounter = SDLGetWallClock();
+						r32 WorkSecondsElapsed = SDLGetSecondsElapsed(LastCounter, WorkCounter);
 
-					//TODO: Might be bugged
-					r32 SecondsElapsedForFrame = WorkSecondsElapsed;
-					if (SecondsElapsedForFrame < TargetSecondsPerFrame)
-					{
-						u32 SleepMS = (u32)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
-
-						if (SleepMS > 0)
+						//TODO: Might be bugged
+						r32 SecondsElapsedForFrame = WorkSecondsElapsed;
+						if (SecondsElapsedForFrame < TargetSecondsPerFrame)
 						{
-							SDL_Delay(SleepMS - 1);
+							u32 SleepMS = (u32)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+
+							if (SleepMS > 0)
+							{
+								SDL_Delay(SleepMS - 1);
+							}
+
+							r32 TestSecondsElapsedForFrame = SDLGetSecondsElapsed(LastCounter, SDLGetWallClock());
+
+							if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
+							{
+								//TODO: Missed sleep, logging
+							}
+
+							while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+							{
+								SecondsElapsedForFrame = SDLGetSecondsElapsed(LastCounter, SDLGetWallClock());
+							}
 						}
-
-						r32 TestSecondsElapsedForFrame = SDLGetSecondsElapsed(LastCounter, SDLGetWallClock());
-
-						if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
+						else
 						{
-							//TODO: Missed sleep, logging
+							//TODO: Missed Frame, Logging
 						}
-
-						while (SecondsElapsedForFrame < TargetSecondsPerFrame)
-						{
-							SecondsElapsedForFrame = SDLGetSecondsElapsed(LastCounter, SDLGetWallClock());
-						}
-					}
-					else
-					{
-						//TODO: Missed Frame, Logging
-					}
 #endif
 
-					SDLDisplayBufferInWindow(&GlobalBackbuffer, Renderer,
-						Dimension.Width, Dimension.Height);
+						SDLDisplayBufferInWindow(&GlobalBackbuffer, Renderer,
+							Dimension.Width, Dimension.Height);
 
-					FlipWallClock = SDLGetWallClock();
+						FlipWallClock = SDLGetWallClock();
 
-					game_input *Temp = NewInput;
-					NewInput = OldInput;
-					OldInput = Temp;
+						game_input *Temp = NewInput;
+						NewInput = OldInput;
+						OldInput = Temp;
 
-					u64 EndCounter = SDLGetWallClock();
-					r32 MeasuredSecondsPerFrame = SDLGetSecondsElapsed(LastCounter, EndCounter);
-					r32 ExactTargetFramesPerUpdate = MeasuredSecondsPerFrame * (r32)MonitorRefreshHz;
-					u32 NewExpectedFramesPerUpdate = RoundReal32ToInt32(ExactTargetFramesPerUpdate);
-					ExpectedFramesPerUpdate = NewExpectedFramesPerUpdate;
+						u64 EndCounter = SDLGetWallClock();
+						r32 MeasuredSecondsPerFrame = SDLGetSecondsElapsed(LastCounter, EndCounter);
+						r32 ExactTargetFramesPerUpdate = MeasuredSecondsPerFrame * (r32)MonitorRefreshHz;
+						u32 NewExpectedFramesPerUpdate = RoundReal32ToInt32(ExactTargetFramesPerUpdate);
+						ExpectedFramesPerUpdate = NewExpectedFramesPerUpdate;
 
-					TargetSecondsPerFrame = MeasuredSecondsPerFrame;
-					char buffer[245];
-					sprintf_s(buffer, "FramesPerUpdate: %f\n", ExactTargetFramesPerUpdate);
-					//OutputDebugString(buffer);
+						TargetSecondsPerFrame = MeasuredSecondsPerFrame;
+						char buffer[245];
+						sprintf_s(buffer, "FramesPerUpdate: %f\n", ExactTargetFramesPerUpdate);
+						OutputDebugString(buffer);
 
-					LastCounter = EndCounter;
+						LastCounter = EndCounter;
+					}
 				}
 			}
 			else

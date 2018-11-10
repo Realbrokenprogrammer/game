@@ -53,4 +53,13 @@ struct sdl_game_code
 	b32 IsValid;
 };
 
+struct sdl_state
+{
+	u64 TotalSize;
+	void *GameMemoryBlock;
+
+	char EXEFileName[MAX_PATH];
+	char *OnePastLastEXEFileNameSlash;
+};
+
 #endif // MAIN_H
