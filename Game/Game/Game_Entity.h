@@ -29,6 +29,16 @@ enum entity_movement
 	//TODO: Figure out names for these.
 };
 
+struct entity_movement_blueprint
+{
+
+};
+
+struct entity_physics_blueprint
+{
+
+};
+
 struct hit_point
 {
 	u8 Flags;

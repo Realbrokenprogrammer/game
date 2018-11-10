@@ -7,6 +7,7 @@
 #include "Game_Math.h"
 #include "Game_Entity.h"
 #include "Game_World.h"
+#include "Game_Camera.h"
 
 //TODO: This could be improved, think of the structure of this later.
 enum game_mode
@@ -24,7 +25,7 @@ struct game_state
 
 	entity *ControlledEntity;
 
-	world_position CameraPosition;
+	camera Camera;
 
 	int ToneHz;
 	int RedOffset;

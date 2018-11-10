@@ -69,10 +69,10 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 }
 
 om_internal void
-DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, r32 TargetX, r32 TargetY, r32 ColorAlpha)
+DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, vector2 Target, r32 ColorAlpha)
 {
-	i32 MinX = RoundReal32ToInt32(TargetX);
-	i32 MinY = RoundReal32ToInt32(TargetY);
+	i32 MinX = RoundReal32ToInt32(Target.x);
+	i32 MinY = RoundReal32ToInt32(Target.y);
 	i32 MaxX = MinX + Bitmap->Width;
 	i32 MaxY = MinY + Bitmap->Height;
 
@@ -134,9 +134,14 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 }
 
 inline vector2
-GetCamera(game_state *GameState)
+GetCameraSpacePosition(game_state *GameState, entity *Entity)
 {
+	vector2 Result = {};
 
+	Result.x = Entity->Position.x - GameState->Camera.Position.x;
+	Result.y = Entity->Position.y - GameState->Camera.Position.y;
+
+	return (Result);
 }
 
 om_internal void 
@@ -424,7 +429,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 
 		// TODO: Should later be loaded from level file.
-		u32 WorldWidth = 40;
+		u32 WorldWidth = 45;
 		u32 WorldHeight = 23;
 		InitializeWorld(World, WorldWidth, WorldHeight);
 
@@ -468,6 +473,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		world_layer *FirstLayer = &GameState->World->Layers[0];
 		GameState->ControlledEntity = AddPlayer(FirstLayer, 1280 / 2, 720 / 2);
 
+		GameState->Camera = {0, 0};
+
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
 	}
@@ -487,24 +494,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			vector2 ddPosition = {};
 			if (Controller->MoveLeft.EndedDown)
 			{
-				//GameState->BlueOffset -= 1;
-				//GameState->ControlledEntity->Position.x -= 1;
 				ddPosition.x -= 1.0f;
+				//GameState->Camera.Position.x--;
 			}
 			if (Controller->MoveRight.EndedDown)
 			{
-				//GameState->BlueOffset += 1;
-				//GameState->ControlledEntity->Position.x += 1;
 				ddPosition.x += 1.0f;
+				//GameState->Camera.Position.x++;
 			}
 			if (Controller->MoveUp.EndedDown)
 			{
-				//GameState->ControlledEntity->Position.y -= 1;
 				ddPosition.y -= 1.0f;
 			}
 			if (Controller->MoveDown.EndedDown)
 			{
-				//GameState->ControlledEntity->Position.y += 1;
 				ddPosition.y += 1.0f;
 			}
 
@@ -512,27 +515,36 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
+	//TODO: Temp to clear screen.
+	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.5f, 0.5f, 0.5f);
+
+	r32 ScreenCenterX = 0.5f * (r32)Buffer->Width;
+	r32 ScreenCenterY = 0.5f * (r32)Buffer->Height;
+
+	//GameState->Camera.Position.x = GameState->ControlledEntity->Position.x - 1280 / 2;
+	GameState->Camera.Position = GameState->ControlledEntity->Position - Vector2(1280 / 2, 720/2);
+
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
 		world_layer *Layer = &GameState->World->Layers[LayerIndex];
 		for (int EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
 		{
-			entity Entity = Layer->Entities[EntityIndex];
+			entity *Entity = Layer->Entities + EntityIndex;
 
-			switch (Entity.Type)
+			switch (Entity->Type)
 			{
 				case EntityType_Hero:
 				{
-					DrawBitmap(Buffer, &GameState->PlayerBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+					DrawBitmap(Buffer, &GameState->PlayerBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
 				} break;
 				case EntityType_GrassTile:
 				{
-					DrawBitmap(Buffer, &GameState->GrassBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+					DrawBitmap(Buffer, &GameState->GrassBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
 				} break;
 				case EntityType_WaterTile:
 				{
-					DrawBitmap(Buffer, &GameState->WaterBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+					DrawBitmap(Buffer, &GameState->WaterBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
 				} break;
 				case EntityType_Monster:
 				default:
@@ -554,5 +566,5 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
-	GameOutputSound(SoundBuffer, GameState->ToneHz);
+	//GameOutputSound(SoundBuffer, GameState->ToneHz);
 }
