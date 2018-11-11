@@ -158,6 +158,7 @@ UpdateCamera(game_state *GameState)
 	r32 LerpVelocity = 0.025f;
 	vector2 CameraCenter = GetCenter(GameState->Camera.CameraWindow);
 
+	//TODO: Can this be cleaner?
 	GameState->Camera.Position = Lerp(GameState->Camera.Position, (CenterCameraAtEntity(CameraCenter, GameState->ControlledEntity)), LerpVelocity);
 	
 	//TODO: Can this be cleaner?
