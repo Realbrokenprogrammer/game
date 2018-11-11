@@ -100,17 +100,19 @@ DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, vector2 Target,
 		MaxY = Buffer->Height;
 	}
 
-	u32 *Source = Bitmap->Pixels;
-	u8 *Row = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
+	u32 *SourceRow = (Bitmap->Pixels + SourceOffsetX) + (SourceOffsetY * Bitmap->Width);
+	u8 *DestinationRow = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
 	for (int Y = MinY; Y < MaxY; ++Y)
 	{
-		u32 *Pixel = (u32 *)Row;
+		u32 *Destination = (u32 *)DestinationRow;
+		u32 *Source = SourceRow;
 		for (int X = MinX; X < MaxX; ++X)
 		{
-			*Pixel++ = *Source++;
+			*Destination++ = *Source++;
 		}
 
-		Row += Buffer->Pitch;
+		DestinationRow += Buffer->Pitch;
+		SourceRow += Bitmap->Width;
 	}
 }
 
@@ -169,6 +171,17 @@ SetCamera()
 
 }
 
+inline entity_movement_blueprint
+DefaultMovementBlueprint(void)
+{
+	entity_movement_blueprint Result;
+
+	Result.Speed = 1.0f;
+	Result.Drag = 0.0f;
+
+	return (Result);
+}
+
 //TODO: Perhaps don't return pointer to the entity?
 om_internal entity *
 AddEntity(world_layer *Layer, entity_type Type, world_position *Position)
@@ -192,13 +205,17 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	world_position Position = { PositionX, PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
 
+	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
+	MovementBlueprint.Speed = 50.0f;
+	MovementBlueprint.Drag = 0.8f;
+
+	Entity->MovementBlueprint = MovementBlueprint;
 	Entity->HitPointMax = 3;
 	Entity->Collideable = true;
 	Entity->CollisionBox = rect2{32, 32};
 	Entity->Width = 32.0f;
 	Entity->Height = 32.0f;
-	//TODO: Set properties.
-
+	
 	return(Entity);
 }
 
@@ -307,12 +324,8 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 		ddPosition *= (1.0f / SquareRoot(ddLength));
 	}
 
-	//TODO: Maybe add this into the entity itself?
-	r32 EntitySpeed = 50.0f; // m/s^2
-	r32 Drag = 0.8f;
-
-	ddPosition *= EntitySpeed;
-	ddPosition += (-Drag * Entity->dPosition);
+	ddPosition *= Entity->MovementBlueprint.Speed;
+	ddPosition += (-Entity->MovementBlueprint.Drag * Entity->dPosition);
 
 	//TODO: Write short comment with calculations
 	vector2 OldPosition = Entity->Position;

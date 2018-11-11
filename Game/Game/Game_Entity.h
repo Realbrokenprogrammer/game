@@ -58,6 +58,7 @@ struct entity
 	vector2 Position;
 	vector2 dPosition; //Derivative of Position (Velocity)
 	vector2 ddPosition; //Derivative of dPosition (Acceleration)
+	entity_movement_blueprint MovementBlueprint;
 	
 	b32 Collideable;
 	rect2 CollisionBox;
@@ -67,7 +68,6 @@ struct entity
 	u32 HitPointMax;
 	hit_point HitPoint;
 
-	entity_movement Movement;
 };
 
 #endif // GAME_ENTITY_H
