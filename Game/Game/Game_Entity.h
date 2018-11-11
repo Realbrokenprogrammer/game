@@ -31,7 +31,8 @@ enum entity_movement
 
 struct entity_movement_blueprint
 {
-
+	r32 Speed;
+	r32 Drag;
 };
 
 struct entity_physics_blueprint

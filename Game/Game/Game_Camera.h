@@ -4,6 +4,7 @@
 
 struct camera
 {
+	rect2 CameraWindow;
 	vector2 Position;
 };
 

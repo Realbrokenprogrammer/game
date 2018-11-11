@@ -136,12 +136,31 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 inline vector2
 GetCameraSpacePosition(game_state *GameState, entity *Entity)
 {
-	vector2 Result = {};
+	vector2 Result = Entity->Position - GameState->Camera.Position;
+	
+	return (Result);
+}
 
-	Result.x = Entity->Position.x - GameState->Camera.Position.x;
-	Result.y = Entity->Position.y - GameState->Camera.Position.y;
+inline vector2 
+CenterCameraAtEntity(vector2 screenSize, entity *Entity)
+{
+	vector2 Result = Entity->Position - screenSize;
 
 	return (Result);
+}
+
+om_internal void
+UpdateCamera(game_state *GameState)
+{
+	//TODO: Use the movement blueprint from the entity that is being followed.
+	r32 LerpVelocity = 0.025f;
+	vector2 CameraCenter = GetCenter(GameState->Camera.CameraWindow);
+
+	GameState->Camera.Position = Lerp(GameState->Camera.Position, (CenterCameraAtEntity(CameraCenter, GameState->ControlledEntity)), LerpVelocity);
+	
+	//TODO: Can this be cleaner?
+	GameState->Camera.Position = Clamp(Vector2(0, 0), GameState->Camera.Position, 
+		(Vector2(GameState->World->WorldWidth, GameState->World->WorldHeight) - GameState->Camera.CameraWindow.Max));
 }
 
 om_internal void 
@@ -429,22 +448,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 
 		// TODO: Should later be loaded from level file.
-		u32 WorldWidth = 45;
-		u32 WorldHeight = 23;
-		InitializeWorld(World, WorldWidth, WorldHeight);
+		u32 WorldTileWidth = 60;
+		u32 WorldTileHeight = 23;
+		InitializeWorld(World, WorldTileWidth*PIXELS_PER_TILE, WorldTileHeight*PIXELS_PER_TILE);
 
-		for (u32 TileY = 0; TileY < WorldHeight; ++TileY)
+		for (u32 TileY = 0; TileY < WorldTileHeight; ++TileY)
 		{
-			for (u32 TileX = 0; TileX < WorldWidth; ++TileX)
+			for (u32 TileX = 0; TileX < WorldTileWidth; ++TileX)
 			{
 				u32 TileValue = 1;
 
-				if ((TileX == 0) || (TileY == 0) || (TileY == (WorldHeight -1)) || (TileX == (WorldWidth -1)))
+				if ((TileX == 0) || (TileY == 0) || (TileY == (WorldTileHeight -1)) || (TileX == (WorldTileWidth -1)))
 				{
 					TileValue = 2;
 
 				}
-				else if (TileX == (WorldWidth / 2) && (TileY+1 == (WorldHeight / 2)))
+				else if (TileX == (WorldTileWidth / 2) && (TileY+1 == (WorldTileHeight / 2)))
 				{
 					TileValue = 2;
 				}
@@ -459,9 +478,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			}
 		}
 
-		for (u32 TileY = 0; TileY < WorldHeight; ++TileY)
+		for (u32 TileY = 0; TileY < WorldTileHeight; ++TileY)
 		{
-			for (u32 TileX = 0; TileX < WorldWidth; ++TileX)
+			for (u32 TileX = 0; TileX < WorldTileWidth; ++TileX)
 			{
 				u32 TileValue = 1;
 
@@ -473,7 +492,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		world_layer *FirstLayer = &GameState->World->Layers[0];
 		GameState->ControlledEntity = AddPlayer(FirstLayer, 1280 / 2, 720 / 2);
 
-		GameState->Camera = {0, 0};
+		r32 ScreenCenterX = 0.5f * (r32)Buffer->Width;
+		r32 ScreenCenterY = 0.5f * (r32)Buffer->Height;
+
+		GameState->Camera = {};
+		GameState->Camera.CameraWindow = { {0, 0}, {(r32)Buffer->Width, (r32)Buffer->Height} };
+		
 
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
@@ -495,12 +519,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			if (Controller->MoveLeft.EndedDown)
 			{
 				ddPosition.x -= 1.0f;
-				//GameState->Camera.Position.x--;
 			}
 			if (Controller->MoveRight.EndedDown)
 			{
 				ddPosition.x += 1.0f;
-				//GameState->Camera.Position.x++;
 			}
 			if (Controller->MoveUp.EndedDown)
 			{
@@ -515,14 +537,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-	//TODO: Temp to clear screen.
+#if 1
+	//Clear screen.
 	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.5f, 0.5f, 0.5f);
-
-	r32 ScreenCenterX = 0.5f * (r32)Buffer->Width;
-	r32 ScreenCenterY = 0.5f * (r32)Buffer->Height;
-
-	//GameState->Camera.Position.x = GameState->ControlledEntity->Position.x - 1280 / 2;
-	GameState->Camera.Position = GameState->ControlledEntity->Position - Vector2(1280 / 2, 720/2);
+#endif
+	UpdateCamera(GameState);
 
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
