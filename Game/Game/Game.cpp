@@ -69,10 +69,10 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 }
 
 om_internal void
-DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, r32 TargetX, r32 TargetY, r32 ColorAlpha)
+DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, vector2 Target, r32 ColorAlpha)
 {
-	i32 MinX = RoundReal32ToInt32(TargetX);
-	i32 MinY = RoundReal32ToInt32(TargetY);
+	i32 MinX = RoundReal32ToInt32(Target.x);
+	i32 MinY = RoundReal32ToInt32(Target.y);
 	i32 MaxX = MinX + Bitmap->Width;
 	i32 MaxY = MinY + Bitmap->Height;
 
@@ -100,17 +100,19 @@ DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, r32 TargetX, r3
 		MaxY = Buffer->Height;
 	}
 
-	u32 *Source = Bitmap->Pixels;
-	u8 *Row = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
+	u32 *SourceRow = (Bitmap->Pixels + SourceOffsetX) + (SourceOffsetY * Bitmap->Width);
+	u8 *DestinationRow = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
 	for (int Y = MinY; Y < MaxY; ++Y)
 	{
-		u32 *Pixel = (u32 *)Row;
+		u32 *Destination = (u32 *)DestinationRow;
+		u32 *Source = SourceRow;
 		for (int X = MinX; X < MaxX; ++X)
 		{
-			*Pixel++ = *Source++;
+			*Destination++ = *Source++;
 		}
 
-		Row += Buffer->Pitch;
+		DestinationRow += Buffer->Pitch;
+		SourceRow += Bitmap->Width;
 	}
 }
 
@@ -134,15 +136,51 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 }
 
 inline vector2
-GetCamera(game_state *GameState)
+GetCameraSpacePosition(game_state *GameState, entity *Entity)
 {
+	vector2 Result = Entity->Position - GameState->Camera.Position;
+	
+	return (Result);
+}
 
+inline vector2 
+CenterCameraAtEntity(vector2 screenSize, entity *Entity)
+{
+	vector2 Result = Entity->Position - screenSize;
+
+	return (Result);
+}
+
+om_internal void
+UpdateCamera(game_state *GameState)
+{
+	//TODO: Use the movement blueprint from the entity that is being followed.
+	r32 LerpVelocity = 0.025f;
+	vector2 CameraCenter = GetCenter(GameState->Camera.CameraWindow);
+
+	//TODO: Can this be cleaner?
+	GameState->Camera.Position = Lerp(GameState->Camera.Position, (CenterCameraAtEntity(CameraCenter, GameState->ControlledEntity)), LerpVelocity);
+	
+	//TODO: Can this be cleaner?
+	GameState->Camera.Position = Clamp(Vector2(0, 0), GameState->Camera.Position, 
+		(Vector2(GameState->World->WorldWidth, GameState->World->WorldHeight) - GameState->Camera.CameraWindow.Max));
 }
 
 om_internal void 
 SetCamera()
 {
 
+}
+
+inline entity_movement_blueprint
+DefaultMovementBlueprint(void)
+{
+	entity_movement_blueprint Result;
+
+	Result.Speed = 1.0f;
+	Result.Drag = 0.0f;
+
+	return (Result);
 }
 
 //TODO: Perhaps don't return pointer to the entity?
@@ -168,13 +206,17 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	world_position Position = { PositionX, PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
 
+	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
+	MovementBlueprint.Speed = 50.0f;
+	MovementBlueprint.Drag = 0.8f;
+
+	Entity->MovementBlueprint = MovementBlueprint;
 	Entity->HitPointMax = 3;
 	Entity->Collideable = true;
 	Entity->CollisionBox = rect2{32, 32};
 	Entity->Width = 32.0f;
 	Entity->Height = 32.0f;
-	//TODO: Set properties.
-
+	
 	return(Entity);
 }
 
@@ -283,12 +325,8 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 		ddPosition *= (1.0f / SquareRoot(ddLength));
 	}
 
-	//TODO: Maybe add this into the entity itself?
-	r32 EntitySpeed = 50.0f; // m/s^2
-	r32 Drag = 0.8f;
-
-	ddPosition *= EntitySpeed;
-	ddPosition += (-Drag * Entity->dPosition);
+	ddPosition *= Entity->MovementBlueprint.Speed;
+	ddPosition += (-Entity->MovementBlueprint.Drag * Entity->dPosition);
 
 	//TODO: Write short comment with calculations
 	vector2 OldPosition = Entity->Position;
@@ -424,22 +462,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 
 		// TODO: Should later be loaded from level file.
-		u32 WorldWidth = 40;
-		u32 WorldHeight = 23;
-		InitializeWorld(World, WorldWidth, WorldHeight);
+		u32 WorldTileWidth = 60;
+		u32 WorldTileHeight = 23;
+		InitializeWorld(World, WorldTileWidth*PIXELS_PER_TILE, WorldTileHeight*PIXELS_PER_TILE);
 
-		for (u32 TileY = 0; TileY < WorldHeight; ++TileY)
+		for (u32 TileY = 0; TileY < WorldTileHeight; ++TileY)
 		{
-			for (u32 TileX = 0; TileX < WorldWidth; ++TileX)
+			for (u32 TileX = 0; TileX < WorldTileWidth; ++TileX)
 			{
 				u32 TileValue = 1;
 
-				if ((TileX == 0) || (TileY == 0) || (TileY == (WorldHeight -1)) || (TileX == (WorldWidth -1)))
+				if ((TileX == 0) || (TileY == 0) || (TileY == (WorldTileHeight -1)) || (TileX == (WorldTileWidth -1)))
 				{
 					TileValue = 2;
 
 				}
-				else if (TileX == (WorldWidth / 2) && (TileY+1 == (WorldHeight / 2)))
+				else if (TileX == (WorldTileWidth / 2) && (TileY+1 == (WorldTileHeight / 2)))
 				{
 					TileValue = 2;
 				}
@@ -454,9 +492,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			}
 		}
 
-		for (u32 TileY = 0; TileY < WorldHeight; ++TileY)
+		for (u32 TileY = 0; TileY < WorldTileHeight; ++TileY)
 		{
-			for (u32 TileX = 0; TileX < WorldWidth; ++TileX)
+			for (u32 TileX = 0; TileX < WorldTileWidth; ++TileX)
 			{
 				u32 TileValue = 1;
 
@@ -467,6 +505,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		//TODO: This should be added by the level file later.
 		world_layer *FirstLayer = &GameState->World->Layers[0];
 		GameState->ControlledEntity = AddPlayer(FirstLayer, 1280 / 2, 720 / 2);
+
+		r32 ScreenCenterX = 0.5f * (r32)Buffer->Width;
+		r32 ScreenCenterY = 0.5f * (r32)Buffer->Height;
+
+		GameState->Camera = {};
+		GameState->Camera.CameraWindow = { {0, 0}, {(r32)Buffer->Width, (r32)Buffer->Height} };
+		
 
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
@@ -487,24 +532,18 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			vector2 ddPosition = {};
 			if (Controller->MoveLeft.EndedDown)
 			{
-				//GameState->BlueOffset -= 1;
-				//GameState->ControlledEntity->Position.x -= 1;
 				ddPosition.x -= 1.0f;
 			}
 			if (Controller->MoveRight.EndedDown)
 			{
-				//GameState->BlueOffset += 1;
-				//GameState->ControlledEntity->Position.x += 1;
 				ddPosition.x += 1.0f;
 			}
 			if (Controller->MoveUp.EndedDown)
 			{
-				//GameState->ControlledEntity->Position.y -= 1;
 				ddPosition.y -= 1.0f;
 			}
 			if (Controller->MoveDown.EndedDown)
 			{
-				//GameState->ControlledEntity->Position.y += 1;
 				ddPosition.y += 1.0f;
 			}
 
@@ -512,27 +551,33 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
+#if 1
+	//Clear screen.
+	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.5f, 0.5f, 0.5f);
+#endif
+	UpdateCamera(GameState);
+
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
 		world_layer *Layer = &GameState->World->Layers[LayerIndex];
 		for (int EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
 		{
-			entity Entity = Layer->Entities[EntityIndex];
+			entity *Entity = Layer->Entities + EntityIndex;
 
-			switch (Entity.Type)
+			switch (Entity->Type)
 			{
 				case EntityType_Hero:
 				{
-					DrawBitmap(Buffer, &GameState->PlayerBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+					DrawBitmap(Buffer, &GameState->PlayerBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
 				} break;
 				case EntityType_GrassTile:
 				{
-					DrawBitmap(Buffer, &GameState->GrassBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+					DrawBitmap(Buffer, &GameState->GrassBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
 				} break;
 				case EntityType_WaterTile:
 				{
-					DrawBitmap(Buffer, &GameState->WaterBitmap, Entity.Position.x, Entity.Position.y, 0.0f);
+					DrawBitmap(Buffer, &GameState->WaterBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
 				} break;
 				case EntityType_Monster:
 				default:
@@ -554,5 +599,5 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
-	GameOutputSound(SoundBuffer, GameState->ToneHz);
+	//GameOutputSound(SoundBuffer, GameState->ToneHz);
 }

@@ -44,5 +44,8 @@
     <ClInclude Include="..\Game\Types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\Game\Game_Camera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

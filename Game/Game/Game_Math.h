@@ -119,6 +119,22 @@ operator -=(vector2 &A, vector2 B)
 }
 
 inline r32
+Lerp(r32 A, r32 B, r32 t)
+{
+	r32 Result = A + (t * (B - A));
+
+	return (Result);
+}
+
+inline vector2
+Lerp(vector2 A, vector2 B, r32 t)
+{
+	vector2 Result = A + (t * (B - A));
+
+	return (Result);
+}
+
+inline r32
 Square(r32 Value)
 {
 	r32 Result = Value * Value;
@@ -160,6 +176,34 @@ inline vector2
 GetCenter(rect2 Rect)
 {
 	vector2 Result = 0.5f*(Rect.Min + Rect.Max);
+	return (Result);
+}
+
+inline r32
+Clamp(r32 Min, r32 Value, r32 Max)
+{
+	r32 Result = Value;
+
+	if (Result < Min)
+	{
+		Result = Min;
+	}
+	else if (Result > Max)
+	{
+		Result = Max;
+	}
+
+	return (Result);
+}
+
+inline vector2
+Clamp(vector2 Min, vector2 Value, vector2 Max)
+{
+	vector2 Result;
+
+	Result.x = Clamp(Min.x, Value.x, Max.x);
+	Result.y = Clamp(Min.y, Value.y, Max.y);
+
 	return (Result);
 }
 
