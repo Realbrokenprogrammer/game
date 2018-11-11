@@ -105,6 +105,17 @@ struct rect3
 	vector3 Max;
 };
 
+struct line
+{
+	vector2 Start;
+	vector2 End;
+};
+
+struct circle
+{
+	r32 Radius;
+};
+
 inline u32
 SafeTruncateUInt64(u64 Value)
 {

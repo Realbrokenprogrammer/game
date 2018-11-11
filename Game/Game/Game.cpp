@@ -213,7 +213,6 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	Entity->MovementBlueprint = MovementBlueprint;
 	Entity->HitPointMax = 3;
 	Entity->Collideable = true;
-	Entity->CollisionBox = rect2{32, 32};
 	Entity->Width = 32.0f;
 	Entity->Height = 32.0f;
 	
@@ -227,7 +226,6 @@ AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 	entity *Entity = AddEntity(Layer, EntityType_GrassTile, &Position);
 
 	Entity->Collideable = true;
-	Entity->CollisionBox = rect2{ 32, 32 };
 	Entity->Width = 32.0f;
 	Entity->Height = 32.0f;
 
@@ -241,7 +239,6 @@ AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
 	entity *Entity = AddEntity(Layer, EntityType_WaterTile, &Position);
 
 	Entity->Collideable = true;
-	Entity->CollisionBox = rect2{ 32, 32 };
 
 	return (*Entity);
 }

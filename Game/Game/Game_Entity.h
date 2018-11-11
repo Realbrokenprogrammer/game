@@ -35,9 +35,26 @@ struct entity_movement_blueprint
 	r32 Drag;
 };
 
+enum collision_shape
+{
+	CollisionShape_Line,
+	CollisionShape_Rectangle,
+	CollisionShape_Circle,
+	CollisionShape_Triangle,
+	CollisionShape_Polygon
+};
+
 struct entity_physics_blueprint
 {
+	b32 Solid;
 
+	collision_shape CollisionShape;
+	union
+	{
+		line Line;
+		rect2 Rectangle;
+		circle Circle;
+	};
 };
 
 struct hit_point
@@ -61,7 +78,7 @@ struct entity
 	entity_movement_blueprint MovementBlueprint;
 	
 	b32 Collideable;
-	rect2 CollisionBox;
+	entity_physics_blueprint PhysicsBlueprint;
 	r32 Width;
 	r32 Height;
 
