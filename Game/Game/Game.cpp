@@ -585,8 +585,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	//UpdateCamera(GameState);
 
 	vector2 Center = GameState->Camera.CameraWindow.Max;
-	Center.x = 150.0f;
-	Center.y = 150.0f;
+	Center.x = 300.0f;
+	Center.y = 300.0f;
 	r32 Radius = 20;
 
 	shape CenterBall = {};
@@ -609,7 +609,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	PlayerRect.CollisionShape = CollisionShape_Rectangle;
 	PlayerRect.Rectangle = { {GameState->RectPosX, GameState->RectPosY}, {GameState->RectPosX + 32.0f, GameState->RectPosY + 32.0f} };
 
-	b32 INTERSECT = Test(PlayerRect, CenterRect) || Test(PlayerRect, CenterTriangle);
+	b32 INTERSECT = Test(PlayerRect, CenterRect) || Test(PlayerRect, CenterTriangle) || Test(CenterBall, PlayerRect);
 	/*world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
@@ -646,9 +646,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	}
 
 	//DrawCircle(Buffer, PlayerBall.Circle.Centre, Radius, 1.0f, 0.0f, 0.0f);
-	//DrawCircle(Buffer, Center, Radius, color.r, color.b, color.g);
 	
 	DrawRect(Buffer, PlayerRect.Rectangle.Min, PlayerRect.Rectangle.Max, 0.0f, 0.0f, 1.0f);
+	DrawCircle(Buffer, Center, Radius, color.r, color.g, color.b);
 	DrawRect(Buffer, CenterRect.Rectangle.Min, CenterRect.Rectangle.Max, color.r, color.g, color.b);
 	Memory->DEBUGDrawTriangle(CenterTriangle.Triangle.p1, CenterTriangle.Triangle.p2, CenterTriangle.Triangle.p3, color);
 

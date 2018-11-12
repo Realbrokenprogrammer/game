@@ -729,7 +729,7 @@ int main(int argc, char *argv[])
 #endif
 			game_memory GameMemory = {};
 			GameMemory.PermanentStorageSize = om_megabytes(64);
-			GameMemory.TransientStorageSize = om_gigabytes(1);
+			GameMemory.TransientStorageSize = om_megabytes(100);
 			GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
 			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
 			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
@@ -1011,7 +1011,7 @@ int main(int argc, char *argv[])
 						TargetSecondsPerFrame = MeasuredSecondsPerFrame;
 						char buffer[245];
 						sprintf_s(buffer, "FramesPerUpdate: %f\n", ExactTargetFramesPerUpdate);
-						//OutputDebugString(buffer);
+						OutputDebugString(buffer);
 
 						LastCounter = EndCounter;
 					}

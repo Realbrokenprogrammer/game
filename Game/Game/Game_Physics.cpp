@@ -32,20 +32,6 @@ Overlaps(vector2 A, vector2 B)
 	return !(A.x > B.y || B.x > A.y);
 }
 
-om_internal b32
-TestCircles(circle CircleA, circle CircleB)
-{
-	r32 x = CircleA.Center.x - CircleB.Center.x;
-	r32 y = CircleA.Center.y - CircleB.Center.y;
-	
-	r32 CenterDistanceSq = x * x + y * y;
-	
-	r32 Radius = CircleA.Radius + CircleB.Radius;
-	r32 RadiusSq = Radius * Radius;
-
-	return (CenterDistanceSq <= RadiusSq);
-}
-
 om_internal std::vector<vector2>
 GetPoints(shape Shape)
 {
@@ -103,6 +89,32 @@ GetEdgeNormals(std::vector<vector2> Vertices)
 	return EdgeNormals;
 }
 
+om_internal std::vector<vector2>
+GetEdges(std::vector<vector2> Vertices)
+{
+	std::vector<vector2> Edges;
+
+	for (u32 VertexIndex = 0; VertexIndex < Vertices.size(); ++VertexIndex)
+	{
+		vector2 P1 = Vertices[VertexIndex];
+		vector2 P2;
+		if (VertexIndex + 1 >= Vertices.size())
+		{
+			P2 = Vertices[0];
+		}
+		else
+		{
+			P2 = Vertices[VertexIndex + 1];
+		}
+
+		vector2 Edge = P2 - P1;
+
+		Edges.push_back(Edge);
+	}
+
+	return Edges;
+}
+
 om_internal vector2
 ProjectAxis(std::vector<vector2> Vertices, vector2 Axis)
 {
@@ -127,9 +139,156 @@ ProjectAxis(std::vector<vector2> Vertices, vector2 Axis)
 	return (Projection);
 }
 
-//TODO: Test for Poly, Circle
-//TODO: Replace usage of std::vector
+enum VoronoiRegion
+{
+	VoronoiRegion_Left,
+	VoronoiRegion_Middle,
+	VoronoiRegion_Right
+};
+
+om_internal VoronoiRegion
+GetVoronoiRegion(vector2 Line, vector2 Point)
+{
+	r32 LineLengthSquared = LengthSquared(Line);
+	r32 PointDotLine = Inner(Point, Line);
+
+	if (PointDotLine < 0)
+	{
+		return (VoronoiRegion_Left);
+	}
+	else if (PointDotLine > LineLengthSquared)
+	{
+		return (VoronoiRegion_Right);
+	}
+	else
+	{
+		return (VoronoiRegion_Middle);
+	}
+}
+
+om_internal b32
+TestCircles(circle CircleA, circle CircleB)
+{
+	r32 x = CircleA.Center.x - CircleB.Center.x;
+	r32 y = CircleA.Center.y - CircleB.Center.y;
+
+	r32 CenterDistanceSq = x * x + y * y;
+
+	r32 Radius = CircleA.Radius + CircleB.Radius;
+	r32 RadiusSq = Radius * Radius;
+
+	return (CenterDistanceSq <= RadiusSq);
+}
+
+om_internal b32
+TestPolygonCircle(shape Shape, circle Circle)
+{
+	vector2 CirclePosition = Circle.Center;
+	r32 RadiusSquared = Circle.Radius * Circle.Radius;
+
+	std::vector<vector2> Vertices = GetPoints(Shape);
+	std::vector<vector2> Axes = GetEdges(Vertices);
+
+	for (u32 VerticeIndex = 0; VerticeIndex < Vertices.size(); ++VerticeIndex)
+	{
+		vector2 Point = CirclePosition - Vertices.at(VerticeIndex);
+		vector2 Axis = Axes.at(VerticeIndex);
+
+		VoronoiRegion Region = GetVoronoiRegion(Axis, Point);
+		if (Region == VoronoiRegion_Left)
+		{
+			u32 PreviousIndex;
+			if (VerticeIndex == 0)
+			{
+				PreviousIndex = Axes.size()-1;
+			}
+			else
+			{
+				PreviousIndex = VerticeIndex - 1;
+			}
+
+			Axis = Axes.at(PreviousIndex);
+			vector2 Point2 = CirclePosition - Vertices.at(PreviousIndex);
+			Region = GetVoronoiRegion(Axis, Point2);
+			if (Region == VoronoiRegion_Right)
+			{
+				// Check if the circle intersects the point.
+				r32 Distance = Length(Point);
+				if (Distance > Circle.Radius)
+				{
+					// No intersection
+					return false;
+				}
+				else
+				{
+					// It intersects
+					// TODO: Calculate overlap
+					// overlap normal = Normalize(Point)
+					// overlap = radius - distance
+				}
+			}
+		}
+		else if (Region == VoronoiRegion_Right)
+		{
+			u32 NextIndex;
+			if (VerticeIndex == Vertices.size()-1)
+			{
+				NextIndex = 0;
+			}
+			else
+			{
+				NextIndex = VerticeIndex + 1;
+			}
+
+			Axis = Axes.at(NextIndex);
+			vector2 Point = CirclePosition - Vertices.at(NextIndex);
+			Region = GetVoronoiRegion(Axis, Point);
+			if (Region == VoronoiRegion_Left)
+			{
+				// Check if the circle intersects the point.
+				r32 Distance = Length(Point);
+				if (Distance > Circle.Radius)
+				{
+					// No intersection
+					return (false);
+				}
+				else
+				{
+					// It intersects
+					// TODO: Calculate overlap
+					// overlap normal = Normalize(Point)
+					// overlap = radius - distance
+				}
+			}
+		}
+		else
+		{
+			vector2 Normal = Perp(Axis);
+			Normal = Normalize(Normal);
+			r32 Distance = Inner(Point, Normal);
+			r32 DistanceAbsoluteValue = AbsoluteValue(Distance);
+
+			// If the circle is on the outside of the edge.
+			if (Distance > 0 && DistanceAbsoluteValue > Circle.Radius)
+			{
+				// No intersection
+				return (false);
+			}
+			else
+			{
+				// It intersects
+				// TODO: Calculate overlap
+				// overlap normal = Normalize(Point)
+				// overlap = radius - distance
+			}
+		}
+	}
+
+	return true;
+}
+
 //TODO: Add propper return value (New struct containing collision info)
+//TODO: Replace usage of std::vector
 //TODO: Clean up Drawing code in Game.cpp
 //TODO: Clean up collision testing code in Game.cpp
 //TODO: Improve structure and naming of functions
@@ -140,6 +299,15 @@ Test(shape ShapeA, shape ShapeB)
 	if (ShapeA.CollisionShape == CollisionShape_Circle && ShapeB.CollisionShape == CollisionShape_Circle)
 	{
 		return TestCircles(ShapeA.Circle, ShapeB.Circle);
+	}
+
+	if (ShapeA.CollisionShape == CollisionShape_Circle)
+	{
+		return TestPolygonCircle(ShapeB, ShapeA.Circle);
+	}
+	if (ShapeB.CollisionShape == CollisionShape_Circle)
+	{
+		return TestPolygonCircle(ShapeA, ShapeB.Circle);
 	}
 
 	// Both Shapes are polygons
