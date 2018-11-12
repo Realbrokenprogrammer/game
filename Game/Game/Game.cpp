@@ -1,5 +1,6 @@
 #include "Game.h"
 #include "Game_World.cpp"
+#include "Game_Physics.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
 
@@ -66,6 +67,30 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 
 		Row += Buffer->Pitch;
 	}
+}
+
+//TODO: This needs serious rework.
+om_internal void
+DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32 G, r32 B)
+{
+	u32 Color =
+		((RoundReal32ToInt32(R * 255.0f) << 16) |
+		(RoundReal32ToInt32(G * 255.0f) << 8) |
+		(RoundReal32ToInt32(B * 255.0f)));
+
+	for (r32 Angle = 0.0f; Angle < 360.0f; Angle++)
+	{
+		u32 X = Center.x - Radius * cosf(Angle);
+		u32 Y = Center.y - Radius * sinf(Angle);
+		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * Y + X);
+		*Pixel = Color;
+	}
+}
+
+//TODO: Implement
+om_internal void
+DrawTriangle(game_offscreen_buffer *Buffer, triangle Triangle, r32 R, r32 G, r32 B)
+{
 }
 
 om_internal void
@@ -448,6 +473,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		GameState->PlayerBitmap = Memory->DEBUGLoadBitmap(PlayerBitmap);
 
 		GameState->ToneHz = 256;
+		GameState->RectPosX = 100;
+		GameState->RectPosY = 100;
 
 		// Initializing World
 		world *World = nullptr;
@@ -508,7 +535,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 		GameState->Camera = {};
 		GameState->Camera.CameraWindow = { {0, 0}, {(r32)Buffer->Width, (r32)Buffer->Height} };
-		
 
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
@@ -529,32 +555,62 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			vector2 ddPosition = {};
 			if (Controller->MoveLeft.EndedDown)
 			{
-				ddPosition.x -= 1.0f;
+				//ddPosition.x -= 1.0f;
+				GameState->RectPosX -= 1.0f;
 			}
 			if (Controller->MoveRight.EndedDown)
 			{
-				ddPosition.x += 1.0f;
+				//ddPosition.x += 1.0f;
+				GameState->RectPosX += 1.0f;
 			}
 			if (Controller->MoveUp.EndedDown)
 			{
-				ddPosition.y -= 1.0f;
+				//ddPosition.y -= 1.0f;
+				GameState->RectPosY -= 1.0f;
 			}
 			if (Controller->MoveDown.EndedDown)
 			{
-				ddPosition.y += 1.0f;
+				//ddPosition.y += 1.0f;
+				GameState->RectPosY += 1.0f;
 			}
 
-			MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, ddPosition);
+			//MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, ddPosition);
 		}
 	}
 
 #if 1
 	//Clear screen.
-	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.5f, 0.5f, 0.5f);
+	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
 #endif
-	UpdateCamera(GameState);
+	//UpdateCamera(GameState);
 
-	world *World = GameState->World;
+	vector2 Center = GameState->Camera.CameraWindow.Max;
+	Center.x = 150.0f;
+	Center.y = 150.0f;
+	r32 Radius = 20;
+
+	shape CenterBall = {};
+	CenterBall.CollisionShape = CollisionShape_Circle;
+	CenterBall.Circle = {Radius, Center};
+
+	shape CenterRect = {};
+	CenterRect.CollisionShape = CollisionShape_Rectangle;
+	CenterRect.Rectangle = { {150.0f, 150.0f}, {150.0f + 32.0f, 150.0f + 32.0f} };
+
+	shape CenterTriangle = {};
+	CenterTriangle.CollisionShape = CollisionShape_Triangle;
+	CenterTriangle.Triangle = { {100.0f, 100.0f}, {200.0f, 100.0f}, {150.0f, 200.0f} };
+
+	shape PlayerBall = {};
+	PlayerBall.CollisionShape = CollisionShape_Circle;
+	PlayerBall.Circle = { Radius, {GameState->RectPosX+16, GameState->RectPosY+16} };
+
+	shape PlayerRect = {};
+	PlayerRect.CollisionShape = CollisionShape_Rectangle;
+	PlayerRect.Rectangle = { {GameState->RectPosX, GameState->RectPosY}, {GameState->RectPosX + 32.0f, GameState->RectPosY + 32.0f} };
+
+	b32 INTERSECT = Test(PlayerRect, CenterRect) || Test(PlayerRect, CenterTriangle);
+	/*world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
 		world_layer *Layer = &GameState->World->Layers[LayerIndex];
@@ -581,7 +637,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 					break;
 			}
 		}
+	}*/
+
+	vector3 color = {1.0f, 0.0f, 0.0f};
+	if (INTERSECT)
+	{
+		color = { 0.0f, 1.0f, 0.0f };
 	}
+
+	//DrawCircle(Buffer, PlayerBall.Circle.Centre, Radius, 1.0f, 0.0f, 0.0f);
+	//DrawCircle(Buffer, Center, Radius, color.r, color.b, color.g);
+	
+	DrawRect(Buffer, PlayerRect.Rectangle.Min, PlayerRect.Rectangle.Max, 0.0f, 0.0f, 1.0f);
+	DrawRect(Buffer, CenterRect.Rectangle.Min, CenterRect.Rectangle.Max, color.r, color.g, color.b);
+	Memory->DEBUGDrawTriangle(CenterTriangle.Triangle.p1, CenterTriangle.Triangle.p2, CenterTriangle.Triangle.p3, color);
 
 	//TODO: Allow sample offsets here for more robust platform options
 	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);

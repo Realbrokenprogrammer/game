@@ -134,6 +134,14 @@ Lerp(vector2 A, vector2 B, r32 t)
 	return (Result);
 }
 
+inline vector2
+Perp(vector2 A)
+{
+	vector2 Result = { A.y, -A.x };
+	
+	return (Result);
+}
+
 inline r32
 Square(r32 Value)
 {
@@ -146,6 +154,18 @@ inline r32
 Inner(vector2 A, vector2 B)
 {
 	r32 Result = A.x * B.x + A.y * B.y;
+
+	return (Result);
+}
+
+inline vector3
+Cross(vector3 A, vector3 B)
+{
+	vector3 Result;
+	
+	Result.x = A.y * B.z - A.z * B.y;
+	Result.y = A.z * B.x - A.x * B.z;
+	Result.z = A.x * B.y - A.y * B.x;
 
 	return (Result);
 }
@@ -165,6 +185,21 @@ Length(vector2 A)
 	return (Result);
 }
 
+//TODO: Check that this is correct.
+inline vector2
+Normalize(vector2 A)
+{
+	vector2 Result = {};
+	
+	if (Length(A) > 0)
+	{
+		Result.x = A.x / Length(A);
+		Result.y = A.y / Length(A);
+	}
+
+	return (Result);
+}
+
 inline vector2
 GetDimension(rect2 Rect)
 {
@@ -177,6 +212,17 @@ GetCenter(rect2 Rect)
 {
 	vector2 Result = 0.5f*(Rect.Min + Rect.Max);
 	return (Result);
+}
+
+inline void
+GetPoints(rect2 Rect, vector2 *Points)
+{
+	OM_ASSERT(OM_ARRAYCOUNT(Points) == 4);
+
+	Points[0] = Rect.Min;
+	Points[1] = { Rect.Min.x, Rect.Max.y };
+	Points[2] = { Rect.Min.y, Rect.Max.x };
+	Points[3] = Rect.Max;
 }
 
 inline r32

@@ -37,6 +37,7 @@ om_global_variable b32 GlobalPause;
 om_global_variable sdl_offscreen_buffer GlobalBackbuffer;
 om_global_variable sdl_audio_ring_buffer GlobalSecondaryBuffer;
 om_global_variable u64 GlobalPerfCountFrequency;
+om_global_variable SDL_Renderer *GlobalRenderer;
 
 #define MAX_CONTROLLERS 4
 #define CONTROLLER_AXIS_LEFT_DEADZONE 7849
@@ -94,6 +95,15 @@ SDLBuildEXEPathFileName(sdl_state *State, char *FileName, char *Destination, int
 	ConcatStrings(State->EXEFileName, State->OnePastLastEXEFileNameSlash - State->EXEFileName,
 		FileName, StringLength(FileName),
 		Destination, DestinationCount);
+}
+
+DEBUG_DRAW_TRIANGLE(DEBUGDrawTriangle)
+{
+	SDL_SetRenderDrawColor(GlobalRenderer, Color.r*255, Color.g*255, Color.b*255, SDL_ALPHA_OPAQUE);
+	SDL_RenderDrawLine(GlobalRenderer, Point1.x, Point1.y, Point2.x, Point2.y);
+	SDL_RenderDrawLine(GlobalRenderer, Point2.x, Point2.y, Point3.x, Point3.y);
+	SDL_RenderDrawLine(GlobalRenderer, Point3.x, Point3.y, Point1.x, Point1.y);
+	SDL_RenderPresent(GlobalRenderer);
 }
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -682,7 +692,7 @@ int main(int argc, char *argv[])
 		u32 MaxQuadCountPerFrame = (1 << 18);
 
 		SDL_Renderer *Renderer = SDL_CreateRenderer(Window, -1, SDL_RENDERER_PRESENTVSYNC);
-
+		GlobalRenderer = Renderer;
 		if (Renderer) {
 			SDLResizeTexture(&GlobalBackbuffer, Renderer, 1280, 720);
 			
@@ -724,6 +734,7 @@ int main(int argc, char *argv[])
 			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
 			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 			GameMemory.DEBUGLoadBitmap = DEBUGLoadBitmap;
+			GameMemory.DEBUGDrawTriangle = DEBUGDrawTriangle;
 
 			SDLState.TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
 			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, (size_t)SDLState.TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?
@@ -1000,7 +1011,7 @@ int main(int argc, char *argv[])
 						TargetSecondsPerFrame = MeasuredSecondsPerFrame;
 						char buffer[245];
 						sprintf_s(buffer, "FramesPerUpdate: %f\n", ExactTargetFramesPerUpdate);
-						OutputDebugString(buffer);
+						//OutputDebugString(buffer);
 
 						LastCounter = EndCounter;
 					}

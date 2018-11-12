@@ -54,6 +54,7 @@ struct entity_physics_blueprint
 		line Line;
 		rect2 Rectangle;
 		circle Circle;
+		triangle Triangle;
 	};
 };
 
