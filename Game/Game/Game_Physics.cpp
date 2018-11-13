@@ -1,5 +1,3 @@
-#include <vector>
-
 struct shape 
 {
 	collision_shape CollisionShape;
@@ -32,26 +30,39 @@ Overlaps(vector2 A, vector2 B)
 	return !(A.x > B.y || B.x > A.y);
 }
 
-om_internal std::vector<vector2>
-GetPoints(shape Shape)
+om_internal vector2 *
+GetPoints(shape Shape, u32 *Size)
 {
 	switch (Shape.CollisionShape)
 	{
 		case CollisionShape_Circle:
 		{
-			//return (NULL);
+			return (NULL);
 		} break;
 		case CollisionShape_Triangle:
 		{
-			std::vector<vector2> Axes(3);
+			vector2 *Axes = (vector2 *)malloc(3 * sizeof(vector2));
+			if (Axes == NULL)
+			{
+				return (NULL);
+			}
+
+			*Size = 3;
 			Axes[0] = Shape.Triangle.p1;
 			Axes[1] = Shape.Triangle.p2;
 			Axes[2] = Shape.Triangle.p3;
+			
 			return (Axes);
 		} break;
 		case CollisionShape_Rectangle:
 		{
-			std::vector<vector2> Axes(4);
+			vector2 *Axes = (vector2 *)malloc(4 * sizeof(vector2));
+			if (Axes == NULL)
+			{
+				return (NULL);
+			}
+
+			*Size = 4;
 			Axes[0] = Shape.Rectangle.Min;
 			Axes[1] = { Shape.Rectangle.Max.x, Shape.Rectangle.Min.y };
 			Axes[2] = Shape.Rectangle.Max;
@@ -61,16 +72,21 @@ GetPoints(shape Shape)
 	}
 }
 
-om_internal std::vector<vector2>
-GetEdgeNormals(std::vector<vector2> Vertices)
+om_internal vector2 *
+GetEdgeNormals(vector2 *Vertices, u32 VerticeCount)
 {
-	std::vector<vector2> EdgeNormals;
+	u32 EdgeIndex = 0;
+	vector2 *EdgeNormals = (vector2 *)malloc(VerticeCount * sizeof(vector2));
+	if (EdgeNormals == NULL)
+	{
+		return (NULL);
+	}
 
-	for (u32 VertexIndex = 0; VertexIndex < Vertices.size(); ++VertexIndex)
+	for (u32 VertexIndex = 0; VertexIndex < VerticeCount; ++VertexIndex)
 	{
 		vector2 P1 = Vertices[VertexIndex];
 		vector2 P2;
-		if (VertexIndex + 1 >= Vertices.size())
+		if (VertexIndex + 1 >= VerticeCount)
 		{
 			P2 = Vertices[0];
 		}
@@ -83,22 +99,27 @@ GetEdgeNormals(std::vector<vector2> Vertices)
 		vector2 Normal = Perp(Edge);
 		Normal = Normalize(Normal);
 
-		EdgeNormals.push_back(Normal);
+		EdgeNormals[EdgeIndex++] = Normal;
 	}
 
 	return EdgeNormals;
 }
 
-om_internal std::vector<vector2>
-GetEdges(std::vector<vector2> Vertices)
+om_internal vector2 *
+GetEdges(vector2 *Vertices, u32 VerticeCount)
 {
-	std::vector<vector2> Edges;
+	u32 EdgeIndex = 0;
+	vector2 *Edges = (vector2 *)malloc(VerticeCount * sizeof(vector2));
+	if (Edges == NULL)
+	{
+		return (NULL);
+	}
 
-	for (u32 VertexIndex = 0; VertexIndex < Vertices.size(); ++VertexIndex)
+	for (u32 VertexIndex = 0; VertexIndex < VerticeCount; ++VertexIndex)
 	{
 		vector2 P1 = Vertices[VertexIndex];
 		vector2 P2;
-		if (VertexIndex + 1 >= Vertices.size())
+		if (VertexIndex + 1 >= VerticeCount)
 		{
 			P2 = Vertices[0];
 		}
@@ -109,20 +130,20 @@ GetEdges(std::vector<vector2> Vertices)
 
 		vector2 Edge = P2 - P1;
 
-		Edges.push_back(Edge);
+		Edges[EdgeIndex++] = Edge;
 	}
 
 	return Edges;
 }
 
 om_internal vector2
-ProjectAxis(std::vector<vector2> Vertices, vector2 Axis)
+ProjectAxis(vector2 *Vertices, u32 VerticeCount, vector2 Axis)
 {
 	vector2 Projection = {};
 	Projection.x = Inner(Axis, Vertices[0]);
 	Projection.y = Projection.x;
 
-	for (u32 VertexIndex = 1; VertexIndex < Vertices.size(); ++VertexIndex)
+	for (u32 VertexIndex = 1; VertexIndex < VerticeCount; ++VertexIndex)
 	{
 		r32 P = Inner(Axis, Vertices[VertexIndex]);
 
@@ -195,16 +216,18 @@ TestPolygonCircle(shape Shape, circle Circle)
 	vector2 CirclePosition = Circle.Center;
 	r32 RadiusSquared = Circle.Radius * Circle.Radius;
 
-	std::vector<vector2> Vertices = GetPoints(Shape);
-	std::vector<vector2> Axes = GetEdges(Vertices);
+	u32 VerticesSize = 0;
+	vector2 *Vertices = GetPoints(Shape, &VerticesSize);
 
-	for (u32 VerticeIndex = 0; VerticeIndex < Vertices.size(); ++VerticeIndex)
+	vector2 *Axes = GetEdges(Vertices, VerticesSize);
+
+	for (u32 VerticeIndex = 0; VerticeIndex < VerticesSize; ++VerticeIndex)
 	{
 		r32 Overlap = 0.0f;
 		vector2 OverlapNormal = {};
 
-		vector2 Point = CirclePosition - Vertices.at(VerticeIndex);
-		vector2 Axis = Axes.at(VerticeIndex);
+		vector2 Point = CirclePosition - Vertices[VerticeIndex];
+		vector2 Axis = Axes[VerticeIndex];
 
 		VoronoiRegion Region = GetVoronoiRegion(Axis, Point);
 		if (Region == VoronoiRegion_Left)
@@ -212,15 +235,15 @@ TestPolygonCircle(shape Shape, circle Circle)
 			u32 PreviousIndex;
 			if (VerticeIndex == 0)
 			{
-				PreviousIndex = Axes.size()-1;
+				PreviousIndex = VerticesSize - 1;
 			}
 			else
 			{
 				PreviousIndex = VerticeIndex - 1;
 			}
 
-			Axis = Axes.at(PreviousIndex);
-			vector2 Point2 = CirclePosition - Vertices.at(PreviousIndex);
+			Axis = Axes[PreviousIndex];
+			vector2 Point2 = CirclePosition - Vertices[PreviousIndex];
 			Region = GetVoronoiRegion(Axis, Point2);
 			if (Region == VoronoiRegion_Right)
 			{
@@ -230,6 +253,9 @@ TestPolygonCircle(shape Shape, circle Circle)
 				{
 					// No intersection
 					Result.IsColliding = false;
+					
+					free(Axes);
+					free(Vertices);
 					return (Result);
 				}
 				else
@@ -243,7 +269,7 @@ TestPolygonCircle(shape Shape, circle Circle)
 		else if (Region == VoronoiRegion_Right)
 		{
 			u32 NextIndex;
-			if (VerticeIndex == Vertices.size()-1)
+			if (VerticeIndex == VerticesSize - 1)
 			{
 				NextIndex = 0;
 			}
@@ -252,8 +278,8 @@ TestPolygonCircle(shape Shape, circle Circle)
 				NextIndex = VerticeIndex + 1;
 			}
 
-			Axis = Axes.at(NextIndex);
-			vector2 Point = CirclePosition - Vertices.at(NextIndex);
+			Axis = Axes[NextIndex];
+			vector2 Point = CirclePosition - Vertices[NextIndex];
 			Region = GetVoronoiRegion(Axis, Point);
 			if (Region == VoronoiRegion_Left)
 			{
@@ -263,6 +289,9 @@ TestPolygonCircle(shape Shape, circle Circle)
 				{
 					// No intersection
 					Result.IsColliding = false;
+					
+					free(Axes);
+					free(Vertices);
 					return (Result);
 				}
 				else
@@ -285,6 +314,9 @@ TestPolygonCircle(shape Shape, circle Circle)
 			{
 				// No intersection
 				Result.IsColliding = false;
+				
+				free(Axes);
+				free(Vertices);
 				return (Result);
 			}
 			else
@@ -303,10 +335,11 @@ TestPolygonCircle(shape Shape, circle Circle)
 		}
 	}
 
+	free(Axes);
+	free(Vertices);
 	return (Result);
 }
 
-//TODO: Replace usage of std::vector
 //TODO: Clean up Drawing code in Game.cpp
 //TODO: Clean up collision testing code in Game.cpp
 //TODO: Improve structure and naming of functions
@@ -332,27 +365,35 @@ Test(shape ShapeA, shape ShapeB)
 	}
 
 	// Both Shapes are polygons
-	std::vector<vector2> Vertices1 = GetPoints(ShapeA);
-	std::vector<vector2> Vertices2 = GetPoints(ShapeB);
+	u32 Vertices1Size = 0;
+	vector2 *Vertices1 = GetPoints(ShapeA, &Vertices1Size);
+	
+	u32 Vertices2Size = 0;
+	vector2 *Vertices2 = GetPoints(ShapeB, &Vertices2Size);
 
-	std::vector<vector2> Axes1 = GetEdgeNormals(Vertices1);
-	std::vector<vector2> Axes2 = GetEdgeNormals(Vertices2);
+	vector2 *Axes1 = GetEdgeNormals(Vertices1, Vertices1Size);
+	vector2 *Axes2 = GetEdgeNormals(Vertices2, Vertices2Size);
 
 	r32 Overlap = R32MAX;
-	vector2 MinPenetrationAxis;
+	vector2 MinPenetrationAxis = {};
 
-	for (u32 AxesIndex = 0; AxesIndex < Axes1.size(); ++AxesIndex)
+	for (u32 AxesIndex = 0; AxesIndex < Vertices1Size; ++AxesIndex)
 	{
 		vector2 Axis = Axes1[AxesIndex];
 	
 		// Project both shapes onto the current axis
-		vector2 Projection1 = ProjectAxis(Vertices1, Axis);
-		vector2 Projection2 = ProjectAxis(Vertices2, Axis);
+		vector2 Projection1 = ProjectAxis(Vertices1, Vertices1Size, Axis);
+		vector2 Projection2 = ProjectAxis(Vertices2, Vertices2Size, Axis);
 
 		// Check for overlap
 		if (!Overlaps(Projection1, Projection2))
 		{
 			Result.IsColliding = false;
+			
+			free(Axes1);
+			free(Axes2);
+			free(Vertices1);
+			free(Vertices2);
 			return (Result);
 		}
 
@@ -365,18 +406,23 @@ Test(shape ShapeA, shape ShapeB)
 		}
 	}
 
-	for (u32 AxesIndex = 0; AxesIndex < Axes2.size(); ++AxesIndex)
+	for (u32 AxesIndex = 0; AxesIndex < Vertices2Size; ++AxesIndex)
 	{
 		vector2 Axis = Axes2[AxesIndex];
 
 		// Project both shapes onto the current axis
-		vector2 Projection1 = ProjectAxis(Vertices1, Axis);
-		vector2 Projection2 = ProjectAxis(Vertices2, Axis);
+		vector2 Projection1 = ProjectAxis(Vertices1, Vertices1Size, Axis);
+		vector2 Projection2 = ProjectAxis(Vertices2, Vertices2Size, Axis);
 
 		// Check for overlap
 		if (!Overlaps(Projection1, Projection2))
 		{
 			Result.IsColliding = false;
+			
+			free(Axes1);
+			free(Axes2);
+			free(Vertices1);
+			free(Vertices2);
 			return (Result);
 		}
 
@@ -392,5 +438,9 @@ Test(shape ShapeA, shape ShapeB)
 	Result.PenetrationDepth = Overlap;
 	Result.PenetrationNormal = MinPenetrationAxis;
 
+	free(Axes1);
+	free(Axes2);
+	free(Vertices1);
+	free(Vertices2);
 	return (Result);
 }
