@@ -7,6 +7,9 @@
  */
 #ifndef OM_NO_DEFINE_TYPES
 #include <stdint.h>
+#include <stddef.h>
+#include <limits.h>
+#include <float.h>
 typedef float			r32;
 typedef double			r64;
 typedef unsigned char	ubyte;
