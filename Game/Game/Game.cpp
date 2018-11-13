@@ -379,10 +379,6 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 		r32 PenetrationDepth = 0.0f;
 
 		vector2 DesiredPosition = Entity->Position + EntityDelta;
-		
-		// TODO: Later we might want to add the Entity's Position derivations into the physics spec
-		// so we don't have to update this rect here all the time.
-		Entity->PhysicsBlueprint.Rectangle = { {DesiredPosition}, {DesiredPosition.x + 32.0f, DesiredPosition.y + 32.0f} };
 
 		if (Entity->Collideable) {
 			for (u32 TestEntityIndex = 0; TestEntityIndex < Layer->EntityCount; ++TestEntityIndex)
@@ -392,6 +388,10 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 					entity *TestEntity = Layer->Entities + TestEntityIndex;
 					if (TestEntity->Collideable)
 					{
+						// TODO: Later we might want to add the Entity's Position derivations into the physics spec
+						// so we don't have to update this rect here all the time.						
+						Entity->PhysicsBlueprint.Rectangle = { {DesiredPosition}, {DesiredPosition.x + 32.0f, DesiredPosition.y + 32.0f} };
+						
 						/*r32 DiameterW = TestEntity->Width + Entity->Width;
 						r32 DiameterH = TestEntity->Height + Entity->Height;
 
@@ -425,27 +425,31 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 						}*/
 						
 						// TODO: Check if Entities are even worth collision checking. (Broadphase)
-						collision_info CollisionInfo = TestCollision(Entity->PhysicsBlueprint, TestEntity->PhysicsBlueprint);
-						if (CollisionInfo.IsColliding)
+						vector2 Dist = (GetCenter(Entity->PhysicsBlueprint.Rectangle) - GetCenter(TestEntity->PhysicsBlueprint.Rectangle));
+						if (AbsoluteValue(Dist.x) < 64.0f && AbsoluteValue(Dist.y) < 64.0f) {
+							collision_info CollisionInfo = TestCollision(Entity->PhysicsBlueprint, TestEntity->PhysicsBlueprint);
+							if (CollisionInfo.IsColliding)
+							{
+								WallNormal = CollisionInfo.PenetrationNormal;
+								PenetrationDepth = CollisionInfo.PenetrationDepth;
+								HitEntityIndex = TestEntityIndex;
+							}
+						}
+
+						// TODO: Review Collision resolution.
+						if (HitEntityIndex)
 						{
-							WallNormal = CollisionInfo.PenetrationNormal;
-							PenetrationDepth = CollisionInfo.PenetrationDepth;
-							HitEntityIndex = TestEntityIndex;
+							Entity->dPosition = Entity->dPosition - 1.0f * Inner(Entity->dPosition, WallNormal) * WallNormal;
+
+							EntityDelta = DesiredPosition - Entity->Position;
+							EntityDelta = EntityDelta - 1 * Inner(EntityDelta, WallNormal) * WallNormal;
+							DesiredPosition = Entity->Position + EntityDelta;
+
+							//TODO: Stairs etc.
 						}
 					}
 				}
 			}
-		}
-
-		// TODO: Collision resolution is currently busted. Specially around corners.
-		if (HitEntityIndex)
-		{
-			Entity->dPosition = Entity->dPosition - 1 * Inner(Entity->dPosition, WallNormal) * WallNormal;
-
-			EntityDelta = DesiredPosition - Entity->Position;
-			EntityDelta = EntityDelta - 1 * Inner(EntityDelta, WallNormal) * WallNormal;
-
-			//TODO: Stairs etc.
 		}
 
 		// TODO: I moved the position update to after the Hit detection statement to make sure
