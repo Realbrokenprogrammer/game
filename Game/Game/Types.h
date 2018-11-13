@@ -7,6 +7,9 @@
  */
 #ifndef OM_NO_DEFINE_TYPES
 #include <stdint.h>
+#include <stddef.h>
+#include <limits.h>
+#include <float.h>
 typedef float			r32;
 typedef double			r64;
 typedef unsigned char	ubyte;
@@ -25,6 +28,15 @@ typedef i8 s8;
 typedef i16 s16;
 typedef i32 s32;
 typedef i64 s64;
+
+#define U16MAX 65535
+#define I32MIN ((i32)0x80000000)
+#define I32MAX ((i32)0x7fffffff)
+#define U32MIN 0
+#define U32MAX ((u32)-1)
+#define U64MAX ((u64)-1)
+#define R32MAX FLT_MAX
+#define R32MIN -FLT_MAX
 #endif
 
 /*
@@ -103,6 +115,25 @@ struct rect3
 {
 	vector3 Min;
 	vector3 Max;
+};
+
+struct line
+{
+	vector2 Start;
+	vector2 End;
+};
+
+struct triangle
+{
+	vector2 p1;
+	vector2 p2;
+	vector2 p3;
+};
+
+struct circle
+{
+	r32 Radius;
+	vector2 Center;
 };
 
 inline u32

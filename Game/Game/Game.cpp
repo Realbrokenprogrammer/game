@@ -1,5 +1,6 @@
 #include "Game.h"
 #include "Game_World.cpp"
+#include "Game_Physics.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
 
@@ -66,6 +67,30 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 
 		Row += Buffer->Pitch;
 	}
+}
+
+//TODO: This needs serious rework.
+om_internal void
+DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32 G, r32 B)
+{
+	u32 Color =
+		((RoundReal32ToInt32(R * 255.0f) << 16) |
+		(RoundReal32ToInt32(G * 255.0f) << 8) |
+		(RoundReal32ToInt32(B * 255.0f)));
+
+	for (r32 Angle = 0.0f; Angle < 360.0f; Angle++)
+	{
+		u32 X = Center.x - Radius * cosf(Angle);
+		u32 Y = Center.y - Radius * sinf(Angle);
+		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * Y + X);
+		*Pixel = Color;
+	}
+}
+
+//TODO: Implement
+om_internal void
+DrawTriangle(game_offscreen_buffer *Buffer, triangle Triangle, r32 R, r32 G, r32 B)
+{
 }
 
 om_internal void
@@ -206,6 +231,10 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	world_position Position = { PositionX, PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
 
+	entity_physics_blueprint PhysicsBlueprint = {};
+	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
+	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+
 	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
 	MovementBlueprint.Speed = 50.0f;
 	MovementBlueprint.Drag = 0.8f;
@@ -213,7 +242,7 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	Entity->MovementBlueprint = MovementBlueprint;
 	Entity->HitPointMax = 3;
 	Entity->Collideable = true;
-	Entity->CollisionBox = rect2{32, 32};
+	Entity->PhysicsBlueprint = PhysicsBlueprint;
 	Entity->Width = 32.0f;
 	Entity->Height = 32.0f;
 	
@@ -226,8 +255,12 @@ AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 	world_position Position{ PositionX, PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_GrassTile, &Position);
 
+	entity_physics_blueprint PhysicsBlueprint = {};
+	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
+	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+
 	Entity->Collideable = true;
-	Entity->CollisionBox = rect2{ 32, 32 };
+	Entity->PhysicsBlueprint = PhysicsBlueprint;
 	Entity->Width = 32.0f;
 	Entity->Height = 32.0f;
 
@@ -240,8 +273,12 @@ AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
 	world_position Position{ PositionX, PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_WaterTile, &Position);
 
+	entity_physics_blueprint PhysicsBlueprint = {};
+	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
+	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+
 	Entity->Collideable = true;
-	Entity->CollisionBox = rect2{ 32, 32 };
+	Entity->PhysicsBlueprint = PhysicsBlueprint;
 
 	return (*Entity);
 }
@@ -339,8 +376,13 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 		r32 tMin = 1.0f;
 		vector2 WallNormal = {};
 		u32 HitEntityIndex = 0;
+		r32 PenetrationDepth = 0.0f;
 
 		vector2 DesiredPosition = Entity->Position + EntityDelta;
+		
+		// TODO: Later we might want to add the Entity's Position derivations into the physics spec
+		// so we don't have to update this rect here all the time.
+		Entity->PhysicsBlueprint.Rectangle = { {DesiredPosition}, {DesiredPosition.x + 32.0f, DesiredPosition.y + 32.0f} };
 
 		if (Entity->Collideable) {
 			for (u32 TestEntityIndex = 0; TestEntityIndex < Layer->EntityCount; ++TestEntityIndex)
@@ -350,7 +392,7 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 					entity *TestEntity = Layer->Entities + TestEntityIndex;
 					if (TestEntity->Collideable)
 					{
-						r32 DiameterW = TestEntity->Width + Entity->Width;
+						/*r32 DiameterW = TestEntity->Width + Entity->Width;
 						r32 DiameterH = TestEntity->Height + Entity->Height;
 
 						vector2 MinCorner = -0.5f*Vector2(DiameterW, DiameterH);
@@ -380,12 +422,22 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 						{
 							WallNormal = vector2{ 0, 1 };
 							HitEntityIndex = TestEntityIndex;
+						}*/
+						
+						// TODO: Check if Entities are even worth collision checking. (Broadphase)
+						collision_info CollisionInfo = TestCollision(Entity->PhysicsBlueprint, TestEntity->PhysicsBlueprint);
+						if (CollisionInfo.IsColliding)
+						{
+							WallNormal = CollisionInfo.PenetrationNormal;
+							PenetrationDepth = CollisionInfo.PenetrationDepth;
+							HitEntityIndex = TestEntityIndex;
 						}
 					}
 				}
 			}
 		}
 
+		// TODO: Collision resolution is currently busted. Specially around corners.
 		if (HitEntityIndex)
 		{
 			Entity->dPosition = Entity->dPosition - 1 * Inner(Entity->dPosition, WallNormal) * WallNormal;
@@ -511,7 +563,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 		GameState->Camera = {};
 		GameState->Camera.CameraWindow = { {0, 0}, {(r32)Buffer->Width, (r32)Buffer->Height} };
-		
 
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
@@ -553,7 +604,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 #if 1
 	//Clear screen.
-	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.5f, 0.5f, 0.5f);
+	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
 #endif
 	UpdateCamera(GameState);
 
@@ -587,13 +638,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	}
 
 	//TODO: Allow sample offsets here for more robust platform options
-	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);
-
-	vector2 min = Vector2(150, 150);
-	vector2 max = Vector2(200, 200);
-	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 1.0f, 0.0f, 0.0f);
-	DrawRect(Buffer, min, max, 0.0f, 0.0f, 1.0f);
-	DrawBitmap(Buffer, &GameState->Bitmap, 500, 300, 0.0f);*/
+	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);*/
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
