@@ -1,17 +1,3 @@
-vector2 TripleProduct(vector2 a, vector2 b, vector2 c) 
-{
-	vector3 A = { a.x, a.y, 0.0f };
-	vector3 B = { b.x, b.y, 0.0f };
-	vector3 C = { c.x, c.y, 0.0f };
-
-	vector3 f = Cross(A, B);
-	vector3 s = Cross(f, C);
-	
-	vector2 Result = { s.x, s.y };
-
-	return (Result);
-}
-
 om_internal b32
 Overlaps(vector2 A, vector2 B)
 {
@@ -125,7 +111,7 @@ GetEdges(vector2 *Vertices, u32 VerticeCount)
 }
 
 om_internal vector2
-ProjectAxis(vector2 *Vertices, u32 VerticeCount, vector2 Axis)
+ProjectOntoAxis(vector2 *Vertices, u32 VerticeCount, vector2 Axis)
 {
 	vector2 Projection = {};
 	Projection.x = Inner(Axis, Vertices[0]);
@@ -161,6 +147,9 @@ GetVoronoiRegion(vector2 Line, vector2 Point)
 	r32 LineLengthSquared = LengthSquared(Line);
 	r32 PointDotLine = Inner(Point, Line);
 
+	// If the point is beyond the start of the line then it is in the left region.
+	// Else if its beyond the end of the line then it is in the right region.
+	// Otherwise its in the middle.
 	if (PointDotLine < 0)
 	{
 		return (VoronoiRegion_Left);
@@ -181,6 +170,8 @@ TestCircles(circle CircleA, circle CircleB)
 	collision_info Result = {};
 	Result.IsColliding = false;
 
+	// Check if the distance between the center of the two circles
+	// are greater than their combined radius.
 	vector2 Distance = CircleB.Center - CircleA.Center;
 	r32 Radius = CircleA.Radius + CircleB.Radius;
 	r32 Magnitude = LengthSquared(Distance);
@@ -214,9 +205,11 @@ TestPolygonCircle(entity_physics_blueprint Shape, circle Circle)
 		r32 Overlap = 0.0f;
 		vector2 OverlapNormal = {};
 
+		// Center of circle relative to the current vertex.
 		vector2 Point = CirclePosition - Vertices[VerticeIndex];
 		vector2 Axis = Axes[VerticeIndex];
 
+		// Determine Voronoi region the center of the circle is within.
 		VoronoiRegion Region = GetVoronoiRegion(Axis, Point);
 		if (Region == VoronoiRegion_Left)
 		{
@@ -230,6 +223,7 @@ TestPolygonCircle(entity_physics_blueprint Shape, circle Circle)
 				PreviousIndex = VerticeIndex - 1;
 			}
 
+			// Make sure we're in the Right Voronoi region on the previous edge.
 			Axis = Axes[PreviousIndex];
 			vector2 Point2 = CirclePosition - Vertices[PreviousIndex];
 			Region = GetVoronoiRegion(Axis, Point2);
@@ -266,6 +260,7 @@ TestPolygonCircle(entity_physics_blueprint Shape, circle Circle)
 				NextIndex = VerticeIndex + 1;
 			}
 
+			// Make sure we're in the Left Voronoi region on the previous edge.
 			Axis = Axes[NextIndex];
 			vector2 Point = CirclePosition - Vertices[NextIndex];
 			Region = GetVoronoiRegion(Axis, Point);
@@ -292,6 +287,9 @@ TestPolygonCircle(entity_physics_blueprint Shape, circle Circle)
 		}
 		else
 		{
+			// Check if the circle is intersecting the edge.
+			// First transforming the edge into it's edge normal then retrieving the
+			// perpendicular distance between the center of the circle and the edge.
 			vector2 Normal = Perp(Axis);
 			Normal = Normalize(Normal);
 			r32 Distance = Inner(Point, Normal);
@@ -316,6 +314,7 @@ TestPolygonCircle(entity_physics_blueprint Shape, circle Circle)
 		}
 
 		//TODO: Look at this again.
+		// If this is the new smallest overlap found then store it.
 		if (AbsoluteValue(Overlap) < AbsoluteValue(Result.PenetrationDepth))
 		{
 			Result.PenetrationDepth = Overlap;
@@ -328,8 +327,6 @@ TestPolygonCircle(entity_physics_blueprint Shape, circle Circle)
 	return (Result);
 }
 
-//TODO: Improve structure and naming of functions
-//TODO: Short comments describing alg.
 om_internal collision_info
 TestCollision(entity_physics_blueprint ShapeA, entity_physics_blueprint ShapeB)
 {
@@ -363,13 +360,15 @@ TestCollision(entity_physics_blueprint ShapeA, entity_physics_blueprint ShapeB)
 	r32 Overlap = R32MAX;
 	vector2 MinPenetrationAxis = {};
 
+	// Loop over all separating axes in first shape's axes. If we find one that 
+	// doesn't overlap then there's no collision.
 	for (u32 AxesIndex = 0; AxesIndex < Vertices1Size; ++AxesIndex)
 	{
 		vector2 Axis = Axes1[AxesIndex];
 	
 		// Project both shapes onto the current axis
-		vector2 Projection1 = ProjectAxis(Vertices1, Vertices1Size, Axis);
-		vector2 Projection2 = ProjectAxis(Vertices2, Vertices2Size, Axis);
+		vector2 Projection1 = ProjectOntoAxis(Vertices1, Vertices1Size, Axis);
+		vector2 Projection2 = ProjectOntoAxis(Vertices2, Vertices2Size, Axis);
 
 		// Check for overlap
 		if (!Overlaps(Projection1, Projection2))
@@ -392,13 +391,15 @@ TestCollision(entity_physics_blueprint ShapeA, entity_physics_blueprint ShapeB)
 		}
 	}
 
+	// Loop over all separating axes in second shape's axes. If we find one that 
+	// doesn't overlap then there's no collision.
 	for (u32 AxesIndex = 0; AxesIndex < Vertices2Size; ++AxesIndex)
 	{
 		vector2 Axis = Axes2[AxesIndex];
 
 		// Project both shapes onto the current axis
-		vector2 Projection1 = ProjectAxis(Vertices1, Vertices1Size, Axis);
-		vector2 Projection2 = ProjectAxis(Vertices2, Vertices2Size, Axis);
+		vector2 Projection1 = ProjectOntoAxis(Vertices1, Vertices1Size, Axis);
+		vector2 Projection2 = ProjectOntoAxis(Vertices2, Vertices2Size, Axis);
 
 		// Check for overlap
 		if (!Overlaps(Projection1, Projection2))
