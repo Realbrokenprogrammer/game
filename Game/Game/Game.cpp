@@ -231,6 +231,10 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	world_position Position = { PositionX, PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
 
+	entity_physics_blueprint PhysicsBlueprint = {};
+	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
+	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+
 	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
 	MovementBlueprint.Speed = 50.0f;
 	MovementBlueprint.Drag = 0.8f;
@@ -238,6 +242,7 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	Entity->MovementBlueprint = MovementBlueprint;
 	Entity->HitPointMax = 3;
 	Entity->Collideable = true;
+	Entity->PhysicsBlueprint = PhysicsBlueprint;
 	Entity->Width = 32.0f;
 	Entity->Height = 32.0f;
 	
@@ -250,7 +255,12 @@ AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 	world_position Position{ PositionX, PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_GrassTile, &Position);
 
+	entity_physics_blueprint PhysicsBlueprint = {};
+	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
+	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+
 	Entity->Collideable = true;
+	Entity->PhysicsBlueprint = PhysicsBlueprint;
 	Entity->Width = 32.0f;
 	Entity->Height = 32.0f;
 
@@ -263,7 +273,12 @@ AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
 	world_position Position{ PositionX, PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_WaterTile, &Position);
 
+	entity_physics_blueprint PhysicsBlueprint = {};
+	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
+	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+
 	Entity->Collideable = true;
+	Entity->PhysicsBlueprint = PhysicsBlueprint;
 
 	return (*Entity);
 }
@@ -361,8 +376,13 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 		r32 tMin = 1.0f;
 		vector2 WallNormal = {};
 		u32 HitEntityIndex = 0;
+		r32 PenetrationDepth = 0.0f;
 
 		vector2 DesiredPosition = Entity->Position + EntityDelta;
+		
+		// TODO: Later we might want to add the Entity's Position derivations into the physics spec
+		// so we don't have to update this rect here all the time.
+		Entity->PhysicsBlueprint.Rectangle = { {DesiredPosition}, {DesiredPosition.x + 32.0f, DesiredPosition.y + 32.0f} };
 
 		if (Entity->Collideable) {
 			for (u32 TestEntityIndex = 0; TestEntityIndex < Layer->EntityCount; ++TestEntityIndex)
@@ -372,7 +392,7 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 					entity *TestEntity = Layer->Entities + TestEntityIndex;
 					if (TestEntity->Collideable)
 					{
-						r32 DiameterW = TestEntity->Width + Entity->Width;
+						/*r32 DiameterW = TestEntity->Width + Entity->Width;
 						r32 DiameterH = TestEntity->Height + Entity->Height;
 
 						vector2 MinCorner = -0.5f*Vector2(DiameterW, DiameterH);
@@ -402,12 +422,22 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 						{
 							WallNormal = vector2{ 0, 1 };
 							HitEntityIndex = TestEntityIndex;
+						}*/
+						
+						// TODO: Check if Entities are even worth collision checking. (Broadphase)
+						collision_info CollisionInfo = TestCollision(Entity->PhysicsBlueprint, TestEntity->PhysicsBlueprint);
+						if (CollisionInfo.IsColliding)
+						{
+							WallNormal = CollisionInfo.PenetrationNormal;
+							PenetrationDepth = CollisionInfo.PenetrationDepth;
+							HitEntityIndex = TestEntityIndex;
 						}
 					}
 				}
 			}
 		}
 
+		// TODO: Collision resolution is currently busted. Specially around corners.
 		if (HitEntityIndex)
 		{
 			Entity->dPosition = Entity->dPosition - 1 * Inner(Entity->dPosition, WallNormal) * WallNormal;
@@ -473,8 +503,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		GameState->PlayerBitmap = Memory->DEBUGLoadBitmap(PlayerBitmap);
 
 		GameState->ToneHz = 256;
-		GameState->RectPosX = 100;
-		GameState->RectPosY = 100;
 
 		// Initializing World
 		world *World = nullptr;
@@ -555,26 +583,22 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			vector2 ddPosition = {};
 			if (Controller->MoveLeft.EndedDown)
 			{
-				//ddPosition.x -= 1.0f;
-				GameState->RectPosX -= 1.0f;
+				ddPosition.x -= 1.0f;
 			}
 			if (Controller->MoveRight.EndedDown)
 			{
-				//ddPosition.x += 1.0f;
-				GameState->RectPosX += 1.0f;
+				ddPosition.x += 1.0f;
 			}
 			if (Controller->MoveUp.EndedDown)
 			{
-				//ddPosition.y -= 1.0f;
-				GameState->RectPosY -= 1.0f;
+				ddPosition.y -= 1.0f;
 			}
 			if (Controller->MoveDown.EndedDown)
 			{
-				//ddPosition.y += 1.0f;
-				GameState->RectPosY += 1.0f;
+				ddPosition.y += 1.0f;
 			}
 
-			//MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, ddPosition);
+			MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, ddPosition);
 		}
 	}
 
@@ -582,35 +606,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	//Clear screen.
 	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
 #endif
-	//UpdateCamera(GameState);
+	UpdateCamera(GameState);
 
-	vector2 Center = GameState->Camera.CameraWindow.Max;
-	Center.x = 300.0f;
-	Center.y = 300.0f;
-	r32 Radius = 20;
-
-	shape CenterBall = {};
-	CenterBall.CollisionShape = CollisionShape_Circle;
-	CenterBall.Circle = {Radius, Center};
-
-	shape CenterRect = {};
-	CenterRect.CollisionShape = CollisionShape_Rectangle;
-	CenterRect.Rectangle = { {150.0f, 150.0f}, {150.0f + 32.0f, 150.0f + 32.0f} };
-
-	shape CenterTriangle = {};
-	CenterTriangle.CollisionShape = CollisionShape_Triangle;
-	CenterTriangle.Triangle = { {100.0f, 100.0f}, {200.0f, 100.0f}, {150.0f, 200.0f} };
-
-	shape PlayerBall = {};
-	PlayerBall.CollisionShape = CollisionShape_Circle;
-	PlayerBall.Circle = { Radius, {GameState->RectPosX+16, GameState->RectPosY+16} };
-
-	shape PlayerRect = {};
-	PlayerRect.CollisionShape = CollisionShape_Rectangle;
-	PlayerRect.Rectangle = { {GameState->RectPosX, GameState->RectPosY}, {GameState->RectPosX + 32.0f, GameState->RectPosY + 32.0f} };
-
-	b32 INTERSECT = Test(PlayerRect, CenterRect).IsColliding || Test(PlayerRect, CenterTriangle).IsColliding || Test(CenterBall, PlayerRect).IsColliding;
-	/*world *World = GameState->World;
+	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
 		world_layer *Layer = &GameState->World->Layers[LayerIndex];
@@ -637,29 +635,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 					break;
 			}
 		}
-	}*/
-
-	vector3 color = {1.0f, 0.0f, 0.0f};
-	if (INTERSECT)
-	{
-		color = { 0.0f, 1.0f, 0.0f };
 	}
 
-	//DrawCircle(Buffer, PlayerBall.Circle.Centre, Radius, 1.0f, 0.0f, 0.0f);
-	
-	DrawRect(Buffer, PlayerRect.Rectangle.Min, PlayerRect.Rectangle.Max, 0.0f, 0.0f, 1.0f);
-	DrawCircle(Buffer, Center, Radius, color.r, color.g, color.b);
-	DrawRect(Buffer, CenterRect.Rectangle.Min, CenterRect.Rectangle.Max, color.r, color.g, color.b);
-	Memory->DEBUGDrawTriangle(CenterTriangle.Triangle.p1, CenterTriangle.Triangle.p2, CenterTriangle.Triangle.p3, color);
-
 	//TODO: Allow sample offsets here for more robust platform options
-	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);
-
-	vector2 min = Vector2(150, 150);
-	vector2 max = Vector2(200, 200);
-	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 1.0f, 0.0f, 0.0f);
-	DrawRect(Buffer, min, max, 0.0f, 0.0f, 1.0f);
-	DrawBitmap(Buffer, &GameState->Bitmap, 500, 300, 0.0f);*/
+	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);*/
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

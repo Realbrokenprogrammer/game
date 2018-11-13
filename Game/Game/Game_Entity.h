@@ -46,7 +46,7 @@ enum collision_shape
 
 struct entity_physics_blueprint
 {
-	b32 Solid;
+	b32 Solid; //TODO: Make use of this later.
 
 	collision_shape CollisionShape;
 	union

@@ -32,9 +32,6 @@ struct game_state
 	int RedOffset;
 	int BlueOffset;
 
-	r32 RectPosX;
-	r32 RectPosY;
-
 	loaded_bitmap PlayerBitmap;
 	loaded_bitmap GrassBitmap;
 	loaded_bitmap WaterBitmap;

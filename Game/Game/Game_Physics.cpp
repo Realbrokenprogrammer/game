@@ -1,15 +1,3 @@
-struct shape 
-{
-	collision_shape CollisionShape;
-	union
-	{
-		line Line;
-		rect2 Rectangle;
-		circle Circle;
-		triangle Triangle;
-	};
-};
-
 vector2 TripleProduct(vector2 a, vector2 b, vector2 c) 
 {
 	vector3 A = { a.x, a.y, 0.0f };
@@ -31,7 +19,7 @@ Overlaps(vector2 A, vector2 B)
 }
 
 om_internal vector2 *
-GetPoints(shape Shape, u32 *Size)
+GetPoints(entity_physics_blueprint Shape, u32 *Size)
 {
 	switch (Shape.CollisionShape)
 	{
@@ -208,7 +196,7 @@ TestCircles(circle CircleA, circle CircleB)
 }
 
 om_internal collision_info
-TestPolygonCircle(shape Shape, circle Circle)
+TestPolygonCircle(entity_physics_blueprint Shape, circle Circle)
 {
 	collision_info Result = {};
 	Result.IsColliding = true;
@@ -340,12 +328,10 @@ TestPolygonCircle(shape Shape, circle Circle)
 	return (Result);
 }
 
-//TODO: Clean up Drawing code in Game.cpp
-//TODO: Clean up collision testing code in Game.cpp
 //TODO: Improve structure and naming of functions
-//TODO: Implement this collision check in MoveEntity
+//TODO: Short comments describing alg.
 om_internal collision_info
-Test(shape ShapeA, shape ShapeB)
+TestCollision(entity_physics_blueprint ShapeA, entity_physics_blueprint ShapeB)
 {
 	collision_info Result = {};
 	Result.IsColliding = true;
