@@ -609,7 +609,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	PlayerRect.CollisionShape = CollisionShape_Rectangle;
 	PlayerRect.Rectangle = { {GameState->RectPosX, GameState->RectPosY}, {GameState->RectPosX + 32.0f, GameState->RectPosY + 32.0f} };
 
-	b32 INTERSECT = Test(PlayerRect, CenterRect) || Test(PlayerRect, CenterTriangle) || Test(CenterBall, PlayerRect);
+	b32 INTERSECT = Test(PlayerRect, CenterRect).IsColliding || Test(PlayerRect, CenterTriangle).IsColliding || Test(CenterBall, PlayerRect).IsColliding;
 	/*world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{

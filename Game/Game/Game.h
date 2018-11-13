@@ -8,6 +8,7 @@
 #include "Game_Entity.h"
 #include "Game_World.h"
 #include "Game_Camera.h"
+#include "Game_Physics.h"
 
 //TODO: This could be improved, think of the structure of this later.
 enum game_mode

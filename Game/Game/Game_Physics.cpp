@@ -166,23 +166,32 @@ GetVoronoiRegion(vector2 Line, vector2 Point)
 	}
 }
 
-om_internal b32
+om_internal collision_info
 TestCircles(circle CircleA, circle CircleB)
 {
-	r32 x = CircleA.Center.x - CircleB.Center.x;
-	r32 y = CircleA.Center.y - CircleB.Center.y;
+	collision_info Result = {};
+	Result.IsColliding = false;
 
-	r32 CenterDistanceSq = x * x + y * y;
-
+	vector2 Distance = CircleB.Center - CircleA.Center;
 	r32 Radius = CircleA.Radius + CircleB.Radius;
-	r32 RadiusSq = Radius * Radius;
+	r32 Magnitude = LengthSquared(Distance);
 
-	return (CenterDistanceSq <= RadiusSq);
+	if (Magnitude < (Radius * Radius)) 
+	{
+		Result.IsColliding = true;
+		Result.PenetrationDepth = (Radius - Length(Distance));
+		Result.PenetrationNormal = Normalize(Distance);
+	}
+
+	return (Result);
 }
 
-om_internal b32
+om_internal collision_info
 TestPolygonCircle(shape Shape, circle Circle)
 {
+	collision_info Result = {};
+	Result.IsColliding = true;
+
 	vector2 CirclePosition = Circle.Center;
 	r32 RadiusSquared = Circle.Radius * Circle.Radius;
 
@@ -191,6 +200,9 @@ TestPolygonCircle(shape Shape, circle Circle)
 
 	for (u32 VerticeIndex = 0; VerticeIndex < Vertices.size(); ++VerticeIndex)
 	{
+		r32 Overlap = 0.0f;
+		vector2 OverlapNormal = {};
+
 		vector2 Point = CirclePosition - Vertices.at(VerticeIndex);
 		vector2 Axis = Axes.at(VerticeIndex);
 
@@ -217,14 +229,14 @@ TestPolygonCircle(shape Shape, circle Circle)
 				if (Distance > Circle.Radius)
 				{
 					// No intersection
-					return false;
+					Result.IsColliding = false;
+					return (Result);
 				}
 				else
 				{
 					// It intersects
-					// TODO: Calculate overlap
-					// overlap normal = Normalize(Point)
-					// overlap = radius - distance
+					Overlap = Circle.Radius - Distance;
+					OverlapNormal = Normalize(Point);
 				}
 			}
 		}
@@ -250,14 +262,14 @@ TestPolygonCircle(shape Shape, circle Circle)
 				if (Distance > Circle.Radius)
 				{
 					// No intersection
-					return (false);
+					Result.IsColliding = false;
+					return (Result);
 				}
 				else
 				{
 					// It intersects
-					// TODO: Calculate overlap
-					// overlap normal = Normalize(Point)
-					// overlap = radius - distance
+					Overlap = Circle.Radius - Distance;
+					OverlapNormal = Normalize(Point);
 				}
 			}
 		}
@@ -272,30 +284,39 @@ TestPolygonCircle(shape Shape, circle Circle)
 			if (Distance > 0 && DistanceAbsoluteValue > Circle.Radius)
 			{
 				// No intersection
-				return (false);
+				Result.IsColliding = false;
+				return (Result);
 			}
 			else
 			{
 				// It intersects
-				// TODO: Calculate overlap
-				// overlap normal = Normalize(Point)
-				// overlap = radius - distance
+				Overlap = Circle.Radius - Distance;
+				OverlapNormal = Normal;
 			}
+		}
+
+		//TODO: Look at this again.
+		if (AbsoluteValue(Overlap) < AbsoluteValue(Result.PenetrationDepth))
+		{
+			Result.PenetrationDepth = Overlap;
+			Result.PenetrationNormal = OverlapNormal;
 		}
 	}
 
-	return true;
+	return (Result);
 }
 
-//TODO: Add propper return value (New struct containing collision info)
 //TODO: Replace usage of std::vector
 //TODO: Clean up Drawing code in Game.cpp
 //TODO: Clean up collision testing code in Game.cpp
 //TODO: Improve structure and naming of functions
 //TODO: Implement this collision check in MoveEntity
-om_internal b32
+om_internal collision_info
 Test(shape ShapeA, shape ShapeB)
 {
+	collision_info Result = {};
+	Result.IsColliding = true;
+
 	if (ShapeA.CollisionShape == CollisionShape_Circle && ShapeB.CollisionShape == CollisionShape_Circle)
 	{
 		return TestCircles(ShapeA.Circle, ShapeB.Circle);
@@ -331,7 +352,8 @@ Test(shape ShapeA, shape ShapeB)
 		// Check for overlap
 		if (!Overlaps(Projection1, Projection2))
 		{
-			return (false);
+			Result.IsColliding = false;
+			return (Result);
 		}
 
 		// Get the amount of overlap
@@ -354,7 +376,8 @@ Test(shape ShapeA, shape ShapeB)
 		// Check for overlap
 		if (!Overlaps(Projection1, Projection2))
 		{
-			return (false);
+			Result.IsColliding = false;
+			return (Result);
 		}
 
 		// Get the amount of overlap
@@ -365,11 +388,9 @@ Test(shape ShapeA, shape ShapeB)
 			MinPenetrationAxis = Axis;
 		}
 	}
-	 
+	
+	Result.PenetrationDepth = Overlap;
+	Result.PenetrationNormal = MinPenetrationAxis;
 
-	//TODO: Return theese for collision handling.
-	// Overlap = Penetration depth
-	// MinPenetrationAxis = Penetration normal
-
-	return (true);
+	return (Result);
 }
