@@ -2,6 +2,11 @@
 #define GAME_WORLD_H
 #pragma once
 
+//TODO: Don't use this standard library laters
+#include <vector>
+#include <map>
+#include <algorithm>
+
 struct world_difference
 {
 	vector2 deltaXY;
@@ -73,6 +78,12 @@ struct world
 
 	u32 WorldWidth;
 	u32 WorldHeight;
+
+	//TODO: Should we group this into a struct?
+	u32 CellSize;
+	u32 Columns;
+	u32 Rows;
+	std::vector<std::vector<entity *>> Buckets; // Use array instead
 
 	world_layer Layers[8];
 };

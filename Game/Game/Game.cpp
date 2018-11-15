@@ -354,8 +354,11 @@ CanCollide(entity *A, entity *B)
 
 //TODO: Collision with slopes / Non rectangle shapes.
 om_internal void
-MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition)
+MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 {
+	//TODO: This should be refactored, here we can't move entities outside of layer 1
+	world_layer *Layer = &World->Layers[0];
+
 	r32 ddLength = LengthSquared(ddPosition);
 	if (ddLength > 1.0f)
 	{
@@ -372,81 +375,44 @@ MoveEntity(world_layer *Layer, entity *Entity, r32 DeltaTime, vector2 ddPosition
 	
 	vector2 NewPosition = OldPosition + EntityDelta;
 
-	for (int Iteration = 0; Iteration < 4; ++Iteration) {
+	for (int Iteration = 0; Iteration < 4; ++Iteration) 
+	{
 		r32 tMin = 1.0f;
 		vector2 WallNormal = {};
-		u32 HitEntityIndex = 0;
+		b32 HitEntity = false;
 		r32 PenetrationDepth = 0.0f;
 
 		vector2 DesiredPosition = Entity->Position + EntityDelta;
-
+		std::vector<entity *> TestEntities = GetNearbyEntities(World, Entity);
 		if (Entity->Collideable) {
-			for (u32 TestEntityIndex = 0; TestEntityIndex < Layer->EntityCount; ++TestEntityIndex)
+
+			for (u32 TestEntityIndex = 0; TestEntityIndex < TestEntities.size(); ++TestEntityIndex)
 			{
-				if (TestEntityIndex != Entity->ID.Value)
+				entity *TestEntity = TestEntities[TestEntityIndex];
+				if (TestEntity->ID.Value != Entity->ID.Value && TestEntity->Collideable)
 				{
-					entity *TestEntity = Layer->Entities + TestEntityIndex;
-					if (TestEntity->Collideable)
+					// TODO: Later we might want to add the Entity's Position derivations into the physics spec
+					// so we don't have to update this rect here all the time.
+					Entity->PhysicsBlueprint.Rectangle = { {DesiredPosition}, {DesiredPosition.x + 32.0f, DesiredPosition.y + 32.0f} };
+					
+					collision_info CollisionInfo = TestCollision(Entity->PhysicsBlueprint, TestEntity->PhysicsBlueprint);
+					if (CollisionInfo.IsColliding)
 					{
-						// TODO: Later we might want to add the Entity's Position derivations into the physics spec
-						// so we don't have to update this rect here all the time.						
-						Entity->PhysicsBlueprint.Rectangle = { {DesiredPosition}, {DesiredPosition.x + 32.0f, DesiredPosition.y + 32.0f} };
-						
-						/*r32 DiameterW = TestEntity->Width + Entity->Width;
-						r32 DiameterH = TestEntity->Height + Entity->Height;
+						WallNormal = CollisionInfo.PenetrationNormal;
+						PenetrationDepth = CollisionInfo.PenetrationDepth;
+						HitEntity = true;
+					}
 
-						vector2 MinCorner = -0.5f*Vector2(DiameterW, DiameterH);
-						vector2 MaxCorner = 0.5f*Vector2(DiameterW, DiameterH);
+					// TODO: Review Collision resolution.
+					if (HitEntity)
+					{
+						Entity->dPosition = Entity->dPosition - 1.0f * Inner(Entity->dPosition, WallNormal) * WallNormal;
 
-						vector2 Rel = Entity->Position - TestEntity->Position;
+						EntityDelta = DesiredPosition - Entity->Position;
+						EntityDelta = EntityDelta - 1 * Inner(EntityDelta, WallNormal) * WallNormal;
+						DesiredPosition = Entity->Position + EntityDelta;
 
-						if (TestCollision(MinCorner.x, Rel.x, Rel.y, EntityDelta.x, EntityDelta.y, &tMin, MinCorner.y, MaxCorner.y))
-						{
-							WallNormal = vector2{ -1, 0 };
-							HitEntityIndex = TestEntityIndex;
-						}
-
-						if (TestCollision(MaxCorner.x, Rel.x, Rel.y, EntityDelta.x, EntityDelta.y, &tMin, MinCorner.y, MaxCorner.y))
-						{
-							WallNormal = vector2{ 1, 0 };
-							HitEntityIndex = TestEntityIndex;
-						}
-
-						if (TestCollision(MinCorner.y, Rel.y, Rel.x, EntityDelta.y, EntityDelta.x, &tMin, MinCorner.x, MaxCorner.x))
-						{
-							WallNormal = vector2{ 0, -1 };
-							HitEntityIndex = TestEntityIndex;
-						}
-
-						if (TestCollision(MaxCorner.y, Rel.y, Rel.x, EntityDelta.y, EntityDelta.x, &tMin, MinCorner.x, MaxCorner.x))
-						{
-							WallNormal = vector2{ 0, 1 };
-							HitEntityIndex = TestEntityIndex;
-						}*/
-						
-						// TODO: Check if Entities are even worth collision checking. (Broadphase)
-						vector2 Dist = (GetCenter(Entity->PhysicsBlueprint.Rectangle) - GetCenter(TestEntity->PhysicsBlueprint.Rectangle));
-						if (AbsoluteValue(Dist.x) < 64.0f && AbsoluteValue(Dist.y) < 64.0f) {
-							collision_info CollisionInfo = TestCollision(Entity->PhysicsBlueprint, TestEntity->PhysicsBlueprint);
-							if (CollisionInfo.IsColliding)
-							{
-								WallNormal = CollisionInfo.PenetrationNormal;
-								PenetrationDepth = CollisionInfo.PenetrationDepth;
-								HitEntityIndex = TestEntityIndex;
-							}
-						}
-
-						// TODO: Review Collision resolution.
-						if (HitEntityIndex)
-						{
-							Entity->dPosition = Entity->dPosition - 1.0f * Inner(Entity->dPosition, WallNormal) * WallNormal;
-
-							EntityDelta = DesiredPosition - Entity->Position;
-							EntityDelta = EntityDelta - 1 * Inner(EntityDelta, WallNormal) * WallNormal;
-							DesiredPosition = Entity->Position + EntityDelta;
-
-							//TODO: Stairs etc.
-						}
+						//TODO: Stairs etc.
 					}
 				}
 			}
@@ -520,7 +486,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		// TODO: Should later be loaded from level file.
 		u32 WorldTileWidth = 60;
 		u32 WorldTileHeight = 23;
-		InitializeWorld(World, WorldTileWidth*PIXELS_PER_TILE, WorldTileHeight*PIXELS_PER_TILE);
+		u32 WorldCellSize = 128; //TODO: Set more educated value for this.
+		InitializeWorld(World, WorldTileWidth*PIXELS_PER_TILE, WorldTileHeight*PIXELS_PER_TILE, WorldCellSize);
 
 		for (u32 TileY = 0; TileY < WorldTileHeight; ++TileY)
 		{
@@ -572,6 +539,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		Memory->IsInitialized = true;
 	}
 
+	//TODO: Can we make this more efficient?
+	//TODO: Update Bucket entries instead of clearing and adding all entities every frame since most are static entities.
+	ClearWorldBuckets(GameState->World);
+	world_layer *FirstLayer = &GameState->World->Layers[0];
+	for (u32 EntityIndex = 0; EntityIndex < FirstLayer->EntityCount; ++EntityIndex)
+	{
+		entity *Entity = FirstLayer->Entities + EntityIndex;
+		RegisterEntity(GameState->World, Entity);
+	}
+
 	for (int ControllerIndex = 0; ControllerIndex < OM_ARRAYCOUNT(Input->Controllers); ++ControllerIndex)
 	{
 		game_controller_input *Controller = GetController(Input, ControllerIndex);
@@ -602,7 +579,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				ddPosition.y += 1.0f;
 			}
 
-			MoveEntity(&GameState->World->Layers[0], Player, Input->dtForFrame, ddPosition);
+			MoveEntity(GameState->World, Player, Input->dtForFrame, ddPosition);
 		}
 	}
 

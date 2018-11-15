@@ -85,7 +85,6 @@ struct entity
 
 	u32 HitPointMax;
 	hit_point HitPoint;
-
 };
 
 #endif // GAME_ENTITY_H
