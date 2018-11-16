@@ -4,7 +4,6 @@
 
 //TODO: Don't use this standard library laters
 #include <vector>
-#include <map>
 #include <algorithm>
 
 struct world_difference
@@ -83,6 +82,7 @@ struct world
 	u32 CellSize;
 	u32 Columns;
 	u32 Rows;
+
 	std::vector<std::vector<entity *>> Buckets; // Use array instead
 
 	world_layer Layers[8];
