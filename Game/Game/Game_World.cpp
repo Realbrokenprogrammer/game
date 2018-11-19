@@ -48,7 +48,7 @@ ClearWorldBuckets(world *World)
 }
 
 om_internal u32 *
-AddBucket(vector2 Vector, r32 Width, r32 CellSize, u32 *Bucket)
+AddToBucket(vector2 Vector, r32 Width, r32 CellSize, u32 *Bucket)
 {
 	u32 Cell = (u32)(Vector.x / CellSize) + (u32)(Vector.y / CellSize) * Width;
 	u32 BucketSize = OM_ARRAY_COUNT(Bucket);
@@ -66,7 +66,7 @@ AddBucket(vector2 Vector, r32 Width, r32 CellSize, u32 *Bucket)
 }
 
 om_internal u32 *
-GetIDForEntity(world *World, entity *Entity)
+GetBucketsForEntity(world *World, entity *Entity)
 {
 	u32 *Result = NULL;
 
@@ -75,13 +75,13 @@ GetIDForEntity(world *World, entity *Entity)
 	r32 Width = World->WorldWidth / World->CellSize;
 
 	// Top Left
-	Result = AddBucket(Min, Width, World->CellSize, Result);
+	Result = AddToBucket(Min, Width, World->CellSize, Result);
 	// Top Right
-	Result = AddBucket({ Max.x, Min.y }, Width, World->CellSize, Result);
+	Result = AddToBucket({ Max.x, Min.y }, Width, World->CellSize, Result);
 	// Bottom Right
-	Result = AddBucket({ Max.x, Max.y }, Width, World->CellSize, Result);
+	Result = AddToBucket({ Max.x, Max.y }, Width, World->CellSize, Result);
 	// BottomLeft
-	Result = AddBucket({ Min.x, Max.y }, Width, World->CellSize, Result);
+	Result = AddToBucket({ Min.x, Max.y }, Width, World->CellSize, Result);
 
 	return (Result);
 }
@@ -89,37 +89,37 @@ GetIDForEntity(world *World, entity *Entity)
 om_internal void
 RegisterEntity(world *World, entity *Entity)
 {
-	u32 *CellIds = GetIDForEntity(World, Entity);
-	u32 CellIdsSize = OM_ARRAY_COUNT(CellIds);
+	u32 *EntityBuckets = GetBucketsForEntity(World, Entity);
+	u32 EntityBucketsSize = OM_ARRAY_COUNT(EntityBuckets);
 
-	for (u32 CellIndex = 0; CellIndex < CellIdsSize; ++CellIndex)
+	for (u32 Index = 0; Index < EntityBucketsSize; ++Index)
 	{
-		u32 Cell = CellIds[CellIndex];
-		OM_ARRAY_PUSH(World->Buckets[Cell], Entity);
+		u32 TargetBucket = EntityBuckets[Index];
+		OM_ARRAY_PUSH(World->Buckets[TargetBucket], Entity);
 	}
 
-	OM_ARRAY_FREE(CellIds);
+	OM_ARRAY_FREE(EntityBuckets);
 }
 
 om_internal entity **
 GetNearbyEntities(world *World, entity *Entity)
 {
 	entity **Result = NULL;
-	u32 *CellIds = GetIDForEntity(World, Entity);
-	u32 CellIdsSize = OM_ARRAY_COUNT(CellIds);
+	
+	u32 *EntityBuckets = GetBucketsForEntity(World, Entity);
+	u32 EntityBucketsSize = OM_ARRAY_COUNT(EntityBuckets);
 
-
-	for (u32 CellIndex = 0; CellIndex < CellIdsSize; ++CellIndex)
+	for (u32 EntityBucketIndex = 0; EntityBucketIndex < EntityBucketsSize; ++EntityBucketIndex)
 	{
-		u32 Cell = CellIds[CellIndex];
-		u32 BucketSize = OM_ARRAY_COUNT(World->Buckets[Cell]);
-		for (u32 BucketIndex = 0; BucketIndex < BucketSize; ++BucketIndex)
+		u32 TargetBucket = EntityBuckets[EntityBucketIndex];
+		u32 TargetBucketSize = OM_ARRAY_COUNT(World->Buckets[TargetBucket]);
+		for (u32 Index = 0; Index < TargetBucketSize; ++Index)
 		{
-			OM_ARRAY_PUSH(Result, World->Buckets[Cell][BucketIndex]);
+			OM_ARRAY_PUSH(Result, World->Buckets[TargetBucket][Index]);
 		}
 	}
 
-	OM_ARRAY_FREE(CellIds);
+	OM_ARRAY_FREE(EntityBuckets);
 
 	return (Result);
 }
