@@ -69,7 +69,6 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 	}
 }
 
-//TODO: This needs serious rework.
 om_internal void
 DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32 G, r32 B)
 {
@@ -80,17 +79,122 @@ DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32
 
 	for (r32 Angle = 0.0f; Angle < 360.0f; Angle++)
 	{
-		u32 X = Center.x - Radius * cosf(Angle);
-		u32 Y = Center.y - Radius * sinf(Angle);
+		i32 X = Center.x - Radius * cosf(Angle);
+		i32 Y = Center.y - Radius * sinf(Angle);
+
+		if (X < 0)
+		{
+			X = 0;
+		}
+
+		if (Y < 0)
+		{
+			Y = 0;
+		}
+
+		if (Y > Buffer->Height)
+		{
+			Y = Buffer->Height;
+		}
+
+		if (X > Buffer->Width)
+		{
+			X = Buffer->Width;
+		}
+
 		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * Y + X);
 		*Pixel = Color;
 	}
 }
 
-//TODO: Implement
+om_internal void
+DrawLine(game_offscreen_buffer *Buffer, vector2 Start, vector2 End, r32 R, r32 G, r32 B)
+{
+	if (Start.x > End.x)
+	{
+		vector2 Temp = Start;
+		Start = End;
+		End = Temp;
+	}
+
+	if (Start.x < 0)
+	{
+		Start.x = 0;
+	}
+
+	if (Start.y < 0)
+	{
+		Start.y = 0;
+	}
+
+	if (End.x > Buffer->Width)
+	{
+		End.x = Buffer->Width;
+	}
+
+	if (End.y > Buffer->Height)
+	{
+		End.y = Buffer->Height;
+	}
+
+	r32 Coefficient = 0.0f;
+	if (End.x - Start.x == 0)
+	{
+		Coefficient = 10000;
+		if (End.y - Start.y < 0)
+		{
+			Coefficient = Coefficient * -1;
+		}
+	}
+	else
+	{
+		Coefficient = (End.y - Start.y) / (End.x - Start.x);
+	}
+
+	r32 CX;
+	r32 CY;
+
+	if (Coefficient < 0)
+	{
+		CX = 1 / (-1 + Coefficient) * -1;
+		CY = Coefficient / (-1 + Coefficient) * -1;
+	}
+	else
+	{
+		CX = 1 / (1 + Coefficient);
+		CY = Coefficient / (1 + Coefficient);
+	}
+
+	CX * 1.00001;
+	CY * 1.00001;
+
+	r32 ToLength = SquareRoot((End.x - Start.x) * (End.x - Start.x) + (End.y - Start.y) * (End.y - Start.y));
+	r32 Length = 0;
+	r32 Increment = SquareRoot(CX * CX + CY * CY);
+
+	u32 Color =
+		((RoundReal32ToInt32(R * 255.0f) << 16) |
+		(RoundReal32ToInt32(G * 255.0f) << 8) |
+		(RoundReal32ToInt32(B * 255.0f)));
+
+	for (int Index = 0; Length < ToLength + 0.5f; ++Index)
+	{
+		r32 X = Start.x + CX * Index;
+		r32 Y = Start.y + CY * Index;
+
+		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * (u32)Y + (u32)X);
+		*Pixel = Color;
+
+		Length += Increment;
+	}
+}
+
 om_internal void
 DrawTriangle(game_offscreen_buffer *Buffer, triangle Triangle, r32 R, r32 G, r32 B)
 {
+	DrawLine(Buffer, Triangle.p1, Triangle.p2, R, G, B);
+	DrawLine(Buffer, Triangle.p2, Triangle.p3, R, G, B);
+	DrawLine(Buffer, Triangle.p3, Triangle.p1, R, G, B);
 }
 
 om_internal void
