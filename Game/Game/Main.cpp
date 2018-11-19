@@ -97,15 +97,6 @@ SDLBuildEXEPathFileName(sdl_state *State, char *FileName, char *Destination, int
 		Destination, DestinationCount);
 }
 
-DEBUG_DRAW_TRIANGLE(DEBUGDrawTriangle)
-{
-	SDL_SetRenderDrawColor(GlobalRenderer, Color.r*255, Color.g*255, Color.b*255, SDL_ALPHA_OPAQUE);
-	SDL_RenderDrawLine(GlobalRenderer, Point1.x, Point1.y, Point2.x, Point2.y);
-	SDL_RenderDrawLine(GlobalRenderer, Point2.x, Point2.y, Point3.x, Point3.y);
-	SDL_RenderDrawLine(GlobalRenderer, Point3.x, Point3.y, Point1.x, Point1.y);
-	SDL_RenderPresent(GlobalRenderer);
-}
-
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
 {
 	if (Memory)
@@ -734,7 +725,6 @@ int main(int argc, char *argv[])
 			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
 			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 			GameMemory.DEBUGLoadBitmap = DEBUGLoadBitmap;
-			GameMemory.DEBUGDrawTriangle = DEBUGDrawTriangle;
 
 			SDLState.TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
 			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, (size_t)SDLState.TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?

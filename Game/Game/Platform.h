@@ -41,9 +41,6 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 #define DEBUG_LOAD_BITMAP(name) loaded_bitmap name(char *FileName)
 typedef DEBUG_LOAD_BITMAP(debug_load_bitmap);
 
-#define DEBUG_DRAW_TRIANGLE(name) void name(vector2 Point1, vector2 Point2, vector2 Point3, vector3 Color)
-typedef DEBUG_DRAW_TRIANGLE(debug_draw_triangle);
-
 #endif
 
 /*
@@ -151,7 +148,6 @@ struct game_memory
 	debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
 	debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
 	debug_load_bitmap *DEBUGLoadBitmap;
-	debug_draw_triangle *DEBUGDrawTriangle;
 };
 
 #define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)
