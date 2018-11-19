@@ -158,6 +158,7 @@ SafeTruncateUInt64(u64 Value)
 #define OM_ARRAY_COUNT(Array) ((Array) ? OM_ARRAY_N(Array) : 0)
 #define OM_ARRAY_FREE(Array) ((Array) ? free(OM_ARRAY_RAW(Array)),0 : 0)
 #define OM_ARRAY_PUSH(Array, Element) (OM_ARRAY_MAYBEGROW(Array, 1), (Array)[OM_ARRAY_N(Array)++] = (Element))
+#define OM_ARRAY_RESERVE(Array, Count) (OM_ARRAY_MAYBEGROW(Array, Count), OM_ARRAY_N(Array)+=(Count), &(Array)[OM_ARRAY_N(Array)-(Count)])
 #define OM_ARRAY_LAST(Array) ((Array)[OM_ARRAY_N(Array)-1])
 
 #define OM_ARRAY_NEEDGROW(Array, n) ((Array) == 0 || OM_ARRAY_N(Array)+(n) >= OM_ARRAY_M(Array))

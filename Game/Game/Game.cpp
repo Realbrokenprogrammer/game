@@ -383,10 +383,13 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 		r32 PenetrationDepth = 0.0f;
 
 		vector2 DesiredPosition = Entity->Position + EntityDelta;
-		std::vector<entity *> TestEntities = GetNearbyEntities(World, Entity);
+		
+		entity ** TestEntities = GetNearbyEntities(World, Entity);
+		u32 TestEntitiesCount = OM_ARRAY_COUNT(TestEntities);
+
 		if (Entity->Collideable) {
 
-			for (u32 TestEntityIndex = 0; TestEntityIndex < TestEntities.size(); ++TestEntityIndex)
+			for (u32 TestEntityIndex = 0; TestEntityIndex < TestEntitiesCount; ++TestEntityIndex)
 			{
 				entity *TestEntity = TestEntities[TestEntityIndex];
 				if (TestEntity->ID.Value != Entity->ID.Value && TestEntity->Collideable)
@@ -417,6 +420,8 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 				}
 			}
 		}
+
+		OM_ARRAY_FREE(TestEntities);
 
 		// TODO: I moved the position update to after the Hit detection statement to make sure
 		// that the entity wouldn't get stuck in the wall first and THEN the velocity would be corrected to

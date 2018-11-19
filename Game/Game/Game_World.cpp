@@ -23,52 +23,65 @@ InitializeWorld(world *World, u32 WorldWidth, u32 WorldHeight, u32 WorldCellSize
 	World->Columns = World->WorldWidth / World->CellSize;
 	World->Rows = (World->WorldHeight / World->CellSize) + 1;
 
-	for (u32 i = 0; i < World->Columns * World->Rows * 2; ++i)
+	for (u32 BucketIndex = 0; BucketIndex < World->Columns * World->Rows * 2; ++BucketIndex)
 	{
-		World->Buckets.push_back(std::vector<entity *>());
+		entity **Bucket = NULL;
+		OM_ARRAY_PUSH(World->Buckets, Bucket);
 	}
 }
 
 om_internal void
 ClearWorldBuckets(world *World)
 {
-	for (u32 i = 0; i < World->Columns * World->Rows * 2; ++i)
+	for (u32 BucketIndex = 0; BucketIndex < World->Columns * World->Rows * 2; ++BucketIndex)
 	{
-		World->Buckets[i].clear();
+		OM_ARRAY_FREE(World->Buckets[BucketIndex]);
+	}
+	OM_ARRAY_FREE(World->Buckets);
+
+	World->Buckets = NULL;
+	for (u32 BucketIndex = 0; BucketIndex < World->Columns * World->Rows * 2; ++BucketIndex)
+	{
+		entity **Bucket = NULL;
+		OM_ARRAY_PUSH(World->Buckets, Bucket);
 	}
 }
 
-om_internal void
-AddBucket(vector2 Vector, r32 Width, u32 CellSize, std::vector<u32> &Bucket)
+om_internal u32 *
+AddBucket(vector2 Vector, r32 Width, r32 CellSize, u32 *Bucket)
 {
 	u32 Cell = (u32)(Vector.x / CellSize) + (u32)(Vector.y / CellSize) * Width;
+	u32 BucketSize = OM_ARRAY_COUNT(Bucket);
 
-	if ((std::count(Bucket.begin(), Bucket.end(), Cell)))
+	for (u32 BucketIndex = 0; BucketIndex < BucketSize; ++BucketIndex)
 	{
+		if (Bucket[BucketIndex] == Cell)
+		{
+			return (Bucket);
+		}
 	}
-	else
-	{
-		Bucket.push_back(Cell);
-	}
+
+	OM_ARRAY_PUSH(Bucket, Cell);
+	return (Bucket);
 }
 
-om_internal std::vector<u32>
+om_internal u32 *
 GetIDForEntity(world *World, entity *Entity)
 {
-	std::vector<u32> Result;
+	u32 *Result = NULL;
 
 	vector2 Min = Entity->Position;
 	vector2 Max = { Entity->Position.x + 32.0f, Entity->Position.y + 32.0f };
 	r32 Width = World->WorldWidth / World->CellSize;
 
 	// Top Left
-	AddBucket(Min, Width, World->CellSize, Result);
+	Result = AddBucket(Min, Width, World->CellSize, Result);
 	// Top Right
-	AddBucket({Max.x, Min.y}, Width, World->CellSize, Result);
+	Result = AddBucket({ Max.x, Min.y }, Width, World->CellSize, Result);
 	// Bottom Right
-	AddBucket({Max.x, Max.y}, Width, World->CellSize, Result);
+	Result = AddBucket({ Max.x, Max.y }, Width, World->CellSize, Result);
 	// BottomLeft
-	AddBucket({Min.x, Max.y}, Width, World->CellSize, Result);
+	Result = AddBucket({ Min.x, Max.y }, Width, World->CellSize, Result);
 
 	return (Result);
 }
@@ -76,23 +89,37 @@ GetIDForEntity(world *World, entity *Entity)
 om_internal void
 RegisterEntity(world *World, entity *Entity)
 {
-	std::vector<u32> CellIds = GetIDForEntity(World, Entity);
-	for (u32 Index : CellIds)
+	u32 *CellIds = GetIDForEntity(World, Entity);
+	u32 CellIdsSize = OM_ARRAY_COUNT(CellIds);
+
+	for (u32 CellIndex = 0; CellIndex < CellIdsSize; ++CellIndex)
 	{
-		World->Buckets[Index].push_back(Entity);
+		u32 Cell = CellIds[CellIndex];
+		OM_ARRAY_PUSH(World->Buckets[Cell], Entity);
 	}
+
+	OM_ARRAY_FREE(CellIds);
 }
 
-om_internal std::vector<entity *>
+om_internal entity **
 GetNearbyEntities(world *World, entity *Entity)
 {
-	std::vector<entity *> Result;
-	std::vector<u32> CellIds = GetIDForEntity(World, Entity);
+	entity **Result = NULL;
+	u32 *CellIds = GetIDForEntity(World, Entity);
+	u32 CellIdsSize = OM_ARRAY_COUNT(CellIds);
 
-	for (u32 Index : CellIds)
+
+	for (u32 CellIndex = 0; CellIndex < CellIdsSize; ++CellIndex)
 	{
-		Result.insert(std::end(Result), std::begin(World->Buckets[Index]), std::end(World->Buckets[Index]));
+		u32 Cell = CellIds[CellIndex];
+		u32 BucketSize = OM_ARRAY_COUNT(World->Buckets[Cell]);
+		for (u32 BucketIndex = 0; BucketIndex < BucketSize; ++BucketIndex)
+		{
+			OM_ARRAY_PUSH(Result, World->Buckets[Cell][BucketIndex]);
+		}
 	}
+
+	OM_ARRAY_FREE(CellIds);
 
 	return (Result);
 }
