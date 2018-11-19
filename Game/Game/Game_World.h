@@ -2,11 +2,13 @@
 #define GAME_WORLD_H
 #pragma once
 
+//TODO: Could be removed since its not used?
 struct world_difference
 {
 	vector2 deltaXY;
 };
 
+//TODO: Could be removed since its not used?
 struct world_position
 {
 	i32 X;
@@ -14,6 +16,7 @@ struct world_position
 	i32 Z;
 };
 
+//TODO: Could be removed since its not used?
 enum world_tile_type
 {
 	TileType_None,
@@ -22,12 +25,14 @@ enum world_tile_type
 	TileType_Grass
 };
 
+//TODO: Could be removed since its not used?
 struct world_tile
 {
 	u32 Value;
 	b32 Collideable;
 };
 
+//TODO: Should layer keep track of its own buckets?
 #define MAX_LAYERS 8
 #define MAX_ENTITIES 10000
 struct world_layer
@@ -73,6 +78,13 @@ struct world
 
 	u32 WorldWidth;
 	u32 WorldHeight;
+
+	//TODO: Should we group this into a struct?
+	u32 CellSize;
+	u32 Columns;
+	u32 Rows;
+
+	entity ***Buckets;
 
 	world_layer Layers[8];
 };

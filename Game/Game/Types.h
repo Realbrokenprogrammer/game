@@ -144,4 +144,48 @@ SafeTruncateUInt64(u64 Value)
 	return (Result);
 }
 
+
+/*
+	OM_ARRAY Implementation.
+	Thanks to Sean Barrett.
+*/
+#include <stdlib.h>
+
+#define OM_ARRAY_RAW(Array) ((int *)(Array) - 2)
+#define OM_ARRAY_M(Array) OM_ARRAY_RAW(Array)[0]
+#define OM_ARRAY_N(Array) OM_ARRAY_RAW(Array)[1]
+
+#define OM_ARRAY_COUNT(Array) ((Array) ? OM_ARRAY_N(Array) : 0)
+#define OM_ARRAY_FREE(Array) ((Array) ? free(OM_ARRAY_RAW(Array)),0 : 0)
+#define OM_ARRAY_PUSH(Array, Element) (OM_ARRAY_MAYBEGROW(Array, 1), (Array)[OM_ARRAY_N(Array)++] = (Element))
+#define OM_ARRAY_RESERVE(Array, Count) (OM_ARRAY_MAYBEGROW(Array, Count), OM_ARRAY_N(Array)+=(Count), &(Array)[OM_ARRAY_N(Array)-(Count)])
+#define OM_ARRAY_LAST(Array) ((Array)[OM_ARRAY_N(Array)-1])
+
+#define OM_ARRAY_NEEDGROW(Array, n) ((Array) == 0 || OM_ARRAY_N(Array)+(n) >= OM_ARRAY_M(Array))
+#define OM_ARRAY_MAYBEGROW(Array, n) (OM_ARRAY_NEEDGROW(Array, (n)) ? OM_ARRAY_GROW(Array, n) : 0)
+#define OM_ARRAY_GROW(Array, n) (*((void **)&(Array)) = OM__ARRAY_GROWF((Array), (n), sizeof(*(Array))))
+
+//TODO: Variable naming
+om_internal void *
+OM__ARRAY_GROWF(void *Array, int Increment, int ItemSize)
+{
+	int cur = Array ? 2 * OM_ARRAY_M(Array) : 0;
+	int min = OM_ARRAY_COUNT(Array) + Increment;
+	int m = cur > min ? cur : min;
+	int *p = (int *) realloc(Array ? OM_ARRAY_RAW(Array) : 0, ItemSize * m + sizeof(int) * 2);
+	if (p)
+	{
+		if (!Array)
+		{
+			p[1] = 0;
+		}
+		p[0] = m;
+		return p + 2;
+	}
+	else
+	{
+		return (void *)(2 * sizeof(int));
+	}
+}
+
 #endif // TYPES_H
