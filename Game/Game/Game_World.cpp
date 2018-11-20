@@ -48,9 +48,9 @@ ClearWorldBuckets(world *World)
 }
 
 om_internal u32 *
-AddToBucket(vector2 Vector, r32 Width, r32 CellSize, u32 *Bucket)
+AddToBucket(vector2 Vector, u32 Width, u32 CellSize, u32 *Bucket)
 {
-	u32 Cell = (u32)(Vector.x / CellSize) + (u32)(Vector.y / CellSize) * Width;
+	u32 Cell = ((u32)(Vector.x / CellSize)) + (u32)((Vector.y / CellSize) * Width);
 	u32 BucketSize = OM_ARRAY_COUNT(Bucket);
 
 	for (u32 BucketIndex = 0; BucketIndex < BucketSize; ++BucketIndex)
@@ -72,7 +72,7 @@ GetBucketsForEntity(world *World, entity *Entity)
 
 	vector2 Min = Entity->Position;
 	vector2 Max = { Entity->Position.x + 32.0f, Entity->Position.y + 32.0f };
-	r32 Width = World->WorldWidth / World->CellSize;
+	u32 Width = World->WorldWidth / World->CellSize;
 
 	// Top Left
 	Result = AddToBucket(Min, Width, World->CellSize, Result);

@@ -79,8 +79,8 @@ DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32
 
 	for (r32 Angle = 0.0f; Angle < 360.0f; Angle++)
 	{
-		i32 X = Center.x - Radius * cosf(Angle);
-		i32 Y = Center.y - Radius * sinf(Angle);
+		i32 X = (i32)(Center.x - Radius * cosf(Angle));
+		i32 Y = (i32)(Center.y - Radius * sinf(Angle));
 
 		if (X < 0)
 		{
@@ -129,12 +129,12 @@ DrawLine(game_offscreen_buffer *Buffer, vector2 Start, vector2 End, r32 R, r32 G
 
 	if (End.x > Buffer->Width)
 	{
-		End.x = Buffer->Width;
+		End.x = (r32)Buffer->Width;
 	}
 
 	if (End.y > Buffer->Height)
 	{
-		End.y = Buffer->Height;
+		End.y = (r32)Buffer->Height;
 	}
 
 	r32 Coefficient = 0.0f;
@@ -165,8 +165,8 @@ DrawLine(game_offscreen_buffer *Buffer, vector2 Start, vector2 End, r32 R, r32 G
 		CY = Coefficient / (1 + Coefficient);
 	}
 
-	CX * 1.00001;
-	CY * 1.00001;
+	CX *= 1.00001f;
+	CY *= 1.00001f;
 
 	r32 ToLength = SquareRoot((End.x - Start.x) * (End.x - Start.x) + (End.y - Start.y) * (End.y - Start.y));
 	r32 Length = 0;
@@ -292,7 +292,7 @@ UpdateCamera(game_state *GameState)
 	
 	//TODO: Can this be cleaner?
 	GameState->Camera.Position = Clamp(Vector2(0, 0), GameState->Camera.Position, 
-		(Vector2(GameState->World->WorldWidth, GameState->World->WorldHeight) - GameState->Camera.CameraWindow.Max));
+		(Vector2((r32)GameState->World->WorldWidth, (r32)GameState->World->WorldHeight) - GameState->Camera.CameraWindow.Max));
 }
 
 om_internal void 
@@ -332,7 +332,8 @@ AddEntity(world_layer *Layer, entity_type Type, world_position *Position)
 om_internal entity *
 AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 {
-	world_position Position = { PositionX, PositionY, 0 };
+	// TODO: World_position is not being used, should just be vector2 position.
+	world_position Position = { (i32)PositionX, (i32)PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
@@ -356,7 +357,7 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 om_internal entity
 AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 {
-	world_position Position{ PositionX, PositionY, 0 };
+	world_position Position{ (i32)PositionX, (i32)PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_GrassTile, &Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
@@ -374,7 +375,7 @@ AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 om_internal entity
 AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
 {
-	world_position Position{ PositionX, PositionY, 0 };
+	world_position Position{ (i32)PositionX, (i32)PositionY, 0 };
 	entity *Entity = AddEntity(Layer, EntityType_WaterTile, &Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
@@ -702,7 +703,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
 		world_layer *Layer = &GameState->World->Layers[LayerIndex];
-		for (int EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
+		for (u32 EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
 		{
 			entity *Entity = Layer->Entities + EntityIndex;
 

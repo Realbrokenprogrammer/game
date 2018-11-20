@@ -9,6 +9,11 @@ GetPoints(entity_physics_blueprint Shape, u32 *Size)
 {
 	switch (Shape.CollisionShape)
 	{
+		case CollisionShape_Line:
+		{
+			// TODO: Implement.
+			return (NULL);
+		} break;
 		case CollisionShape_Circle:
 		{
 			return (NULL);
@@ -43,7 +48,14 @@ GetPoints(entity_physics_blueprint Shape, u32 *Size)
 			Axes[3] = { Shape.Rectangle.Min.x, Shape.Rectangle.Max.y };
 			return (Axes);
 		} break;
+		case CollisionShape_Polygon:
+		{
+			//TODO: Implement.
+			return (NULL);
+		} break;
 	}
+
+	return (NULL);
 }
 
 om_internal vector2 *

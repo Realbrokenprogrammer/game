@@ -38,9 +38,9 @@ struct entity_movement_blueprint
 enum collision_shape
 {
 	CollisionShape_Line,
-	CollisionShape_Rectangle,
 	CollisionShape_Circle,
 	CollisionShape_Triangle,
+	CollisionShape_Rectangle,
 	CollisionShape_Polygon
 };
 

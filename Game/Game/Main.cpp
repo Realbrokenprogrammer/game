@@ -48,12 +48,12 @@ om_internal void
 ConcatStrings(char *SourceA, size_t SourceACount, char *SourceB, size_t SourceBCount,
 	char *Destination, size_t DestinationCount)
 {
-	for (int Index = 0; Index < SourceACount; ++Index)
+	for (u32 Index = 0; Index < SourceACount; ++Index)
 	{
 		*Destination++ = *SourceA++;
 	}
 
-	for (int Index = 0; Index < SourceBCount; ++Index)
+	for (u32 Index = 0; Index < SourceBCount; ++Index)
 	{
 		*Destination++ = *SourceB++;
 	}
@@ -66,7 +66,6 @@ SDLGetEXEFileName(sdl_state *State)
 {
 	// NOTE: Don't use MAX_PATH in user-facing code since it can lead for wrong results.
 	// This is for debug code only.
-	char EXEFileName[MAX_PATH];
 	DWORD SizeOfFileName = GetModuleFileNameA(0, State->EXEFileName, sizeof(State->EXEFileName));
 	State->OnePastLastEXEFileNameSlash = State->EXEFileName;
 	for (char *Scan = State->EXEFileName; *Scan; ++Scan)
