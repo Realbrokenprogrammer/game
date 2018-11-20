@@ -29,8 +29,6 @@ struct game_state
 	camera Camera;
 
 	int ToneHz;
-	int RedOffset;
-	int BlueOffset;
 
 	loaded_bitmap PlayerBitmap;
 	loaded_bitmap GrassBitmap;

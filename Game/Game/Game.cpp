@@ -316,7 +316,7 @@ DefaultMovementBlueprint(void)
 om_internal entity *
 AddEntity(world_layer *Layer, entity_type Type, vector2 Position)
 {
-	//TODO: Assert that we're not adding more entities than what the GameState can hold.
+	OM_ASSERT(Layer->EntityCount < MAX_ENTITIES);
 	u32 EntityIndex = Layer->EntityCount++;
 
 	entity *Entity = Layer->Entities + EntityIndex;
@@ -328,12 +328,11 @@ AddEntity(world_layer *Layer, entity_type Type, vector2 Position)
 	return (Entity);
 }
 
-//TODO: Take in vector for position instead of PositionX & PositionY.
 //TODO: Should return reference or not?
 om_internal entity *
-AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
+AddPlayer(world_layer *Layer, vector2 Position)
 {
-	entity *Entity = AddEntity(Layer, EntityType_Hero, {(r32)PositionX, (r32)PositionY});
+	entity *Entity = AddEntity(Layer, EntityType_Hero, Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -353,11 +352,10 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	return(Entity);
 }
 
-//TODO: Take in vector for position instead of PositionX & PositionY.
 om_internal entity
-AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
+AddGrass(world_layer *Layer, vector2 Position)
 {
-	entity *Entity = AddEntity(Layer, EntityType_GrassTile, { (r32)PositionX, (r32)PositionY });
+	entity *Entity = AddEntity(Layer, EntityType_GrassTile, Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -371,11 +369,10 @@ AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 	return (*Entity);
 }
 
-//TODO: Take in vector for position instead of PositionX & PositionY.
 om_internal entity
-AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
+AddWater(world_layer *Layer, vector2 Position)
 {
-	entity *Entity = AddEntity(Layer, EntityType_WaterTile, { (r32)PositionX, (r32)PositionY });
+	entity *Entity = AddEntity(Layer, EntityType_WaterTile, Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -525,7 +522,6 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 	//TODO: Change the entity world position?
 }
 
-
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
 	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
@@ -577,7 +573,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 				if (TileValue == 2)
 				{
-					AddGrass(&World->Layers[0], TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE);
+					AddGrass(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
 				}
 				else
 				{
@@ -591,13 +587,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				u32 TileValue = 1;
 
-				AddWater(&World->Layers[1], TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE);
+				AddWater(&World->Layers[1], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
 			}
 		}
 
 		//TODO: This should be added by the level file later.
 		world_layer *FirstLayer = &GameState->World->Layers[0];
-		GameState->ControlledEntity = AddPlayer(FirstLayer, 1280 / 2, 720 / 2);
+		GameState->ControlledEntity = AddPlayer(FirstLayer, { 1280.0f / 2.0f, 720.0f / 2.0f });
 
 		r32 ScreenCenterX = 0.5f * (r32)Buffer->Width;
 		r32 ScreenCenterY = 0.5f * (r32)Buffer->Height;
@@ -625,7 +621,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		
 		if (Controller->IsAnalog)
 		{
-			GameState->BlueOffset += (int)(4.0f*(Controller->StickAverageX));
 			GameState->ToneHz = 256 + (int)(128.0f*(Controller->StickAverageY));
 		}
 		else

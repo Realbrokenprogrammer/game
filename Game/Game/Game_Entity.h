@@ -68,8 +68,6 @@ struct entity
 {
 	entity_id ID;
 
-	//TODO: Camera positions
-
 	entity_type Type;
 	u32 Flags;
 
