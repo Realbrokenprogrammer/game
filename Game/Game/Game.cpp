@@ -314,7 +314,7 @@ DefaultMovementBlueprint(void)
 
 //TODO: Perhaps don't return pointer to the entity?
 om_internal entity *
-AddEntity(world_layer *Layer, entity_type Type, world_position *Position)
+AddEntity(world_layer *Layer, entity_type Type, vector2 Position)
 {
 	//TODO: Assert that we're not adding more entities than what the GameState can hold.
 	u32 EntityIndex = Layer->EntityCount++;
@@ -323,18 +323,17 @@ AddEntity(world_layer *Layer, entity_type Type, world_position *Position)
 	*Entity = {};
 	Entity->ID = { EntityIndex };
 	Entity->Type = Type;
-	Entity->Position = {(r32)Position->X, (r32)Position->Y};
+	Entity->Position = Position;
 
 	return (Entity);
 }
 
+//TODO: Take in vector for position instead of PositionX & PositionY.
 //TODO: Should return reference or not?
 om_internal entity *
 AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 {
-	// TODO: World_position is not being used, should just be vector2 position.
-	world_position Position = { (i32)PositionX, (i32)PositionY, 0 };
-	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
+	entity *Entity = AddEntity(Layer, EntityType_Hero, {(r32)PositionX, (r32)PositionY});
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -354,11 +353,11 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 	return(Entity);
 }
 
+//TODO: Take in vector for position instead of PositionX & PositionY.
 om_internal entity
 AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 {
-	world_position Position{ (i32)PositionX, (i32)PositionY, 0 };
-	entity *Entity = AddEntity(Layer, EntityType_GrassTile, &Position);
+	entity *Entity = AddEntity(Layer, EntityType_GrassTile, { (r32)PositionX, (r32)PositionY });
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -372,11 +371,11 @@ AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 	return (*Entity);
 }
 
+//TODO: Take in vector for position instead of PositionX & PositionY.
 om_internal entity
 AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
 {
-	world_position Position{ (i32)PositionX, (i32)PositionY, 0 };
-	entity *Entity = AddEntity(Layer, EntityType_WaterTile, &Position);
+	entity *Entity = AddEntity(Layer, EntityType_WaterTile, { (r32)PositionX, (r32)PositionY });
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -388,46 +387,7 @@ AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
 	return (*Entity);
 }
 
-//TODO: Rewrite, should operate on Level of a world
-//om_internal entity
-//AddWall(game_state *GameState, u32 PosX, u32 PosY)
-//{
-//	//TODO: The Position times the constant value is temporary. Remove this when entities got position representation
-//	// within the world tiles.
-//	world_position Position = {(r32)PosX * 70, (r32)PosY * 80}; // Get position based on tile x and y
-//	entity Entity = *AddEntity(GameState, EntityType_Wall, &Position);
-//
-//	return (Entity);
-//}
-
-//TODO: Don't use the defined PIXELS_PER_TILE later.
-om_internal b32
-TestTile(r32 WallX, r32 WallY, entity *Target)
-{
-	b32 Hit = false;
-	r32 X = Target->Position.x;
-	r32 Y = Target->Position.y;
-
-	if (X < WallX + PIXELS_PER_TILE &&
-		X + PIXELS_PER_TILE > WallX &&
-		Y < WallY + PIXELS_PER_TILE &&
-		Y + PIXELS_PER_TILE > WallY)
-	{
-		Hit = true;
-	}
-
-	return (Hit);
-}
-
-om_internal b32
-ContainsPoint(entity *Entity, r32 PointX, r32 PointY)
-{
-	return (Entity->Position.x < PointX && Entity->Position.y < PointY &&
-		Entity->Position.x + 32 > PointX &&
-		Entity->Position.y + 32 > PointY);
-}
-
-
+//TODO: This is not used but kept here for reference.
 om_internal b32
 TestCollision(r32 WallX, r32 RelativeX, r32 RelativeY, r32 DeltaX, r32 DeltaY, r32 *tMin, r32 MinY, r32 MaxY)
 {
