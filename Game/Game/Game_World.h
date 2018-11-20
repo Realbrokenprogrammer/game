@@ -2,36 +2,6 @@
 #define GAME_WORLD_H
 #pragma once
 
-//TODO: Could be removed since its not used?
-struct world_difference
-{
-	vector2 deltaXY;
-};
-
-//TODO: Could be removed since its not used?
-struct world_position
-{
-	i32 X;
-	i32 Y;
-	i32 Z;
-};
-
-//TODO: Could be removed since its not used?
-enum world_tile_type
-{
-	TileType_None,
-
-	TileType_Temp,
-	TileType_Grass
-};
-
-//TODO: Could be removed since its not used?
-struct world_tile
-{
-	u32 Value;
-	b32 Collideable;
-};
-
 //TODO: Should layer keep track of its own buckets?
 #define MAX_LAYERS 8
 #define MAX_ENTITIES 10000

@@ -1,6 +1,7 @@
 #include "Game.h"
 #include "Game_World.cpp"
 #include "Game_Physics.cpp"
+#include "Game_Camera.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
 
@@ -69,7 +70,6 @@ DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, 
 	}
 }
 
-//TODO: This needs serious rework.
 om_internal void
 DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32 G, r32 B)
 {
@@ -80,17 +80,122 @@ DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32
 
 	for (r32 Angle = 0.0f; Angle < 360.0f; Angle++)
 	{
-		u32 X = Center.x - Radius * cosf(Angle);
-		u32 Y = Center.y - Radius * sinf(Angle);
+		i32 X = (i32)(Center.x - Radius * cosf(Angle));
+		i32 Y = (i32)(Center.y - Radius * sinf(Angle));
+
+		if (X < 0)
+		{
+			X = 0;
+		}
+
+		if (Y < 0)
+		{
+			Y = 0;
+		}
+
+		if (Y > Buffer->Height)
+		{
+			Y = Buffer->Height;
+		}
+
+		if (X > Buffer->Width)
+		{
+			X = Buffer->Width;
+		}
+
 		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * Y + X);
 		*Pixel = Color;
 	}
 }
 
-//TODO: Implement
+om_internal void
+DrawLine(game_offscreen_buffer *Buffer, vector2 Start, vector2 End, r32 R, r32 G, r32 B)
+{
+	if (Start.x > End.x)
+	{
+		vector2 Temp = Start;
+		Start = End;
+		End = Temp;
+	}
+
+	if (Start.x < 0)
+	{
+		Start.x = 0;
+	}
+
+	if (Start.y < 0)
+	{
+		Start.y = 0;
+	}
+
+	if (End.x > Buffer->Width)
+	{
+		End.x = (r32)Buffer->Width;
+	}
+
+	if (End.y > Buffer->Height)
+	{
+		End.y = (r32)Buffer->Height;
+	}
+
+	r32 Coefficient = 0.0f;
+	if (End.x - Start.x == 0)
+	{
+		Coefficient = 10000;
+		if (End.y - Start.y < 0)
+		{
+			Coefficient = Coefficient * -1;
+		}
+	}
+	else
+	{
+		Coefficient = (End.y - Start.y) / (End.x - Start.x);
+	}
+
+	r32 CX;
+	r32 CY;
+
+	if (Coefficient < 0)
+	{
+		CX = 1 / (-1 + Coefficient) * -1;
+		CY = Coefficient / (-1 + Coefficient) * -1;
+	}
+	else
+	{
+		CX = 1 / (1 + Coefficient);
+		CY = Coefficient / (1 + Coefficient);
+	}
+
+	CX *= 1.00001f;
+	CY *= 1.00001f;
+
+	r32 ToLength = SquareRoot((End.x - Start.x) * (End.x - Start.x) + (End.y - Start.y) * (End.y - Start.y));
+	r32 Length = 0;
+	r32 Increment = SquareRoot(CX * CX + CY * CY);
+
+	u32 Color =
+		((RoundReal32ToInt32(R * 255.0f) << 16) |
+		(RoundReal32ToInt32(G * 255.0f) << 8) |
+		(RoundReal32ToInt32(B * 255.0f)));
+
+	for (int Index = 0; Length < ToLength + 0.5f; ++Index)
+	{
+		r32 X = Start.x + CX * Index;
+		r32 Y = Start.y + CY * Index;
+
+		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * (u32)Y + (u32)X);
+		*Pixel = Color;
+
+		Length += Increment;
+	}
+}
+
 om_internal void
 DrawTriangle(game_offscreen_buffer *Buffer, triangle Triangle, r32 R, r32 G, r32 B)
 {
+	DrawLine(Buffer, Triangle.p1, Triangle.p2, R, G, B);
+	DrawLine(Buffer, Triangle.p2, Triangle.p3, R, G, B);
+	DrawLine(Buffer, Triangle.p3, Triangle.p1, R, G, B);
 }
 
 om_internal void
@@ -160,43 +265,6 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 	}
 }
 
-inline vector2
-GetCameraSpacePosition(game_state *GameState, entity *Entity)
-{
-	vector2 Result = Entity->Position - GameState->Camera.Position;
-	
-	return (Result);
-}
-
-inline vector2 
-CenterCameraAtEntity(vector2 screenSize, entity *Entity)
-{
-	vector2 Result = Entity->Position - screenSize;
-
-	return (Result);
-}
-
-om_internal void
-UpdateCamera(game_state *GameState)
-{
-	//TODO: Use the movement blueprint from the entity that is being followed.
-	r32 LerpVelocity = 0.025f;
-	vector2 CameraCenter = GetCenter(GameState->Camera.CameraWindow);
-
-	//TODO: Can this be cleaner?
-	GameState->Camera.Position = Lerp(GameState->Camera.Position, (CenterCameraAtEntity(CameraCenter, GameState->ControlledEntity)), LerpVelocity);
-	
-	//TODO: Can this be cleaner?
-	GameState->Camera.Position = Clamp(Vector2(0, 0), GameState->Camera.Position, 
-		(Vector2(GameState->World->WorldWidth, GameState->World->WorldHeight) - GameState->Camera.CameraWindow.Max));
-}
-
-om_internal void 
-SetCamera()
-{
-
-}
-
 inline entity_movement_blueprint
 DefaultMovementBlueprint(void)
 {
@@ -210,26 +278,25 @@ DefaultMovementBlueprint(void)
 
 //TODO: Perhaps don't return pointer to the entity?
 om_internal entity *
-AddEntity(world_layer *Layer, entity_type Type, world_position *Position)
+AddEntity(world_layer *Layer, entity_type Type, vector2 Position)
 {
-	//TODO: Assert that we're not adding more entities than what the GameState can hold.
+	OM_ASSERT(Layer->EntityCount < MAX_ENTITIES);
 	u32 EntityIndex = Layer->EntityCount++;
 
 	entity *Entity = Layer->Entities + EntityIndex;
 	*Entity = {};
 	Entity->ID = { EntityIndex };
 	Entity->Type = Type;
-	Entity->Position = {(r32)Position->X, (r32)Position->Y};
+	Entity->Position = Position;
 
 	return (Entity);
 }
 
 //TODO: Should return reference or not?
 om_internal entity *
-AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
+AddPlayer(world_layer *Layer, vector2 Position)
 {
-	world_position Position = { PositionX, PositionY, 0 };
-	entity *Entity = AddEntity(Layer, EntityType_Hero, &Position);
+	entity *Entity = AddEntity(Layer, EntityType_Hero, Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -250,10 +317,9 @@ AddPlayer(world_layer *Layer, u32 PositionX, u32 PositionY)
 }
 
 om_internal entity
-AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
+AddGrass(world_layer *Layer, vector2 Position)
 {
-	world_position Position{ PositionX, PositionY, 0 };
-	entity *Entity = AddEntity(Layer, EntityType_GrassTile, &Position);
+	entity *Entity = AddEntity(Layer, EntityType_GrassTile, Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -268,10 +334,9 @@ AddGrass(world_layer *Layer, u32 PositionX, u32 PositionY)
 }
 
 om_internal entity
-AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
+AddWater(world_layer *Layer, vector2 Position)
 {
-	world_position Position{ PositionX, PositionY, 0 };
-	entity *Entity = AddEntity(Layer, EntityType_WaterTile, &Position);
+	entity *Entity = AddEntity(Layer, EntityType_WaterTile, Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
@@ -283,46 +348,30 @@ AddWater(world_layer *Layer, u32 PositionX, u32 PositionY)
 	return (*Entity);
 }
 
-//TODO: Rewrite, should operate on Level of a world
-//om_internal entity
-//AddWall(game_state *GameState, u32 PosX, u32 PosY)
-//{
-//	//TODO: The Position times the constant value is temporary. Remove this when entities got position representation
-//	// within the world tiles.
-//	world_position Position = {(r32)PosX * 70, (r32)PosY * 80}; // Get position based on tile x and y
-//	entity Entity = *AddEntity(GameState, EntityType_Wall, &Position);
-//
-//	return (Entity);
-//}
-
-//TODO: Don't use the defined PIXELS_PER_TILE later.
-om_internal b32
-TestTile(r32 WallX, r32 WallY, entity *Target)
+om_internal entity
+AddSlope(world_layer *Layer, vector2 Position)
 {
-	b32 Hit = false;
-	r32 X = Target->Position.x;
-	r32 Y = Target->Position.y;
+	entity *Entity = AddEntity(Layer, EntityType_SlopeTile, Position);
 
-	if (X < WallX + PIXELS_PER_TILE &&
-		X + PIXELS_PER_TILE > WallX &&
-		Y < WallY + PIXELS_PER_TILE &&
-		Y + PIXELS_PER_TILE > WallY)
-	{
-		Hit = true;
-	}
+	entity_physics_blueprint PhysicsBlueprint = {};
+	PhysicsBlueprint.CollisionShape = CollisionShape_Triangle;
+	vector2 Point1 = { 32.0f, 0.0f };
+	vector2 Point2 = { 0.0f, 32.0f };
+	vector2 Point3 = { 32.0f, 32.0f };
 
-	return (Hit);
+	Point1 += Position;
+	Point2 += Position;
+	Point3 += Position;
+	
+	PhysicsBlueprint.Triangle = {Point1, Point2, Point3};
+
+	Entity->Collideable = true;
+	Entity->PhysicsBlueprint = PhysicsBlueprint;
+
+	return (*Entity);
 }
 
-om_internal b32
-ContainsPoint(entity *Entity, r32 PointX, r32 PointY)
-{
-	return (Entity->Position.x < PointX && Entity->Position.y < PointY &&
-		Entity->Position.x + 32 > PointX &&
-		Entity->Position.y + 32 > PointY);
-}
-
-
+//TODO: This is not used but kept here for reference.
 om_internal b32
 TestCollision(r32 WallX, r32 RelativeX, r32 RelativeY, r32 DeltaX, r32 DeltaY, r32 *tMin, r32 MinY, r32 MaxY)
 {
@@ -460,7 +509,6 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 	//TODO: Change the entity world position?
 }
 
-
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
 	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
@@ -473,6 +521,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 		char WaterBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
 		GameState->WaterBitmap = Memory->DEBUGLoadBitmap(WaterBitmap);
+		
+		char SlopeBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope.bmp";
+		GameState->SlopeBitmap = Memory->DEBUGLoadBitmap(SlopeBitmap);
 
 		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
 		GameState->PlayerBitmap = Memory->DEBUGLoadBitmap(PlayerBitmap);
@@ -499,6 +550,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			for (u32 TileX = 0; TileX < WorldTileWidth; ++TileX)
 			{
 				u32 TileValue = 1;
+				b32 IsMiddle = 0;
 
 				if ((TileX == 0) || (TileY == 0) || (TileY == (WorldTileHeight -1)) || (TileX == (WorldTileWidth -1)))
 				{
@@ -508,11 +560,31 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				else if (TileX == (WorldTileWidth / 2) && (TileY+1 == (WorldTileHeight / 2)))
 				{
 					TileValue = 2;
+					IsMiddle = 1;
+				}
+				else if (TileX == (WorldTileWidth / 2) && (TileY == (WorldTileHeight-2)))
+				{
+					TileValue = 3;
+				}
+				else if (TileX == ((WorldTileWidth / 2)+1) && (TileY == (WorldTileHeight - 2)))
+				{
+					TileValue = 2;
 				}
 
 				if (TileValue == 2)
 				{
-					AddGrass(&World->Layers[0], TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE);
+					if (IsMiddle)
+					{
+						GameState->Player2 = AddPlayer(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
+					}
+					else
+					{
+						AddGrass(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
+					}
+				}
+				else if (TileValue == 3)
+				{
+					AddSlope(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
 				}
 				else
 				{
@@ -526,13 +598,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				u32 TileValue = 1;
 
-				AddWater(&World->Layers[1], TileX * PIXELS_PER_TILE, TileY * PIXELS_PER_TILE);
+				AddWater(&World->Layers[1], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
 			}
 		}
 
 		//TODO: This should be added by the level file later.
 		world_layer *FirstLayer = &GameState->World->Layers[0];
-		GameState->ControlledEntity = AddPlayer(FirstLayer, 1280 / 2, 720 / 2);
+		GameState->ControlledEntity = AddPlayer(FirstLayer, { 1280.0f / 2.0f, 720.0f / 2.0f });
+		GameState->Player = GameState->ControlledEntity;
 
 		r32 ScreenCenterX = 0.5f * (r32)Buffer->Width;
 		r32 ScreenCenterY = 0.5f * (r32)Buffer->Height;
@@ -560,7 +633,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		
 		if (Controller->IsAnalog)
 		{
-			GameState->BlueOffset += (int)(4.0f*(Controller->StickAverageX));
 			GameState->ToneHz = 256 + (int)(128.0f*(Controller->StickAverageY));
 		}
 		else
@@ -583,6 +655,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				ddPosition.y += 1.0f;
 			}
+			if (Controller->LeftShoulder.EndedDown)
+			{
+				GameState->ControlledEntity = GameState->Player;
+			}
+			if (Controller->RightShoulder.EndedDown)
+			{
+				GameState->ControlledEntity = GameState->Player2;
+			}
 
 			MoveEntity(GameState->World, Player, Input->dtForFrame, ddPosition);
 		}
@@ -592,13 +672,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	//Clear screen.
 	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
 #endif
-	UpdateCamera(GameState);
+
+	MoveCamera(&GameState->Camera, GameState->World, GameState->ControlledEntity->Position);
 
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
 		world_layer *Layer = &GameState->World->Layers[LayerIndex];
-		for (int EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
+		for (u32 EntityIndex = 0; EntityIndex < Layer->EntityCount; ++EntityIndex)
 		{
 			entity *Entity = Layer->Entities + EntityIndex;
 
@@ -615,6 +696,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				case EntityType_WaterTile:
 				{
 					DrawBitmap(Buffer, &GameState->WaterBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+				} break;
+				case EntityType_SlopeTile:
+				{
+					DrawBitmap(Buffer, &GameState->SlopeBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
 				} break;
 				case EntityType_Monster:
 				default:

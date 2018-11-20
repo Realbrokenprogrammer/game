@@ -1,19 +1,5 @@
 #define PIXELS_PER_TILE 32
 
-inline world_position
-NullPosition(void)
-{
-	world_position Result = {};
-
-	return (Result);
-}
-
-inline b32
-IsValid(world_position Position)
-{
-	return false;
-}
-
 om_internal void
 InitializeWorld(world *World, u32 WorldWidth, u32 WorldHeight, u32 WorldCellSize)
 {
@@ -48,7 +34,7 @@ ClearWorldBuckets(world *World)
 }
 
 om_internal u32 *
-AddToBucket(vector2 Vector, r32 Width, r32 CellSize, u32 *Bucket)
+AddToBucket(vector2 Vector, u32 Width, u32 CellSize, u32 *Bucket)
 {
 	u32 Cell = (u32)(Vector.x / CellSize) + (u32)(Vector.y / CellSize) * Width;
 	u32 BucketSize = OM_ARRAY_COUNT(Bucket);
@@ -72,7 +58,7 @@ GetBucketsForEntity(world *World, entity *Entity)
 
 	vector2 Min = Entity->Position;
 	vector2 Max = { Entity->Position.x + 32.0f, Entity->Position.y + 32.0f };
-	r32 Width = World->WorldWidth / World->CellSize;
+	u32 Width = (World->WorldWidth / World->CellSize);
 
 	// Top Left
 	Result = AddToBucket(Min, Width, World->CellSize, Result);

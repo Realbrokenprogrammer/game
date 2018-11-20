@@ -14,7 +14,8 @@ enum entity_type
 	EntityType_Hero,
 	EntityType_Monster,
 	EntityType_GrassTile,
-	EntityType_WaterTile
+	EntityType_WaterTile,
+	EntityType_SlopeTile
 };
 
 enum entity_flags
@@ -38,9 +39,9 @@ struct entity_movement_blueprint
 enum collision_shape
 {
 	CollisionShape_Line,
-	CollisionShape_Rectangle,
 	CollisionShape_Circle,
 	CollisionShape_Triangle,
+	CollisionShape_Rectangle,
 	CollisionShape_Polygon
 };
 
@@ -67,8 +68,6 @@ struct hit_point
 struct entity
 {
 	entity_id ID;
-
-	//TODO: Camera positions
 
 	entity_type Type;
 	u32 Flags;

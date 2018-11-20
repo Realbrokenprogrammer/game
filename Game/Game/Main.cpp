@@ -48,12 +48,12 @@ om_internal void
 ConcatStrings(char *SourceA, size_t SourceACount, char *SourceB, size_t SourceBCount,
 	char *Destination, size_t DestinationCount)
 {
-	for (int Index = 0; Index < SourceACount; ++Index)
+	for (u32 Index = 0; Index < SourceACount; ++Index)
 	{
 		*Destination++ = *SourceA++;
 	}
 
-	for (int Index = 0; Index < SourceBCount; ++Index)
+	for (u32 Index = 0; Index < SourceBCount; ++Index)
 	{
 		*Destination++ = *SourceB++;
 	}
@@ -66,7 +66,6 @@ SDLGetEXEFileName(sdl_state *State)
 {
 	// NOTE: Don't use MAX_PATH in user-facing code since it can lead for wrong results.
 	// This is for debug code only.
-	char EXEFileName[MAX_PATH];
 	DWORD SizeOfFileName = GetModuleFileNameA(0, State->EXEFileName, sizeof(State->EXEFileName));
 	State->OnePastLastEXEFileNameSlash = State->EXEFileName;
 	for (char *Scan = State->EXEFileName; *Scan; ++Scan)
@@ -95,15 +94,6 @@ SDLBuildEXEPathFileName(sdl_state *State, char *FileName, char *Destination, int
 	ConcatStrings(State->EXEFileName, State->OnePastLastEXEFileNameSlash - State->EXEFileName,
 		FileName, StringLength(FileName),
 		Destination, DestinationCount);
-}
-
-DEBUG_DRAW_TRIANGLE(DEBUGDrawTriangle)
-{
-	SDL_SetRenderDrawColor(GlobalRenderer, Color.r*255, Color.g*255, Color.b*255, SDL_ALPHA_OPAQUE);
-	SDL_RenderDrawLine(GlobalRenderer, Point1.x, Point1.y, Point2.x, Point2.y);
-	SDL_RenderDrawLine(GlobalRenderer, Point2.x, Point2.y, Point3.x, Point3.y);
-	SDL_RenderDrawLine(GlobalRenderer, Point3.x, Point3.y, Point1.x, Point1.y);
-	SDL_RenderPresent(GlobalRenderer);
 }
 
 DEBUG_PLATFORM_FREE_FILE_MEMORY(DEBUGPlatformFreeFileMemory)
@@ -734,7 +724,6 @@ int main(int argc, char *argv[])
 			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
 			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
 			GameMemory.DEBUGLoadBitmap = DEBUGLoadBitmap;
-			GameMemory.DEBUGDrawTriangle = DEBUGDrawTriangle;
 
 			SDLState.TotalSize = GameMemory.PermanentStorageSize + GameMemory.TransientStorageSize;
 			GameMemory.PermanentStorage = VirtualAlloc(BaseAddress, (size_t)SDLState.TotalSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE); //TODO: Option for VirtualAlloc?

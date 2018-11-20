@@ -26,15 +26,17 @@ struct game_state
 
 	entity *ControlledEntity;
 
+	entity *Player;
+	entity *Player2;
+
 	camera Camera;
 
 	int ToneHz;
-	int RedOffset;
-	int BlueOffset;
 
 	loaded_bitmap PlayerBitmap;
 	loaded_bitmap GrassBitmap;
 	loaded_bitmap WaterBitmap;
+	loaded_bitmap SlopeBitmap;
 };
 
 #endif // GAME_H
