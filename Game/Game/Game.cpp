@@ -1,6 +1,7 @@
 #include "Game.h"
 #include "Game_World.cpp"
 #include "Game_Physics.cpp"
+#include "Game_Camera.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
 
@@ -264,43 +265,6 @@ RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 	}
 }
 
-inline vector2
-GetCameraSpacePosition(game_state *GameState, entity *Entity)
-{
-	vector2 Result = Entity->Position - GameState->Camera.Position;
-	
-	return (Result);
-}
-
-inline vector2 
-CenterCameraAtEntity(vector2 screenSize, entity *Entity)
-{
-	vector2 Result = Entity->Position - screenSize;
-
-	return (Result);
-}
-
-om_internal void
-UpdateCamera(game_state *GameState)
-{
-	//TODO: Use the movement blueprint from the entity that is being followed.
-	r32 LerpVelocity = 0.025f;
-	vector2 CameraCenter = GetCenter(GameState->Camera.CameraWindow);
-
-	//TODO: Can this be cleaner?
-	GameState->Camera.Position = Lerp(GameState->Camera.Position, (CenterCameraAtEntity(CameraCenter, GameState->ControlledEntity)), LerpVelocity);
-	
-	//TODO: Can this be cleaner?
-	GameState->Camera.Position = Clamp(Vector2(0, 0), GameState->Camera.Position, 
-		(Vector2((r32)GameState->World->WorldWidth, (r32)GameState->World->WorldHeight) - GameState->Camera.CameraWindow.Max));
-}
-
-om_internal void 
-SetCamera()
-{
-
-}
-
 inline entity_movement_blueprint
 DefaultMovementBlueprint(void)
 {
@@ -560,6 +524,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			for (u32 TileX = 0; TileX < WorldTileWidth; ++TileX)
 			{
 				u32 TileValue = 1;
+				b32 IsMiddle = 0;
 
 				if ((TileX == 0) || (TileY == 0) || (TileY == (WorldTileHeight -1)) || (TileX == (WorldTileWidth -1)))
 				{
@@ -569,11 +534,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				else if (TileX == (WorldTileWidth / 2) && (TileY+1 == (WorldTileHeight / 2)))
 				{
 					TileValue = 2;
+					IsMiddle = 1;
 				}
 
 				if (TileValue == 2)
 				{
-					AddGrass(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
+					if (IsMiddle)
+					{
+						GameState->Player2 = AddPlayer(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
+					}
+					else
+					{
+						AddGrass(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
+					}
 				}
 				else
 				{
@@ -594,6 +567,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		//TODO: This should be added by the level file later.
 		world_layer *FirstLayer = &GameState->World->Layers[0];
 		GameState->ControlledEntity = AddPlayer(FirstLayer, { 1280.0f / 2.0f, 720.0f / 2.0f });
+		GameState->Player = GameState->ControlledEntity;
 
 		r32 ScreenCenterX = 0.5f * (r32)Buffer->Width;
 		r32 ScreenCenterY = 0.5f * (r32)Buffer->Height;
@@ -643,6 +617,14 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				ddPosition.y += 1.0f;
 			}
+			if (Controller->LeftShoulder.EndedDown)
+			{
+				GameState->ControlledEntity = GameState->Player;
+			}
+			if (Controller->RightShoulder.EndedDown)
+			{
+				GameState->ControlledEntity = GameState->Player2;
+			}
 
 			MoveEntity(GameState->World, Player, Input->dtForFrame, ddPosition);
 		}
@@ -652,7 +634,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	//Clear screen.
 	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
 #endif
-	UpdateCamera(GameState);
+
+	MoveCamera(&GameState->Camera, GameState->World, GameState->ControlledEntity->Position);
 
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 

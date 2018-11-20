@@ -26,6 +26,9 @@ struct game_state
 
 	entity *ControlledEntity;
 
+	entity *Player;
+	entity *Player2;
+
 	camera Camera;
 
 	int ToneHz;
