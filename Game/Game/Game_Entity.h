@@ -14,7 +14,8 @@ enum entity_type
 	EntityType_Hero,
 	EntityType_Monster,
 	EntityType_GrassTile,
-	EntityType_WaterTile
+	EntityType_WaterTile,
+	EntityType_SlopeTile
 };
 
 enum entity_flags
