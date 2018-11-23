@@ -31,6 +31,28 @@ PushRenderElement(render_blueprint *Blueprint, u32 Size)
 	return (Result);
 }
 
+inline void
+PushRenderEntry(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, vector2 Offset, vector4 Color)
+{
+	render_entry_bitmap *RenderEntry = (render_entry_bitmap *)PushRenderElement(Blueprint, sizeof(render_entry_bitmap));
+	if (RenderEntry)
+	{
+		RenderEntry->Bitmap = Bitmap;
+		RenderEntry->Position = Position;
+		RenderEntry->Offset = Offset;
+		RenderEntry->R = Color.R;
+		RenderEntry->G = Color.G;
+		RenderEntry->B = Color.B;
+		RenderEntry->A = Color.A;
+	}
+}
+
+inline void
+PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, vector2 Offset, r32 Alpha = 1.0f)
+{
+	PushRenderEntry(Blueprint, Bitmap, Position, Offset, Vector4(1.0f, 1.0f, 1.0f, Alpha));
+}
+
 // NOTE: This should be free'd every update and then we create a new render_blueprint for the
 // new frame.
 om_internal void

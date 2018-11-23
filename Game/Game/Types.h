@@ -103,6 +103,7 @@ typedef i64 s64;
 #define OM_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define OM_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+// TODO: Change fields to uppercase.
 union vector2
 {
 	struct
@@ -126,6 +127,21 @@ union vector3
 	};
 
 	r32 E[3];
+};
+
+union vector4
+{
+	struct
+	{
+		r32 X, Y, Z, W; 
+	};
+
+	struct
+	{
+		r32 R, G, B, A;
+	};
+
+	r32 E[4];
 };
 
 struct rect2I

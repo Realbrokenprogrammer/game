@@ -65,13 +65,6 @@ struct hit_point
 	u8 Amount;
 };
 
-struct entity_render_blueprint
-{
-	loaded_bitmap *Bitmap;
-	vector2 Offset;
-	r32 R, G, B, A;
-};
-
 struct entity
 {
 	entity_id ID;

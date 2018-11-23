@@ -676,6 +676,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	MoveCamera(&GameState->Camera, GameState->World, GameState->ControlledEntity->Position);
 
+	render_basis Basis = { GameState->Camera.Position };
+	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&Basis, om_megabytes(4));
+
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
 	{
@@ -688,19 +691,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				case EntityType_Hero:
 				{
-					DrawBitmap(Buffer, &GameState->PlayerBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Vector2(0.0f, 0.0f));
 				} break;
 				case EntityType_GrassTile:
 				{
-					DrawBitmap(Buffer, &GameState->GrassBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Vector2(0.0f, 0.0f));
 				} break;
 				case EntityType_WaterTile:
 				{
-					DrawBitmap(Buffer, &GameState->WaterBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Vector2(0.0f, 0.0f));
 				} break;
 				case EntityType_SlopeTile:
 				{
-					DrawBitmap(Buffer, &GameState->SlopeBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmap, Entity->Position, Vector2(0.0f, 0.0f));
 				} break;
 				case EntityType_Monster:
 				default:
@@ -708,6 +711,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			}
 		}
 	}
+
+	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
+	{
+		render_entry_bitmap *RenderEntry = (render_entry_bitmap *)(RenderBlueprint->PushBufferBase + BaseAddress);
+		BaseAddress += sizeof(render_entry_bitmap);
+
+		vector2 Position = RenderEntry->Position - RenderBlueprint->Basis->Position;
+		if (RenderEntry->Bitmap)
+		{
+			DrawBitmap(Buffer, RenderEntry->Bitmap, Position, RenderEntry->A);
+		}
+	}
+
+	DestroyRenderBlueprint(RenderBlueprint);
 
 	//TODO: Allow sample offsets here for more robust platform options
 	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);*/

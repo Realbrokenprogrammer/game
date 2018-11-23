@@ -41,6 +41,18 @@ Vector3(r32 X, r32 Y, r32 Z)
 	return (Result);
 }
 
+inline vector4
+Vector4(r32 X, r32 Y, r32 Z, r32 W)
+{
+	vector4 Result;
+
+	Result.X = X;
+	Result.Y = Y;
+	Result.Z = Z;
+	Result.W = W;
+
+	return (Result);
+}
 
 inline vector2
 operator *(r32 A, vector2 B)
