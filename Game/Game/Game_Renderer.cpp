@@ -13,7 +13,7 @@ CreateRenderBlueprint(render_basis *RenderBasis, u32 MaxPushBufferSize)
 	return (Result);
 }
 
-om_internal void
+om_internal void *
 PushRenderElement(render_blueprint *Blueprint, u32 Size)
 {
 	void *Result = 0;

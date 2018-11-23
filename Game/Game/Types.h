@@ -82,7 +82,7 @@ typedef i64 s64;
 #define OM_ASSERT(Expression)
 #endif
 
-#define InvalidCodePath Assert(!"InvalidCodePath")
+#define InvalidCodePath OM_ASSERT(!"InvalidCodePath")
 #define InvalidDefaultCase default: {InvalidCodePath;} break
 
 #define OM_PI32 3.14159265359f
