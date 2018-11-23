@@ -3,6 +3,34 @@
 #pragma once
 
 /**
+ *	COMPILERS
+ *	TODO: Add support for more compilers.
+ */
+#if !defined(COMPILER_MSVC)
+#define COMPILER_MSVC 0
+#endif
+
+#if !defined(COMPILER_LLVM)
+#define COMPILER_LLVM 0
+#endif
+
+#if !COMPILER_MSVC && !COMPILER_LLVM
+#if _MSC_VER
+#undef COMPILER_MSVC
+#define COMPILER_MSVC 1
+#else
+#undef COMPILER_LLVM
+#define COMPILER_LLVM 1
+#endif
+#endif
+
+#if COMPILER_MSVC
+#include <intrin.h>
+#elif COMPILER_LLVM
+#include <x86intrin.h>
+#endif
+
+/**
  *	BASIC TYPES
  */
 #ifndef OM_NO_DEFINE_TYPES
@@ -53,6 +81,9 @@ typedef i64 s64;
 #else
 #define OM_ASSERT(Expression)
 #endif
+
+#define InvalidCodePath Assert(!"InvalidCodePath")
+#define InvalidDefaultCase default: {InvalidCodePath;} break
 
 #define OM_PI32 3.14159265359f
 
@@ -143,7 +174,6 @@ SafeTruncateUInt64(u64 Value)
 	u32 Result = (u32)Value;
 	return (Result);
 }
-
 
 /*
 	OM_ARRAY Implementation.
