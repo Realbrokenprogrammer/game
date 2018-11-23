@@ -2,6 +2,7 @@
 #include "Game_World.cpp"
 #include "Game_Physics.cpp"
 #include "Game_Camera.cpp"
+#include "Game_Renderer.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
 
