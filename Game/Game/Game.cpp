@@ -714,13 +714,43 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
 	{
-		render_entry_bitmap *RenderEntry = (render_entry_bitmap *)(RenderBlueprint->PushBufferBase + BaseAddress);
-		BaseAddress += sizeof(render_entry_bitmap);
-
-		vector2 Position = RenderEntry->Position - RenderBlueprint->Basis->Position;
-		if (RenderEntry->Bitmap)
+		render_blueprint_header *Header = (render_blueprint_header *)(RenderBlueprint->PushBufferBase + BaseAddress);
+		
+		switch (Header->Type)
 		{
-			DrawBitmap(Buffer, RenderEntry->Bitmap, Position, RenderEntry->A);
+			case RenderCommand_render_blueprint_clear:
+			{
+				render_blueprint_clear *Body = (render_blueprint_clear *)Header;
+
+				// TODO: Clear
+
+				BaseAddress += sizeof(*Body);
+			} break;
+			case RenderCommand_render_blueprint_line:
+			{
+
+			} break;
+			case RenderCommand_render_blueprint_circle:
+			{
+
+			} break;
+			case RenderCommand_render_blueprint_triangle:
+			{
+
+			} break;
+			case RenderCommand_render_blueprint_rectangle:
+			{
+
+			} break;
+			case RenderCommand_render_blueprint_bitmap:
+			{
+				render_blueprint_bitmap *Body = (render_blueprint_bitmap *)Header;
+				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+				DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
+				BaseAddress += sizeof(*Body);
+			} break;
+
+			InvalidDefaultCase;
 		}
 	}
 

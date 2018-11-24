@@ -7,22 +7,73 @@ struct render_basis
 	vector2 Position;
 };
 
-struct render_entry_bitmap
+// NOTE: Discriminated union.
+enum render_command
 {
-	loaded_bitmap *Bitmap;
-	vector2 Position;
+	RenderCommand_render_blueprint_clear,
+	RenderCommand_render_blueprint_line,
+	RenderCommand_render_blueprint_circle,
+	RenderCommand_render_blueprint_triangle,
+	RenderCommand_render_blueprint_rectangle,
+	RenderCommand_render_blueprint_bitmap
+};
+
+struct render_blueprint_header
+{
+	render_command Type;
+};
+
+struct render_blueprint_clear
+{
+	render_blueprint_header Header;
+	vector4 Color;
+};
+
+struct render_blueprint_line
+{
+	render_blueprint_header Header;
+	vector2 Start;
+	vector2 End;
 	vector2 Offset;
 	r32 R, G, B, A;
 };
 
-enum render_command
+struct render_blueprint_circle
 {
-	RenderCommand_Line,
-	RenderCommand_Circle,
-	RenderCommand_Triangle,
-	RenderCommand_Rectangle,
-	RenderCommand_RectangleOutline,
-	RenderCommand_Bitmap
+	render_blueprint_header Header;
+	vector2 Position;
+	vector2 Offset;
+	r32 R, G, B, A;
+	r32 Radius;
+};
+
+struct render_blueprint_triangle
+{
+	render_blueprint_header Header;
+	vector2 Position;
+	vector2 Offset;
+	r32 R, G, B, A;
+	vector2 Point1;
+	vector2 Point2;
+	vector2 Point3;
+};
+
+struct render_blueprint_rectangle
+{
+	render_blueprint_header Header;
+	vector2 Position;
+	vector2 Offset;
+	r32 R, G, B, A;
+	vector2 Dimension; //TODO: Should this be Min / Max instead?
+};
+
+struct render_blueprint_bitmap
+{
+	render_blueprint_header Header;
+	loaded_bitmap *Bitmap;
+	vector2 Position;
+	vector2 Offset;
+	r32 R, G, B, A;
 };
 
 struct render_blueprint
