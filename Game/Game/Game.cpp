@@ -740,7 +740,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			} break;
 			case RenderCommand_render_blueprint_rectangle:
 			{
-
+				render_blueprint_rectangle *Body = (render_blueprint_rectangle *)Header;
+				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+				DrawRect(Buffer, Position, Position + Body->Dimension, Body->R, Body->G, Body->B);
+				BaseAddress += sizeof(*Body);
 			} break;
 			case RenderCommand_render_blueprint_bitmap:
 			{

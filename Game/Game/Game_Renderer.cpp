@@ -60,9 +60,19 @@ Clear(render_blueprint *Blueprint, vector4 Color)
 }
 
 inline void
-PushLine()
+PushLine(render_blueprint *Blueprint, vector2 Start, vector2 End, vector2 Offset, vector4 Color)
 {
-	//TODO: Implement
+	render_blueprint_line *RenderEntry = PushRenderBlueprint(Blueprint, render_blueprint_line);
+	if (RenderEntry)
+	{
+		RenderEntry->Start = Start;
+		RenderEntry->End = End;
+		RenderEntry->Offset = Offset;
+		RenderEntry->R = Color.R;
+		RenderEntry->G = Color.G;
+		RenderEntry->B = Color.B;
+		RenderEntry->A = Color.A;
+	}
 }
 
 inline void
@@ -78,15 +88,34 @@ PushTriangle()
 }
 
 inline void
-PushRect()
+PushRect(render_blueprint *Blueprint, vector2 Position, vector2 Dimension, vector2 Offset, vector4 Color)
 {
-	//TODO: Implement
+	render_blueprint_rectangle *RenderEntry = PushRenderBlueprint(Blueprint, render_blueprint_rectangle);
+	if (RenderEntry)
+	{
+		RenderEntry->Position = Position;
+		RenderEntry->Dimension = Dimension;
+		RenderEntry->Offset = Offset;
+		RenderEntry->R = Color.R;
+		RenderEntry->G = Color.G;
+		RenderEntry->B = Color.B;
+		RenderEntry->A = Color.A;
+	}
 }
 
+// NOTE: Rectangles are drawn from their top left corner not from their center. Might need to change that in the future.
 inline void
-PushRectOutline()
+PushRectOutline(render_blueprint *Blueprint, vector2 Position, vector2 Dimension, vector2 Offset, vector4 Color)
 {
-	//TODO: Implement
+	r32 Thickness = 1.0f;
+
+	// NOTE: Top & Bottom.
+	PushRect(Blueprint, Position - Vector2(0.0f, 0.0f), Vector2(Dimension.x, Thickness), Offset, Color);
+	PushRect(Blueprint, Position + Vector2(0.0f, Dimension.y), Vector2(Dimension.x, Thickness), Offset, Color);
+
+	// NOTE: Left & Right
+	PushRect(Blueprint, Position - Vector2(0.0f, 0.0f), Vector2(Thickness, Dimension.y), Offset, Color);
+	PushRect(Blueprint, Position + Vector2(Dimension.x, 0.0f), Vector2(Thickness, Dimension.y), Offset, Color);
 }
 
 inline void

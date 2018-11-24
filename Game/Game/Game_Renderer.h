@@ -62,9 +62,9 @@ struct render_blueprint_rectangle
 {
 	render_blueprint_header Header;
 	vector2 Position;
+	vector2 Dimension; //TODO: Should this be Min / Max instead?
 	vector2 Offset;
 	r32 R, G, B, A;
-	vector2 Dimension; //TODO: Should this be Min / Max instead?
 };
 
 struct render_blueprint_bitmap
