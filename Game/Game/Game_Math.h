@@ -3,6 +3,7 @@
 #pragma once
 
 //TODO: Group vector2, vector3 and vector4 operations
+//TODO: Match vector4 Lerp parameters with my own implemented Lerp
 
 inline vector2
 Vector2Int(i32 X, i32 Y)
@@ -151,7 +152,7 @@ Lerp(vector2 A, vector2 B, r32 t)
 inline vector2
 Perp(vector2 A)
 {
-	vector2 Result = { A.y, -A.x };
+	vector2 Result = { -A.y, A.x };
 	
 	return (Result);
 }
@@ -273,6 +274,35 @@ Clamp01(r32 Value)
 	r32 Result = Clamp(0.0f, Value, 1.0f);
 	
 	return (Result);
+}
+
+// Vector3 Operations
+inline vector3
+operator*(r32 A, vector3 B)
+{
+	vector3 Result;
+
+	Result.x = A * B.x;
+	Result.y = A * B.y;
+	Result.z = A * B.z;
+
+	return(Result);
+}
+
+inline vector3
+operator*(vector3 B, r32 A)
+{
+	vector3 Result = A * B;
+
+	return(Result);
+}
+
+inline vector3 &
+operator*=(vector3 &B, r32 A)
+{
+	B = A * B;
+
+	return(B);
 }
 
 // Vector4 Operations

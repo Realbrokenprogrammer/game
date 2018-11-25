@@ -38,6 +38,8 @@ struct game_state
 	loaded_bitmap GrassBitmap;
 	loaded_bitmap WaterBitmap;
 	loaded_bitmap SlopeBitmap;
+
+	r32 Time;
 };
 
 #endif // GAME_H
