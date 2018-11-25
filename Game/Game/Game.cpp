@@ -614,6 +614,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		GameState->Camera = {};
 		GameState->Camera.CameraWindow = { {0, 0}, {(r32)Buffer->Width, (r32)Buffer->Height} };
 
+		GameState->Time = 0;
+
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
 	}
@@ -676,6 +678,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	MoveCamera(&GameState->Camera, GameState->World, GameState->ControlledEntity->Position);
 
+	GameState->Time += Input->dtForFrame;
 	render_basis Basis = { GameState->Camera.Position };
 	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&Basis, om_megabytes(4));
 
@@ -711,8 +714,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			}
 		}
 	}
-
-	PushRect(RenderBlueprint, Vector2(100.0f, 100.0f), Vector2(32.0f, 32.0f), Vector2(0.0f, 0.0f), Vector4(1.0f, 0.0f, 0.0f, 0.0f));
 
 	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
 	{
@@ -758,6 +759,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			InvalidDefaultCase;
 		}
 	}
+
+	DEBUGDrawRect(Buffer, Vector2(500.0f, 300.0f), 50.0f, 180.0f, &GameState->PlayerBitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 
 	DestroyRenderBlueprint(RenderBlueprint);
 
