@@ -2,6 +2,8 @@
 #define GAME_MATH_H
 #pragma once
 
+//TODO: Group vector2, vector3 and vector4 operations
+
 inline vector2
 Vector2Int(i32 X, i32 Y)
 {
@@ -263,6 +265,151 @@ Clamp(vector2 Min, vector2 Value, vector2 Max)
 	Result.y = Clamp(Min.y, Value.y, Max.y);
 
 	return (Result);
+}
+
+inline r32
+Clamp01(r32 Value)
+{
+	r32 Result = Clamp(0.0f, Value, 1.0f);
+	
+	return (Result);
+}
+
+// Vector4 Operations
+inline vector4
+operator*(r32 A, vector4 B)
+{
+	vector4 Result;
+
+	Result.X = A * B.X;
+	Result.Y = A * B.Y;
+	Result.Z = A * B.Z;
+	Result.W = A * B.W;
+
+	return(Result);
+}
+
+inline vector4
+operator*(vector4 B, r32 A)
+{
+	vector4 Result = A * B;
+
+	return(Result);
+}
+
+inline vector4 &
+operator*=(vector4 &B, r32 A)
+{
+	B = A * B;
+
+	return(B);
+}
+
+inline vector4
+operator-(vector4 A)
+{
+	vector4 Result;
+
+	Result.X = -A.X;
+	Result.Y = -A.Y;
+	Result.Z = -A.Z;
+	Result.W = -A.W;
+
+	return(Result);
+}
+
+inline vector4
+operator+(vector4 A, vector4 B)
+{
+	vector4 Result;
+
+	Result.X = A.X + B.X;
+	Result.Y = A.Y + B.Y;
+	Result.Z = A.Z + B.Z;
+	Result.W = A.W + B.W;
+
+	return(Result);
+}
+
+inline vector4 &
+operator+=(vector4 &A, vector4 B)
+{
+	A = A + B;
+
+	return(A);
+}
+
+inline vector4
+operator-(vector4 A, vector4 B)
+{
+	vector4 Result;
+
+	Result.X = A.X - B.X;
+	Result.Y = A.Y - B.Y;
+	Result.Z = A.Z - B.Z;
+	Result.W = A.W - B.W;
+
+	return(Result);
+}
+
+inline vector4 &
+operator-=(vector4 &A, vector4 B)
+{
+	A = A - B;
+
+	return(A);
+}
+
+inline vector4
+Hadamard(vector4 A, vector4 B)
+{
+	vector4 Result = { A.X*B.X, A.Y*B.Y, A.Z*B.Z, A.W*B.W };
+
+	return(Result);
+}
+
+inline r32
+Inner(vector4 A, vector4 B)
+{
+	r32 Result = A.X*B.X + A.Y*B.Y + A.Z*B.Z + A.W*B.W;
+
+	return(Result);
+}
+
+inline r32
+LengthSq(vector4 A)
+{
+	r32 Result = Inner(A, A);
+
+	return(Result);
+}
+
+inline r32
+Length(vector4 A)
+{
+	r32 Result = SquareRoot(LengthSq(A));
+	return(Result);
+}
+
+inline vector4
+Clamp01(vector4 Value)
+{
+	vector4 Result;
+
+	Result.X = Clamp01(Value.X);
+	Result.Y = Clamp01(Value.Y);
+	Result.Z = Clamp01(Value.Z);
+	Result.W = Clamp01(Value.W);
+
+	return(Result);
+}
+
+inline vector4
+Lerp(vector4 A, r32 t, vector4 B)
+{
+	vector4 Result = (1.0f - t)*A + t * B;
+
+	return(Result);
 }
 
 #endif // GAME_MATH_H

@@ -12,6 +12,22 @@ RoundReal32ToInt32(r32 Real32)
 	return (Result);
 }
 
+inline i32
+FloorReal32ToInt32(r32 R32)
+{
+	// TODO: SSE 4.1?
+	i32 Result = _mm_cvtss_si32(_mm_floor_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
+	return(Result);
+}
+
+inline i32
+CeilReal32ToInt32(r32 R32)
+{
+	// TODO: SSE 4.1?
+	i32 Result = _mm_cvtss_si32(_mm_ceil_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
+	return(Result);
+}
+
 struct bit_scan_result
 {
 	b32 Found;

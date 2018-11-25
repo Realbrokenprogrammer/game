@@ -712,6 +712,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
+	PushRect(RenderBlueprint, Vector2(100.0f, 100.0f), Vector2(32.0f, 32.0f), Vector2(0.0f, 0.0f), Vector4(1.0f, 0.0f, 0.0f, 0.0f));
+
 	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
 	{
 		render_blueprint_header *Header = (render_blueprint_header *)(RenderBlueprint->PushBufferBase + BaseAddress);
@@ -728,15 +730,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			} break;
 			case RenderCommand_render_blueprint_line:
 			{
-
+				//TODO: Line
 			} break;
 			case RenderCommand_render_blueprint_circle:
 			{
-
+				//TODO: Circle
 			} break;
 			case RenderCommand_render_blueprint_triangle:
 			{
-
+				//TODO: Triangle
 			} break;
 			case RenderCommand_render_blueprint_rectangle:
 			{
