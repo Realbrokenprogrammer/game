@@ -752,7 +752,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				render_blueprint_bitmap *Body = (render_blueprint_bitmap *)Header;
 				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+#if 0
 				DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
+#else
+				DEBUGDrawRect(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+#endif
 				BaseAddress += sizeof(*Body);
 			} break;
 
@@ -760,7 +764,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-	DEBUGDrawRect(Buffer, Vector2(500.0f, 300.0f), 50.0f, GameState->Time, &GameState->PlayerBitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+	//DEBUGDrawRect(Buffer, Vector2(500.0f, 300.0f), 50.0f, GameState->Time, &GameState->PlayerBitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 
 	DestroyRenderBlueprint(RenderBlueprint);
 
