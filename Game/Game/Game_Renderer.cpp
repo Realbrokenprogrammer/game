@@ -96,6 +96,9 @@ DEBUGDrawRect(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Ro
 	r32 InvXAxisLengthSq = 1.0f / LengthSquared(XAxis);
 	r32 InvYAxisLengthSq = 1.0f / LengthSquared(YAxis);
 
+	vector2 nXAxis = InvXAxisLengthSq * XAxis;
+	vector2 nYAxis = InvYAxisLengthSq * YAxis;
+
 	//TODO: Use passed color if there is no Texture passed or separate DrawRectangle and DrawBitmap with scaling?
 	u32 Color32 =
 		((RoundReal32ToInt32(Color.A * 255.0f) << 24) |
@@ -134,64 +137,204 @@ DEBUGDrawRect(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Ro
 	if (MaxX > MaxWidth)  { MaxX = MaxWidth; }
 	if (MaxY > MaxHeight) { MaxY = MaxHeight; }
 
+	//Note: 4 Wide values to use operating through SIMD.
+	r32 Inv255 = 1.0f / 255.0f;
+	r32 One255 = 255.0f;
+
+	__m128 Inv255_x4 = _mm_set1_ps(Inv255);
+	__m128 One255_x4 = _mm_set1_ps(One255);
+	__m128 One_x4 = _mm_set1_ps(1.0f);
+	__m128 Zero_x4 = _mm_set1_ps(0.0f);
+	__m128i Mask255_x4 = _mm_set1_epi32(0xFF);
+	__m128 ColorR_x4 = _mm_set1_ps(Color.R);
+	__m128 ColorG_x4 = _mm_set1_ps(Color.G);
+	__m128 ColorB_x4 = _mm_set1_ps(Color.B);
+	__m128 ColorA_x4 = _mm_set1_ps(Color.A);
+	__m128 nXAxisX_x4 = _mm_set1_ps(nXAxis.x);
+	__m128 nXAxisY_x4 = _mm_set1_ps(nXAxis.y);
+	__m128 nYAxisX_x4 = _mm_set1_ps(nYAxis.x);
+	__m128 nYAxisY_x4 = _mm_set1_ps(nYAxis.y);
+	__m128 PositionX_x4 = _mm_set1_ps(Position.x);
+	__m128 PositionY_x4 = _mm_set1_ps(Position.y);
+
+	__m128 WidthSub2 = _mm_set1_ps((r32)(Texture->Width - 2));
+	__m128 HeightSub2 = _mm_set1_ps((r32)(Texture->Height - 2));
+
 	u8 *Row = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
 	for (int Y = MinY; Y <= MaxY; ++Y)
 	{
 		u32 *Pixel = (u32 *)Row;
-		for (int X = MinX; X <= MaxX; ++X)
+		for (int X = MinX; X <= MaxX; X+=4)
 		{
-			vector2 PixelPosition = Vector2Int(X, Y);
-			vector2 Distance = PixelPosition - Position;
+			__m128 PixelPositionX = _mm_set_ps((r32)(X + 3), 
+											   (r32)(X + 2), 
+											   (r32)(X + 1), 
+											   (r32)(X + 0));
+			__m128 PixelPositionY = _mm_set1_ps((r32)(Y));
 
-			r32 Edge0 = Inner(Distance, -Perp(XAxis));
-			r32 Edge1 = Inner(Distance - XAxis, -Perp(YAxis));
-			r32 Edge2 = Inner(Distance - XAxis - YAxis, Perp(XAxis));
-			r32 Edge3 = Inner(Distance - YAxis, Perp(YAxis));
+			__m128 DX = _mm_sub_ps(PixelPositionX, PositionX_x4);
+			__m128 DY = _mm_sub_ps(PixelPositionY, PositionY_x4);
+			__m128 U = _mm_add_ps(_mm_mul_ps(DX, nXAxisX_x4), _mm_mul_ps(DY, nXAxisY_x4));
+			__m128 V = _mm_add_ps(_mm_mul_ps(DX, nYAxisX_x4), _mm_mul_ps(DY, nYAxisY_x4));
 
-			if ((Edge0 < 0) && (Edge1 < 0) && (Edge2 < 0) && (Edge3 < 0))
+			__m128i WriteMask = _mm_castps_si128(_mm_and_ps(_mm_and_ps(_mm_cmpge_ps(U, Zero_x4),
+																	   _mm_cmple_ps(U, One_x4)),
+															_mm_and_ps(_mm_cmpge_ps(V, Zero_x4),
+																	   _mm_cmple_ps(V, One_x4))));
 			{
-				// Texture UV coordinates
-				r32 U = InvXAxisLengthSq * Inner(Distance, XAxis);
-				r32 V = InvYAxisLengthSq * Inner(Distance, YAxis);
+				__m128i OriginalDestination = _mm_loadu_si128((__m128i *)Pixel);
 
-				// TODO: Formalize texture boundaries
-				r32 tX = ((U*(r32)(Texture->Width - 2)));
-				r32 tY = ((V*(r32)(Texture->Height - 2)));
+				U = _mm_min_ps(_mm_max_ps(U, Zero_x4), One_x4);
+				V = _mm_min_ps(_mm_max_ps(V, Zero_x4), One_x4);
 
-				i32 X = (i32)tX;
-				i32 Y = (i32)tY;
+				__m128 tX = _mm_mul_ps(U, WidthSub2);
+				__m128 tY = _mm_mul_ps(V, HeightSub2);
 
-				r32 fX = tX - (r32)X;
-				r32 fY = tY - (r32)Y;
+				__m128i FetchX_x4 = _mm_cvttps_epi32(tX);
+				__m128i FetchY_x4 = _mm_cvttps_epi32(tY);
 
-				bilinear_sample TexelSample = BilinearSample(Texture, X, Y);
-				vector4 Texel = SRGBBilinearBlend(TexelSample, fX, fY);
+				__m128 fX = _mm_sub_ps(tX, _mm_cvtepi32_ps(FetchX_x4));
+				__m128 fY = _mm_sub_ps(tY, _mm_cvtepi32_ps(FetchY_x4));
 
-				Texel = Hadamard(Texel, Color);
-				Texel.R = Clamp01(Texel.R);
-				Texel.G = Clamp01(Texel.G);
-				Texel.B = Clamp01(Texel.B);
+				__m128i SampleA;
+				__m128i SampleB;
+				__m128i SampleC;
+				__m128i SampleD;
 
-				vector4 Dest = { (r32)((*Pixel >> 16) & 0xFF),
-								 (r32)((*Pixel >> 8) & 0xFF),
-								 (r32)((*Pixel >> 0) & 0xFF),
-								 (r32)((*Pixel >> 24) & 0xFF) };
+				//Note: Load the next four pixels from the texture. Not SIMD friendly so it's done outside SIMD.
+				// Equiv to the call to BilinearSample.
+				for (int I = 0; I < 4; ++I)
+				{
+					i32 FetchX = OM_MMIndexI(FetchX_x4, I);
+					i32 FetchY = OM_MMIndexI(FetchY_x4, I);
 
-				// NOTE: Going from sRGB to "linear" brightness space
-				Dest = SRGB255ToLinear1(Dest);
+					OM_ASSERT((FetchX >= 0) && (FetchX < Texture->Width));
+					OM_ASSERT((FetchY >= 0) && (FetchY < Texture->Height));
 
-				vector4 Blended = (1.0f - Texel.A)*Dest + Texel;
+					u8 *TexelPtr = ((u8 *)Texture->Pixels) + FetchY * (Texture->Width * 4) + FetchX * sizeof(u32);
+					OM_MMIndexI(SampleA, I) = *(u32 *)(TexelPtr);
+					OM_MMIndexI(SampleB, I) = *(u32 *)(TexelPtr + sizeof(u32));
+					OM_MMIndexI(SampleC, I) = *(u32 *)(TexelPtr + (Texture->Width * 4));
+					OM_MMIndexI(SampleD, I) = *(u32 *)(TexelPtr + (Texture->Width * 4) + sizeof(u32));
+				}
 
-				// NOTE: Going from "linear" brightness space to sRGB
-				vector4 Blended255 = Linear1ToSRGB255(Blended);
+				//Note: Unpacking Bilinear samples. Equiv to first part of call to SRGBBilinearBlend.
+				__m128 TexelAb = _mm_cvtepi32_ps(_mm_and_si128(SampleA, Mask255_x4));
+				__m128 TexelAg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleA, 8),  Mask255_x4));
+				__m128 TexelAr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleA, 16), Mask255_x4));
+				__m128 TexelAa = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleA, 24), Mask255_x4));
 
-				*Pixel = (((u32)(Blended255.A + 0.5f) << 24) |
-						  ((u32)(Blended255.R + 0.5f) << 16) |
-						  ((u32)(Blended255.G + 0.5f) << 8) |
-						  ((u32)(Blended255.B + 0.5f) << 0));
+				__m128 TexelBb = _mm_cvtepi32_ps(_mm_and_si128(SampleB, Mask255_x4));
+				__m128 TexelBg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleB, 8),  Mask255_x4));
+				__m128 TexelBr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleB, 16), Mask255_x4));
+				__m128 TexelBa = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleB, 24), Mask255_x4));
+
+				__m128 TexelCb = _mm_cvtepi32_ps(_mm_and_si128(SampleC, Mask255_x4));
+				__m128 TexelCg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleC, 8),  Mask255_x4));
+				__m128 TexelCr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleC, 16), Mask255_x4));
+				__m128 TexelCa = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleC, 24), Mask255_x4));
+
+				__m128 TexelDb = _mm_cvtepi32_ps(_mm_and_si128(SampleD, Mask255_x4));
+				__m128 TexelDg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleD, 8),  Mask255_x4));
+				__m128 TexelDr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleD, 16), Mask255_x4));
+				__m128 TexelDa = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(SampleD, 24), Mask255_x4));
+
+				//Note: Load the destination colors.
+				__m128 Destb = _mm_cvtepi32_ps(_mm_and_si128(OriginalDestination, Mask255_x4));
+				__m128 Destg = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(OriginalDestination, 8),  Mask255_x4));
+				__m128 Destr = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(OriginalDestination, 16), Mask255_x4));
+				__m128 Desta = _mm_cvtepi32_ps(_mm_and_si128(_mm_srli_epi32(OriginalDestination, 24), Mask255_x4));
+
+				//Note: Going from sRGB to "linear" brightness space. Equiv to call to SRGB255ToLinear1.
+				TexelAr = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelAr));
+				TexelAg = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelAg));
+				TexelAb = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelAb));
+				TexelAa = _mm_mul_ps(Inv255_x4, TexelAa);
+
+				TexelBr = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelBr));
+				TexelBg = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelBg));
+				TexelBb = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelBb));
+				TexelBa = _mm_mul_ps(Inv255_x4, TexelBa);
+
+				TexelCr = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelCr));
+				TexelCg = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelCg));
+				TexelCb = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelCb));
+				TexelCa = _mm_mul_ps(Inv255_x4, TexelCa);
+
+				TexelDr = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelDr));
+				TexelDg = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelDg));
+				TexelDb = OM_MMSquare(_mm_mul_ps(Inv255_x4, TexelDb));
+				TexelDa = _mm_mul_ps(Inv255_x4, TexelDa);
+
+				//Note: Perform Bilinear blend on texture. 
+				__m128 ifX = _mm_sub_ps(One_x4, fX);
+				__m128 ifY = _mm_sub_ps(One_x4, fY);
+
+				__m128 l0 = _mm_mul_ps(ifY, ifX);
+				__m128 l1 = _mm_mul_ps(ifY, fX);
+				__m128 l2 = _mm_mul_ps(fY, ifX);
+				__m128 l3 = _mm_mul_ps(fY, fX);
+
+				__m128 Texelr = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, TexelAr), _mm_mul_ps(l1, TexelBr)),
+										   _mm_add_ps(_mm_mul_ps(l2, TexelCr), _mm_mul_ps(l3, TexelDr)));
+				__m128 Texelg = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, TexelAg), _mm_mul_ps(l1, TexelBg)),
+										   _mm_add_ps(_mm_mul_ps(l2, TexelCg), _mm_mul_ps(l3, TexelDg)));
+				__m128 Texelb = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, TexelAb), _mm_mul_ps(l1, TexelBb)),
+										   _mm_add_ps(_mm_mul_ps(l2, TexelCb), _mm_mul_ps(l3, TexelDb)));
+				__m128 Texela = _mm_add_ps(_mm_add_ps(_mm_mul_ps(l0, TexelAa), _mm_mul_ps(l1, TexelBa)),
+										   _mm_add_ps(_mm_mul_ps(l2, TexelCa), _mm_mul_ps(l3, TexelDa)));
+
+				//Note: Modulate inoming color
+				Texelr = _mm_mul_ps(Texelr, ColorR_x4);
+				Texelg = _mm_mul_ps(Texelg, ColorG_x4);
+				Texelb = _mm_mul_ps(Texelb, ColorB_x4);
+				Texela = _mm_mul_ps(Texela, ColorA_x4);
+
+				//Note: Clamp RGB values
+				Texelr = _mm_min_ps(_mm_max_ps(Texelr, Zero_x4), One_x4);
+				Texelg = _mm_min_ps(_mm_max_ps(Texelg, Zero_x4), One_x4);
+				Texelb = _mm_min_ps(_mm_max_ps(Texelb, Zero_x4), One_x4);
+
+				//Note: Going from sRGB to "linear" brightness space. Equiv to call to SRGB255ToLinear1.
+				Destr = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destr));
+				Destg = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destg));
+				Destb = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destb));
+				Desta = _mm_mul_ps(Inv255_x4, Desta);
+
+				//Note: Performing blend on destination
+				__m128 InvTexelA = _mm_sub_ps(One_x4, Texela);
+				__m128 Blendedr = _mm_add_ps(_mm_mul_ps(InvTexelA, Destr), Texelr);
+				__m128 Blendedg = _mm_add_ps(_mm_mul_ps(InvTexelA, Destg), Texelg);
+				__m128 Blendedb = _mm_add_ps(_mm_mul_ps(InvTexelA, Destb), Texelb);
+				__m128 Blendeda = _mm_add_ps(_mm_mul_ps(InvTexelA, Desta), Texela);
+
+				//Note: Going from "linear" brightness space to sRGB
+				Blendedr = _mm_mul_ps(One255_x4, _mm_sqrt_ps(Blendedr));
+				Blendedg = _mm_mul_ps(One255_x4, _mm_sqrt_ps(Blendedg));
+				Blendedb = _mm_mul_ps(One255_x4, _mm_sqrt_ps(Blendedb));
+				Blendeda = _mm_mul_ps(One255_x4, Blendeda);
+
+				//Note: Conversion to integer values.
+				__m128i Intr = _mm_cvtps_epi32(Blendedr);
+				__m128i Intg = _mm_cvtps_epi32(Blendedg);
+				__m128i Intb = _mm_cvtps_epi32(Blendedb);
+				__m128i Inta = _mm_cvtps_epi32(Blendeda);
+
+				//Note: Shifts into right slots.
+				__m128i Sr = _mm_slli_epi32(Intr, 16);
+				__m128i Sg = _mm_slli_epi32(Intg, 8);
+				__m128i Sb = Intb;
+				__m128i Sa = _mm_slli_epi32(Inta, 24);
+
+				__m128i Out = _mm_or_si128(_mm_or_si128(Sr, Sg), _mm_or_si128(Sb, Sa));
+
+				__m128i MaskedOut = _mm_or_si128(_mm_and_si128(WriteMask, Out),
+												 _mm_andnot_si128(WriteMask, OriginalDestination));
+
+				_mm_storeu_si128((__m128i *)Pixel, MaskedOut);
 			}
 
-			++Pixel;
+			Pixel += 4;
 		}
 
 		Row += Buffer->Pitch;

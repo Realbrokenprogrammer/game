@@ -760,7 +760,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-	DEBUGDrawRect(Buffer, Vector2(500.0f, 300.0f), 50.0f, 180.0f, &GameState->PlayerBitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+	DEBUGDrawRect(Buffer, Vector2(500.0f, 300.0f), 50.0f, GameState->Time, &GameState->PlayerBitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 
 	DestroyRenderBlueprint(RenderBlueprint);
 

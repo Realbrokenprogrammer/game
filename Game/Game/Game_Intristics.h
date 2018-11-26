@@ -5,6 +5,11 @@
 #include "math.h"
 #include <xmmintrin.h>
 
+//Note: Intel intristics helper defines.
+#define OM_MMSquare(A) _mm_mul_ps(A, A)
+#define OM_MMIndexF(A, I) ((r32 *)&(A))[I]
+#define OM_MMIndexI(A, I) ((u32 *)&(A))[I]
+
 inline s32
 RoundReal32ToInt32(r32 Real32)
 {
