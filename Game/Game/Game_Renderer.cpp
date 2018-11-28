@@ -1,3 +1,14 @@
+inline u32
+Pack4x8Pixel(vector4 Pixel)
+{
+	u32 Result = ((RoundReal32ToInt32(Pixel.A * 255.0f) << 24) |
+				  (RoundReal32ToInt32(Pixel.R * 255.0f) << 16) |
+				  (RoundReal32ToInt32(Pixel.G * 255.0f) << 8) |
+				  (RoundReal32ToInt32(Pixel.B * 255.0f)));
+
+	return (Result);
+}
+
 inline vector4
 Unpack4x8Pixel(u32 Pixel)
 {
@@ -6,7 +17,7 @@ Unpack4x8Pixel(u32 Pixel)
 					   (r32)((Pixel >> 0) & 0xFF),
 					   (r32)((Pixel >> 24) & 0xFF) };
 
-	return(Result);
+	return (Result);
 }
 
 inline vector4
@@ -21,7 +32,7 @@ SRGB255ToLinear1(vector4 Color)
 	Result.B = Square(Inv255*Color.B);
 	Result.A = Inv255 * Color.A;
 
-	return(Result);
+	return (Result);
 }
 
 inline vector4
@@ -36,7 +47,7 @@ Linear1ToSRGB255(vector4 Color)
 	Result.B = One255 * SquareRoot(Color.B);
 	Result.A = 255.0f*Color.A;
 
-	return(Result);
+	return (Result);
 }
 
 struct bilinear_sample
@@ -55,7 +66,7 @@ BilinearSample(loaded_bitmap *Texture, i32 X, i32 Y)
 	Result.C = *(u32 *)(TexelPtr + (Texture->Width * 4));
 	Result.D = *(u32 *)(TexelPtr + (Texture->Width * 4) + sizeof(u32));
 
-	return(Result);
+	return (Result);
 }
 
 inline vector4
@@ -76,7 +87,7 @@ SRGBBilinearBlend(bilinear_sample TexelSample, r32 fX, r32 fY)
 		fY,
 		Lerp(TexelC, fX, TexelD));
 
-	return(Result);
+	return (Result);
 }
 
 om_internal void
@@ -106,8 +117,9 @@ DEBUGDrawRect(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Ro
 		 (RoundReal32ToInt32(Color.G * 255.0f) << 8) |
 		 (RoundReal32ToInt32(Color.B * 255.0f)));
 
-	int MaxWidth = (Buffer->Width - 1);
-	int MaxHeight = (Buffer->Height - 1);
+	//TODO: Theese boundaries needs to be properly specified
+	int MaxWidth = (Buffer->Width - 1) - 3;
+	int MaxHeight = (Buffer->Height - 1) - 3;
 
 	r32 InvMaxWidth = 1.0f / (r32)MaxWidth;
 	r32 InvMaxHeight = 1.0f / (r32)MaxHeight;
