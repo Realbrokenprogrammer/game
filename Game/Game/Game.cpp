@@ -26,228 +26,6 @@ GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 }
 
 om_internal void
-DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, r32 B)
-{
-	i32 MinX = RoundReal32ToInt32(Min.x);
-	i32 MinY = RoundReal32ToInt32(Min.y);
-	i32 MaxX = RoundReal32ToInt32(Max.x);
-	i32 MaxY = RoundReal32ToInt32(Max.y);
-
-	if (MinX < 0)
-	{
-		MinX = 0;
-	}
-
-	if (MinY < 0)
-	{
-		MinY = 0;
-	}
-
-	if (MaxX > Buffer->Width)
-	{
-		MaxX = Buffer->Width;
-	}
-
-	if (MaxY > Buffer->Height)
-	{
-		MaxY = Buffer->Height;
-	}
-
-	u32 Color = 
-		((RoundReal32ToInt32(R * 255.0f) << 16) | 
-		(RoundReal32ToInt32(G * 255.0f) << 8) | 
-		(RoundReal32ToInt32(B * 255.0f)));
-
-	u8 *Row = ((u8 *)Buffer->Memory + MinX*Buffer->BytesPerPixel + MinY * Buffer->Pitch);
-	for (int Y = MinY; Y < MaxY; ++Y)
-	{
-		u32 *Pixel = (u32 *)Row;
-		for (int X = MinX; X < MaxX; ++X)
-		{
-			*Pixel++ = Color;
-		}
-
-		Row += Buffer->Pitch;
-	}
-}
-
-om_internal void
-DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32 G, r32 B)
-{
-	u32 Color =
-		((RoundReal32ToInt32(R * 255.0f) << 16) |
-		(RoundReal32ToInt32(G * 255.0f) << 8) |
-		(RoundReal32ToInt32(B * 255.0f)));
-
-	for (r32 Angle = 0.0f; Angle < 360.0f; Angle++)
-	{
-		i32 X = (i32)(Center.x - Radius * cosf(Angle));
-		i32 Y = (i32)(Center.y - Radius * sinf(Angle));
-
-		if (X < 0)
-		{
-			X = 0;
-		}
-
-		if (Y < 0)
-		{
-			Y = 0;
-		}
-
-		if (Y > Buffer->Height)
-		{
-			Y = Buffer->Height;
-		}
-
-		if (X > Buffer->Width)
-		{
-			X = Buffer->Width;
-		}
-
-		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * Y + X);
-		*Pixel = Color;
-	}
-}
-
-om_internal void
-DrawLine(game_offscreen_buffer *Buffer, vector2 Start, vector2 End, r32 R, r32 G, r32 B)
-{
-	if (Start.x > End.x)
-	{
-		vector2 Temp = Start;
-		Start = End;
-		End = Temp;
-	}
-
-	if (Start.x < 0)
-	{
-		Start.x = 0;
-	}
-
-	if (Start.y < 0)
-	{
-		Start.y = 0;
-	}
-
-	if (End.x > Buffer->Width)
-	{
-		End.x = (r32)Buffer->Width;
-	}
-
-	if (End.y > Buffer->Height)
-	{
-		End.y = (r32)Buffer->Height;
-	}
-
-	r32 Coefficient = 0.0f;
-	if (End.x - Start.x == 0)
-	{
-		Coefficient = 10000;
-		if (End.y - Start.y < 0)
-		{
-			Coefficient = Coefficient * -1;
-		}
-	}
-	else
-	{
-		Coefficient = (End.y - Start.y) / (End.x - Start.x);
-	}
-
-	r32 CX;
-	r32 CY;
-
-	if (Coefficient < 0)
-	{
-		CX = 1 / (-1 + Coefficient) * -1;
-		CY = Coefficient / (-1 + Coefficient) * -1;
-	}
-	else
-	{
-		CX = 1 / (1 + Coefficient);
-		CY = Coefficient / (1 + Coefficient);
-	}
-
-	CX *= 1.00001f;
-	CY *= 1.00001f;
-
-	r32 ToLength = SquareRoot((End.x - Start.x) * (End.x - Start.x) + (End.y - Start.y) * (End.y - Start.y));
-	r32 Length = 0;
-	r32 Increment = SquareRoot(CX * CX + CY * CY);
-
-	u32 Color =
-		((RoundReal32ToInt32(R * 255.0f) << 16) |
-		(RoundReal32ToInt32(G * 255.0f) << 8) |
-		(RoundReal32ToInt32(B * 255.0f)));
-
-	for (int Index = 0; Length < ToLength + 0.5f; ++Index)
-	{
-		r32 X = Start.x + CX * Index;
-		r32 Y = Start.y + CY * Index;
-
-		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * (u32)Y + (u32)X);
-		*Pixel = Color;
-
-		Length += Increment;
-	}
-}
-
-om_internal void
-DrawTriangle(game_offscreen_buffer *Buffer, triangle Triangle, r32 R, r32 G, r32 B)
-{
-	DrawLine(Buffer, Triangle.p1, Triangle.p2, R, G, B);
-	DrawLine(Buffer, Triangle.p2, Triangle.p3, R, G, B);
-	DrawLine(Buffer, Triangle.p3, Triangle.p1, R, G, B);
-}
-
-om_internal void
-DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, vector2 Target, r32 ColorAlpha)
-{
-	i32 MinX = RoundReal32ToInt32(Target.x);
-	i32 MinY = RoundReal32ToInt32(Target.y);
-	i32 MaxX = MinX + Bitmap->Width;
-	i32 MaxY = MinY + Bitmap->Height;
-
-	i32 SourceOffsetX = 0;
-	if (MinX < 0)
-	{
-		SourceOffsetX = -MinX;
-		MinX = 0;
-	}
-
-	i32 SourceOffsetY = 0;
-	if (MinY < 0)
-	{
-		SourceOffsetY = -MinY;
-		MinY = 0;
-	}
-
-	if (MaxX > Buffer->Width)
-	{
-		MaxX = Buffer->Width;
-	}
-
-	if (MaxY > Buffer->Height)
-	{
-		MaxY = Buffer->Height;
-	}
-
-	u32 *SourceRow = (Bitmap->Pixels + SourceOffsetX) + (SourceOffsetY * Bitmap->Width);
-	u8 *DestinationRow = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
-	for (int Y = MinY; Y < MaxY; ++Y)
-	{
-		u32 *Destination = (u32 *)DestinationRow;
-		u32 *Source = SourceRow;
-		for (int X = MinX; X < MaxX; ++X)
-		{
-			*Destination++ = *Source++;
-		}
-
-		DestinationRow += Buffer->Pitch;
-		SourceRow += Bitmap->Width;
-	}
-}
-
-om_internal void
 RenderGradient(game_offscreen_buffer *Buffer, int BlueOffset, int RedOffset)
 {
 	u8 *Row = (u8 *)Buffer->Memory;
@@ -523,7 +301,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		char WaterBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
 		GameState->WaterBitmap = Memory->DEBUGLoadBitmap(WaterBitmap);
 		
-		char SlopeBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope.bmp";
+		char SlopeBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
 		GameState->SlopeBitmap = Memory->DEBUGLoadBitmap(SlopeBitmap);
 
 		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
@@ -672,8 +450,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	}
 
 #if 1
-	//Clear screen.
-	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
+	//TODO: Use PushClear to renderer instead of manually clearing.
+	//Clear screen. 
+	SoftwareDrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
 #endif
 
 	MoveCamera(&GameState->Camera, GameState->World, GameState->ControlledEntity->Position);
@@ -745,7 +524,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				render_blueprint_rectangle *Body = (render_blueprint_rectangle *)Header;
 				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
-				DrawRect(Buffer, Position, Position + Body->Dimension, Body->R, Body->G, Body->B);
+				SoftwareDrawRect(Buffer, Position, Position + Body->Dimension, Body->R, Body->G, Body->B);
 				BaseAddress += sizeof(*Body);
 			} break;
 			case RenderCommand_render_blueprint_bitmap:
@@ -755,7 +534,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if 0
 				DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
 #else
-				DEBUGDrawRect(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+				SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 #endif
 				BaseAddress += sizeof(*Body);
 			} break;
