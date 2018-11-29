@@ -636,15 +636,37 @@ PushLine(render_blueprint *Blueprint, vector2 Start, vector2 End, vector2 Offset
 }
 
 inline void
-PushCircle()
+PushCircle(render_blueprint *Blueprint, vector2 Position, r32 Radius, vector2 Offset, vector4 Color)
 {
-	//TODO: Implement
+	render_blueprint_circle *RenderEntry = PushRenderBlueprint(Blueprint, render_blueprint_circle);
+	if (RenderEntry)
+	{
+		RenderEntry->Position = Position;
+		RenderEntry->Offset = Offset;
+		RenderEntry->Radius = Radius;
+		RenderEntry->R = Color.R;
+		RenderEntry->G = Color.G;
+		RenderEntry->B = Color.B;
+		RenderEntry->A = Color.A;
+	}
 }
 
 inline void
-PushTriangle()
+PushTriangle(render_blueprint *Blueprint, vector2 Position, vector2 Point1, vector2 Point2, vector2 Point3, vector2 Offset, vector4 Color)
 {
-	//TODO: Implement
+	render_blueprint_triangle *RenderEntry = PushRenderBlueprint(Blueprint, render_blueprint_triangle);
+	if (RenderEntry)
+	{
+		RenderEntry->Position = Position;
+		RenderEntry->Offset = Offset;
+		RenderEntry->Point1 = Point1;
+		RenderEntry->Point2 = Point2;
+		RenderEntry->Point3 = Point3;
+		RenderEntry->R = Color.R;
+		RenderEntry->G = Color.G;
+		RenderEntry->B = Color.B;
+		RenderEntry->A = Color.A;
+	}
 }
 
 inline void
