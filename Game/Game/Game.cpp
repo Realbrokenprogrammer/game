@@ -504,21 +504,44 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				render_blueprint_clear *Body = (render_blueprint_clear *)Header;
 
-				// TODO: Clear
+				SoftwareDrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), Body->Color.R, Body->Color.G, Body->Color.B);
 
 				BaseAddress += sizeof(*Body);
 			} break;
 			case RenderCommand_render_blueprint_line:
 			{
-				//TODO: Line
+				render_blueprint_line *Body = (render_blueprint_line *)Header;
+				//TODO: Needs a position vector to be drawn relative too. See Triangle.
+				vector2 StartPosition = Body->Start - RenderBlueprint->Basis->Position;
+				vector2 EndPosition = Body->End - RenderBlueprint->Basis->Position;
+
+				SoftwareDrawLine(Buffer, StartPosition, EndPosition, Body->R, Body->G, Body->B);
+
+				BaseAddress += sizeof(*Body);
 			} break;
 			case RenderCommand_render_blueprint_circle:
 			{
-				//TODO: Circle
+				render_blueprint_circle *Body = (render_blueprint_circle *)Header;
+				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+
+				SoftwareDrawCircle(Buffer, Position, Body->Radius, Body->R, Body->G, Body->B);
+
+				BaseAddress += sizeof(*Body);
 			} break;
 			case RenderCommand_render_blueprint_triangle:
 			{
-				//TODO: Triangle
+				render_blueprint_triangle *Body = (render_blueprint_triangle *)Header;
+				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+				vector2 Point1 = Body->Point1 + Position;
+				vector2 Point2 = Body->Point2 + Position;
+				vector2 Point3 = Body->Point3 + Position;
+
+				//TODO: Do we want SoftwareDrawTriangle to take a triangle struct?
+				triangle T = {Point1, Point2, Point3};
+
+				SoftwareDrawTriangle(Buffer, T, Body->R, Body->G, Body->B);
+
+				BaseAddress += sizeof(*Body);
 			} break;
 			case RenderCommand_render_blueprint_rectangle:
 			{
@@ -542,8 +565,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			InvalidDefaultCase;
 		}
 	}
-
-	//DEBUGDrawRect(Buffer, Vector2(500.0f, 300.0f), 50.0f, GameState->Time, &GameState->PlayerBitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 
 	DestroyRenderBlueprint(RenderBlueprint);
 
