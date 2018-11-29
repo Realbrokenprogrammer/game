@@ -473,19 +473,19 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				case EntityType_Hero:
 				{
-					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Vector2(0.0f, 0.0f));
+					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_GrassTile:
 				{
-					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Vector2(0.0f, 0.0f));
+					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_WaterTile:
 				{
-					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Vector2(0.0f, 0.0f));
+					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTile:
 				{
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmap, Entity->Position, Vector2(0.0f, 0.0f));
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_Monster:
 				default:
@@ -534,7 +534,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if 0
 				DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
 #else
-				SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+				SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(Body->R, Body->G, Body->B, Body->A));
 #endif
 				BaseAddress += sizeof(*Body);
 			} break;

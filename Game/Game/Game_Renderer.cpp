@@ -582,7 +582,6 @@ CreateRenderBlueprint(render_basis *RenderBasis, u32 MaxPushBufferSize)
 	Result->PushBufferBase = (u8 *)malloc(MaxPushBufferSize);
 
 	Result->Basis = RenderBasis;
-	Result->PieceCount = 0;
 
 	Result->MaxPushBufferSize = MaxPushBufferSize;
 	Result->PushBufferSize = 0;
@@ -608,22 +607,6 @@ PushRenderBlueprint_(render_blueprint *Blueprint, u32 Size, render_command Type)
 	}
 
 	return (Result);
-}
-
-inline void
-PushRenderEntry(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, vector2 Offset, vector4 Color)
-{
-	render_blueprint_bitmap *RenderEntry = (render_blueprint_bitmap *)PushRenderBlueprint(Blueprint, render_blueprint_bitmap);
-	if (RenderEntry)
-	{
-		RenderEntry->Bitmap = Bitmap;
-		RenderEntry->Position = Position;
-		RenderEntry->Offset = Offset;
-		RenderEntry->R = Color.R;
-		RenderEntry->G = Color.G;
-		RenderEntry->B = Color.B;
-		RenderEntry->A = Color.A;
-	}
 }
 
 inline void
@@ -696,9 +679,19 @@ PushRectOutline(render_blueprint *Blueprint, vector2 Position, vector2 Dimension
 }
 
 inline void
-PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, vector2 Offset, r32 Alpha = 1.0f)
+PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, vector2 Offset, vector4 Color)
 {
-	PushRenderEntry(Blueprint, Bitmap, Position, Offset, Vector4(1.0f, 1.0f, 1.0f, Alpha));
+	render_blueprint_bitmap *RenderEntry = (render_blueprint_bitmap *)PushRenderBlueprint(Blueprint, render_blueprint_bitmap);
+	if (RenderEntry)
+	{
+		RenderEntry->Bitmap = Bitmap;
+		RenderEntry->Position = Position;
+		RenderEntry->Offset = Offset;
+		RenderEntry->R = Color.R;
+		RenderEntry->G = Color.G;
+		RenderEntry->B = Color.B;
+		RenderEntry->A = Color.A;
+	}
 }
 
 om_internal void
