@@ -19,6 +19,8 @@ InitializeWorld(world *World, u32 WorldWidth, u32 WorldHeight, u32 WorldCellSize
 om_internal void
 ClearWorldBuckets(world *World)
 {
+	//TODO: Freeing here might not be done correctly. Memory usage goes up.
+	//TODO: But we want to replace this with pushes to our own memory arena anyway so might not be relevant.
 	for (u32 BucketIndex = 0; BucketIndex < World->Columns * World->Rows * 2; ++BucketIndex)
 	{
 		OM_ARRAY_FREE(World->Buckets[BucketIndex]);

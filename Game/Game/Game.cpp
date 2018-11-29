@@ -128,15 +128,30 @@ AddWater(world_layer *Layer, vector2 Position)
 }
 
 om_internal entity
-AddSlope(world_layer *Layer, vector2 Position)
+AddSlope(world_layer *Layer, vector2 Position, b32 Flip)
 {
-	entity *Entity = AddEntity(Layer, EntityType_SlopeTile, Position);
+	entity_type Type;
+	vector2 Point1;
+	vector2 Point2;
+	vector2 Point3;
+	if (Flip)
+	{
+		Type = EntityType_SlopeTileRight;
+		Point1 = { 0.0f, 0.0f };
+		Point2 = { 0.0f, 32.0f };
+		Point3 = { 32.0f, 32.0f };
+	}
+	else
+	{
+		Type = EntityType_SlopeTileLeft;
+		Point1 = { 32.0f, 0.0f };
+		Point2 = { 0.0f, 32.0f };
+		Point3 = { 32.0f, 32.0f };
+	}
+	entity *Entity = AddEntity(Layer, Type, Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Triangle;
-	vector2 Point1 = { 32.0f, 0.0f };
-	vector2 Point2 = { 0.0f, 32.0f };
-	vector2 Point3 = { 32.0f, 32.0f };
 
 	Point1 += Position;
 	Point2 += Position;
@@ -301,8 +316,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		char WaterBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
 		GameState->WaterBitmap = Memory->DEBUGLoadBitmap(WaterBitmap);
 		
-		char SlopeBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
-		GameState->SlopeBitmap = Memory->DEBUGLoadBitmap(SlopeBitmap);
+		char SlopeBitmapLeft[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
+		GameState->SlopeBitmapLeft = Memory->DEBUGLoadBitmap(SlopeBitmapLeft);
+
+		char SlopeBitmapRight[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
+		GameState->SlopeBitmapRight = Memory->DEBUGLoadBitmap(SlopeBitmapRight);
 
 		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
 		GameState->PlayerBitmap = Memory->DEBUGLoadBitmap(PlayerBitmap);
@@ -345,6 +363,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				{
 					TileValue = 3;
 				}
+				else if (TileX == ((WorldTileWidth / 2) + 2) && (TileY == (WorldTileHeight - 2)))
+				{
+					TileValue = 4;
+				}
 				else if (TileX == ((WorldTileWidth / 2)+1) && (TileY == (WorldTileHeight - 2)))
 				{
 					TileValue = 2;
@@ -363,7 +385,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				}
 				else if (TileValue == 3)
 				{
-					AddSlope(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
+					AddSlope(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) }, false);
+				}
+				else if (TileValue == 4)
+				{
+					AddSlope(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) }, true);
 				}
 				else
 				{
@@ -483,9 +509,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				{
 					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
-				case EntityType_SlopeTile:
+				case EntityType_SlopeTileLeft:
 				{
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapLeft, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+				} break;
+				case EntityType_SlopeTileRight:
+				{
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapRight, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_Monster:
 				default:
