@@ -9,6 +9,7 @@
 #include "Game_World.h"
 #include "Game_Camera.h"
 #include "Game_Physics.h"
+#include "Game_Renderer.h"
 
 //TODO: This could be improved, think of the structure of this later.
 enum game_mode
@@ -36,7 +37,10 @@ struct game_state
 	loaded_bitmap PlayerBitmap;
 	loaded_bitmap GrassBitmap;
 	loaded_bitmap WaterBitmap;
-	loaded_bitmap SlopeBitmap;
+	loaded_bitmap SlopeBitmapLeft;
+	loaded_bitmap SlopeBitmapRight;
+
+	r32 Time;
 };
 
 #endif // GAME_H

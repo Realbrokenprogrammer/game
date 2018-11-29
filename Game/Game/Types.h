@@ -3,6 +3,34 @@
 #pragma once
 
 /**
+ *	COMPILERS
+ *	TODO: Add support for more compilers.
+ */
+#if !defined(COMPILER_MSVC)
+#define COMPILER_MSVC 0
+#endif
+
+#if !defined(COMPILER_LLVM)
+#define COMPILER_LLVM 0
+#endif
+
+#if !COMPILER_MSVC && !COMPILER_LLVM
+#if _MSC_VER
+#undef COMPILER_MSVC
+#define COMPILER_MSVC 1
+#else
+#undef COMPILER_LLVM
+#define COMPILER_LLVM 1
+#endif
+#endif
+
+#if COMPILER_MSVC
+#include <intrin.h>
+#elif COMPILER_LLVM
+#include <x86intrin.h>
+#endif
+
+/**
  *	BASIC TYPES
  */
 #ifndef OM_NO_DEFINE_TYPES
@@ -54,6 +82,9 @@ typedef i64 s64;
 #define OM_ASSERT(Expression)
 #endif
 
+#define InvalidCodePath OM_ASSERT(!"InvalidCodePath")
+#define InvalidDefaultCase default: {InvalidCodePath;} break
+
 #define OM_PI32 3.14159265359f
 
 #define om_kilobytes(Value) ((Value)*1024)
@@ -72,6 +103,7 @@ typedef i64 s64;
 #define OM_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define OM_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+// TODO: Change fields to uppercase.
 union vector2
 {
 	struct
@@ -95,6 +127,21 @@ union vector3
 	};
 
 	r32 E[3];
+};
+
+union vector4
+{
+	struct
+	{
+		r32 X, Y, Z, W; 
+	};
+
+	struct
+	{
+		r32 R, G, B, A;
+	};
+
+	r32 E[4];
 };
 
 struct rect2I
@@ -143,7 +190,6 @@ SafeTruncateUInt64(u64 Value)
 	u32 Result = (u32)Value;
 	return (Result);
 }
-
 
 /*
 	OM_ARRAY Implementation.

@@ -5,11 +5,32 @@
 #include "math.h"
 #include <xmmintrin.h>
 
+//Note: Intel intristics helper defines.
+#define OM_MMSquare(A) _mm_mul_ps(A, A)
+#define OM_MMIndexF(A, I) ((r32 *)&(A))[I]
+#define OM_MMIndexI(A, I) ((u32 *)&(A))[I]
+
 inline s32
 RoundReal32ToInt32(r32 Real32)
 {
 	u32 Result = (u32)_mm_cvtss_si32(_mm_set_ss(Real32));
 	return (Result);
+}
+
+inline i32
+FloorReal32ToInt32(r32 R32)
+{
+	// TODO: SSE 4.1?
+	i32 Result = _mm_cvtss_si32(_mm_floor_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
+	return(Result);
+}
+
+inline i32
+CeilReal32ToInt32(r32 R32)
+{
+	// TODO: SSE 4.1?
+	i32 Result = _mm_cvtss_si32(_mm_ceil_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
+	return(Result);
 }
 
 struct bit_scan_result

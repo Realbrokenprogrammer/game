@@ -2,6 +2,7 @@
 #include "Game_World.cpp"
 #include "Game_Physics.cpp"
 #include "Game_Camera.cpp"
+#include "Game_Renderer.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
 
@@ -21,228 +22,6 @@ GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 		*SampleOut++ = SampleValue;
 
 		tSine += 2.0f * OM_PI32 * 1.0f / (r32)WavePeriod;
-	}
-}
-
-om_internal void
-DrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, r32 B)
-{
-	i32 MinX = RoundReal32ToInt32(Min.x);
-	i32 MinY = RoundReal32ToInt32(Min.y);
-	i32 MaxX = RoundReal32ToInt32(Max.x);
-	i32 MaxY = RoundReal32ToInt32(Max.y);
-
-	if (MinX < 0)
-	{
-		MinX = 0;
-	}
-
-	if (MinY < 0)
-	{
-		MinY = 0;
-	}
-
-	if (MaxX > Buffer->Width)
-	{
-		MaxX = Buffer->Width;
-	}
-
-	if (MaxY > Buffer->Height)
-	{
-		MaxY = Buffer->Height;
-	}
-
-	u32 Color = 
-		((RoundReal32ToInt32(R * 255.0f) << 16) | 
-		(RoundReal32ToInt32(G * 255.0f) << 8) | 
-		(RoundReal32ToInt32(B * 255.0f)));
-
-	u8 *Row = ((u8 *)Buffer->Memory + MinX*Buffer->BytesPerPixel + MinY * Buffer->Pitch);
-	for (int Y = MinY; Y < MaxY; ++Y)
-	{
-		u32 *Pixel = (u32 *)Row;
-		for (int X = MinX; X < MaxX; ++X)
-		{
-			*Pixel++ = Color;
-		}
-
-		Row += Buffer->Pitch;
-	}
-}
-
-om_internal void
-DrawCircle(game_offscreen_buffer *Buffer, vector2 Center, r32 Radius, r32 R, r32 G, r32 B)
-{
-	u32 Color =
-		((RoundReal32ToInt32(R * 255.0f) << 16) |
-		(RoundReal32ToInt32(G * 255.0f) << 8) |
-		(RoundReal32ToInt32(B * 255.0f)));
-
-	for (r32 Angle = 0.0f; Angle < 360.0f; Angle++)
-	{
-		i32 X = (i32)(Center.x - Radius * cosf(Angle));
-		i32 Y = (i32)(Center.y - Radius * sinf(Angle));
-
-		if (X < 0)
-		{
-			X = 0;
-		}
-
-		if (Y < 0)
-		{
-			Y = 0;
-		}
-
-		if (Y > Buffer->Height)
-		{
-			Y = Buffer->Height;
-		}
-
-		if (X > Buffer->Width)
-		{
-			X = Buffer->Width;
-		}
-
-		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * Y + X);
-		*Pixel = Color;
-	}
-}
-
-om_internal void
-DrawLine(game_offscreen_buffer *Buffer, vector2 Start, vector2 End, r32 R, r32 G, r32 B)
-{
-	if (Start.x > End.x)
-	{
-		vector2 Temp = Start;
-		Start = End;
-		End = Temp;
-	}
-
-	if (Start.x < 0)
-	{
-		Start.x = 0;
-	}
-
-	if (Start.y < 0)
-	{
-		Start.y = 0;
-	}
-
-	if (End.x > Buffer->Width)
-	{
-		End.x = (r32)Buffer->Width;
-	}
-
-	if (End.y > Buffer->Height)
-	{
-		End.y = (r32)Buffer->Height;
-	}
-
-	r32 Coefficient = 0.0f;
-	if (End.x - Start.x == 0)
-	{
-		Coefficient = 10000;
-		if (End.y - Start.y < 0)
-		{
-			Coefficient = Coefficient * -1;
-		}
-	}
-	else
-	{
-		Coefficient = (End.y - Start.y) / (End.x - Start.x);
-	}
-
-	r32 CX;
-	r32 CY;
-
-	if (Coefficient < 0)
-	{
-		CX = 1 / (-1 + Coefficient) * -1;
-		CY = Coefficient / (-1 + Coefficient) * -1;
-	}
-	else
-	{
-		CX = 1 / (1 + Coefficient);
-		CY = Coefficient / (1 + Coefficient);
-	}
-
-	CX *= 1.00001f;
-	CY *= 1.00001f;
-
-	r32 ToLength = SquareRoot((End.x - Start.x) * (End.x - Start.x) + (End.y - Start.y) * (End.y - Start.y));
-	r32 Length = 0;
-	r32 Increment = SquareRoot(CX * CX + CY * CY);
-
-	u32 Color =
-		((RoundReal32ToInt32(R * 255.0f) << 16) |
-		(RoundReal32ToInt32(G * 255.0f) << 8) |
-		(RoundReal32ToInt32(B * 255.0f)));
-
-	for (int Index = 0; Length < ToLength + 0.5f; ++Index)
-	{
-		r32 X = Start.x + CX * Index;
-		r32 Y = Start.y + CY * Index;
-
-		u32 *Pixel = ((u32 *)Buffer->Memory + Buffer->Width * (u32)Y + (u32)X);
-		*Pixel = Color;
-
-		Length += Increment;
-	}
-}
-
-om_internal void
-DrawTriangle(game_offscreen_buffer *Buffer, triangle Triangle, r32 R, r32 G, r32 B)
-{
-	DrawLine(Buffer, Triangle.p1, Triangle.p2, R, G, B);
-	DrawLine(Buffer, Triangle.p2, Triangle.p3, R, G, B);
-	DrawLine(Buffer, Triangle.p3, Triangle.p1, R, G, B);
-}
-
-om_internal void
-DrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, vector2 Target, r32 ColorAlpha)
-{
-	i32 MinX = RoundReal32ToInt32(Target.x);
-	i32 MinY = RoundReal32ToInt32(Target.y);
-	i32 MaxX = MinX + Bitmap->Width;
-	i32 MaxY = MinY + Bitmap->Height;
-
-	i32 SourceOffsetX = 0;
-	if (MinX < 0)
-	{
-		SourceOffsetX = -MinX;
-		MinX = 0;
-	}
-
-	i32 SourceOffsetY = 0;
-	if (MinY < 0)
-	{
-		SourceOffsetY = -MinY;
-		MinY = 0;
-	}
-
-	if (MaxX > Buffer->Width)
-	{
-		MaxX = Buffer->Width;
-	}
-
-	if (MaxY > Buffer->Height)
-	{
-		MaxY = Buffer->Height;
-	}
-
-	u32 *SourceRow = (Bitmap->Pixels + SourceOffsetX) + (SourceOffsetY * Bitmap->Width);
-	u8 *DestinationRow = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
-	for (int Y = MinY; Y < MaxY; ++Y)
-	{
-		u32 *Destination = (u32 *)DestinationRow;
-		u32 *Source = SourceRow;
-		for (int X = MinX; X < MaxX; ++X)
-		{
-			*Destination++ = *Source++;
-		}
-
-		DestinationRow += Buffer->Pitch;
-		SourceRow += Bitmap->Width;
 	}
 }
 
@@ -349,15 +128,30 @@ AddWater(world_layer *Layer, vector2 Position)
 }
 
 om_internal entity
-AddSlope(world_layer *Layer, vector2 Position)
+AddSlope(world_layer *Layer, vector2 Position, b32 Flip)
 {
-	entity *Entity = AddEntity(Layer, EntityType_SlopeTile, Position);
+	entity_type Type;
+	vector2 Point1;
+	vector2 Point2;
+	vector2 Point3;
+	if (Flip)
+	{
+		Type = EntityType_SlopeTileRight;
+		Point1 = { 0.0f, 0.0f };
+		Point2 = { 0.0f, 32.0f };
+		Point3 = { 32.0f, 32.0f };
+	}
+	else
+	{
+		Type = EntityType_SlopeTileLeft;
+		Point1 = { 32.0f, 0.0f };
+		Point2 = { 0.0f, 32.0f };
+		Point3 = { 32.0f, 32.0f };
+	}
+	entity *Entity = AddEntity(Layer, Type, Position);
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Triangle;
-	vector2 Point1 = { 32.0f, 0.0f };
-	vector2 Point2 = { 0.0f, 32.0f };
-	vector2 Point3 = { 32.0f, 32.0f };
 
 	Point1 += Position;
 	Point2 += Position;
@@ -522,8 +316,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		char WaterBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
 		GameState->WaterBitmap = Memory->DEBUGLoadBitmap(WaterBitmap);
 		
-		char SlopeBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope.bmp";
-		GameState->SlopeBitmap = Memory->DEBUGLoadBitmap(SlopeBitmap);
+		char SlopeBitmapLeft[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
+		GameState->SlopeBitmapLeft = Memory->DEBUGLoadBitmap(SlopeBitmapLeft);
+
+		char SlopeBitmapRight[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
+		GameState->SlopeBitmapRight = Memory->DEBUGLoadBitmap(SlopeBitmapRight);
 
 		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
 		GameState->PlayerBitmap = Memory->DEBUGLoadBitmap(PlayerBitmap);
@@ -566,6 +363,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				{
 					TileValue = 3;
 				}
+				else if (TileX == ((WorldTileWidth / 2) + 2) && (TileY == (WorldTileHeight - 2)))
+				{
+					TileValue = 4;
+				}
 				else if (TileX == ((WorldTileWidth / 2)+1) && (TileY == (WorldTileHeight - 2)))
 				{
 					TileValue = 2;
@@ -584,7 +385,11 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				}
 				else if (TileValue == 3)
 				{
-					AddSlope(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) });
+					AddSlope(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) }, false);
+				}
+				else if (TileValue == 4)
+				{
+					AddSlope(&World->Layers[0], { (r32)(TileX * PIXELS_PER_TILE), (r32)(TileY * PIXELS_PER_TILE) }, true);
 				}
 				else
 				{
@@ -612,6 +417,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 		GameState->Camera = {};
 		GameState->Camera.CameraWindow = { {0, 0}, {(r32)Buffer->Width, (r32)Buffer->Height} };
+
+		GameState->Time = 0;
 
 		//TODO: This may be more appropriate to let the platform layer do.
 		Memory->IsInitialized = true;
@@ -669,11 +476,16 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	}
 
 #if 1
-	//Clear screen.
-	DrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
+	//TODO: Use PushClear to renderer instead of manually clearing.
+	//Clear screen. 
+	SoftwareDrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
 #endif
 
 	MoveCamera(&GameState->Camera, GameState->World, GameState->ControlledEntity->Position);
+
+	GameState->Time += Input->dtForFrame;
+	render_basis Basis = { GameState->Camera.Position };
+	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&Basis, om_megabytes(4));
 
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
@@ -687,19 +499,23 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				case EntityType_Hero:
 				{
-					DrawBitmap(Buffer, &GameState->PlayerBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_GrassTile:
 				{
-					DrawBitmap(Buffer, &GameState->GrassBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_WaterTile:
 				{
-					DrawBitmap(Buffer, &GameState->WaterBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
-				case EntityType_SlopeTile:
+				case EntityType_SlopeTileLeft:
 				{
-					DrawBitmap(Buffer, &GameState->SlopeBitmap, GetCameraSpacePosition(GameState, Entity), 0.0f);
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapLeft, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+				} break;
+				case EntityType_SlopeTileRight:
+				{
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapRight, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_Monster:
 				default:
@@ -707,6 +523,80 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			}
 		}
 	}
+
+	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
+	{
+		render_blueprint_header *Header = (render_blueprint_header *)(RenderBlueprint->PushBufferBase + BaseAddress);
+		
+		switch (Header->Type)
+		{
+			case RenderCommand_render_blueprint_clear:
+			{
+				render_blueprint_clear *Body = (render_blueprint_clear *)Header;
+
+				SoftwareDrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), Body->Color.R, Body->Color.G, Body->Color.B);
+
+				BaseAddress += sizeof(*Body);
+			} break;
+			case RenderCommand_render_blueprint_line:
+			{
+				render_blueprint_line *Body = (render_blueprint_line *)Header;
+				//TODO: Needs a position vector to be drawn relative too. See Triangle.
+				vector2 StartPosition = Body->Start - RenderBlueprint->Basis->Position;
+				vector2 EndPosition = Body->End - RenderBlueprint->Basis->Position;
+
+				SoftwareDrawLine(Buffer, StartPosition, EndPosition, Body->R, Body->G, Body->B);
+
+				BaseAddress += sizeof(*Body);
+			} break;
+			case RenderCommand_render_blueprint_circle:
+			{
+				render_blueprint_circle *Body = (render_blueprint_circle *)Header;
+				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+
+				SoftwareDrawCircle(Buffer, Position, Body->Radius, Body->R, Body->G, Body->B);
+
+				BaseAddress += sizeof(*Body);
+			} break;
+			case RenderCommand_render_blueprint_triangle:
+			{
+				render_blueprint_triangle *Body = (render_blueprint_triangle *)Header;
+				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+				vector2 Point1 = Body->Point1 + Position;
+				vector2 Point2 = Body->Point2 + Position;
+				vector2 Point3 = Body->Point3 + Position;
+
+				//TODO: Do we want SoftwareDrawTriangle to take a triangle struct?
+				triangle T = {Point1, Point2, Point3};
+
+				SoftwareDrawTriangle(Buffer, T, Body->R, Body->G, Body->B);
+
+				BaseAddress += sizeof(*Body);
+			} break;
+			case RenderCommand_render_blueprint_rectangle:
+			{
+				render_blueprint_rectangle *Body = (render_blueprint_rectangle *)Header;
+				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+				SoftwareDrawRect(Buffer, Position, Position + Body->Dimension, Body->R, Body->G, Body->B);
+				BaseAddress += sizeof(*Body);
+			} break;
+			case RenderCommand_render_blueprint_bitmap:
+			{
+				render_blueprint_bitmap *Body = (render_blueprint_bitmap *)Header;
+				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+#if 0
+				DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
+#else
+				SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(Body->R, Body->G, Body->B, Body->A));
+#endif
+				BaseAddress += sizeof(*Body);
+			} break;
+
+			InvalidDefaultCase;
+		}
+	}
+
+	DestroyRenderBlueprint(RenderBlueprint);
 
 	//TODO: Allow sample offsets here for more robust platform options
 	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);*/
