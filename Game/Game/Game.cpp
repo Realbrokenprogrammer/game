@@ -587,7 +587,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 #if 0
 				DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
 #else
-				SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(Body->R, Body->G, Body->B, Body->A));
+				rect2I ClipRect = {4, 4, Buffer->Width-4, Buffer->Height-4};
+				SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, false);
+				SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, true);
 #endif
 				BaseAddress += sizeof(*Body);
 			} break;
