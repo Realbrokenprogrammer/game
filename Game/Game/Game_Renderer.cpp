@@ -848,6 +848,8 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 }
 
 //TODO: Pass bitmap instead of entire offscreen buffer?
+// Note: Splits up the rendering into a 4x4 grid. This is to allow multiple threads
+// render different parts of the grid.
 om_internal void
 PerformPartitionedRendering(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer)
 {

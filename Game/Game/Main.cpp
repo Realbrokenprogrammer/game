@@ -641,9 +641,27 @@ SDLGetSecondsElapsed(u64 Start, u64 End)
 	return (Result);
 }
 
+DWORD WINAPI
+ThreadProc(LPVOID lpParameter)
+{
+	char *OutputString = (char *)lpParameter;
+	for (;;)
+	{
+		OutputDebugString(OutputString);
+		Sleep(1000);
+	}
+
+//	return (0);
+}
+
 int main(int argc, char *argv[]) 
 {
 	sdl_state SDLState = {};
+
+	char *Param = "Thread Started\n";
+	DWORD ThreadID;
+	HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Param, 0, &ThreadID);
+	CloseHandle(ThreadHandle);
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
 	
