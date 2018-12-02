@@ -202,7 +202,7 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 		int MaxY = FillRect.MaxY;
 		int MinX = FillRect.MinX;
 		int MaxX = FillRect.MaxX;
-		for (int Y = MinY; Y <= MaxY; Y += 2)
+		for (int Y = MinY; Y < MaxY; Y += 2)
 		{
 			__m128 PixelPositionY = _mm_set1_ps((r32)Y);
 			PixelPositionY = _mm_sub_ps(PixelPositionY, PositionY_x4);
@@ -210,23 +210,23 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 			__m128 PynY = _mm_mul_ps(PixelPositionY, nYAxisY_x4);
 
 			__m128 PixelPositionX = _mm_set_ps((r32)(MinX + 3),
-				(r32)(MinX + 2),
-				(r32)(MinX + 1),
-				(r32)(MinX + 0));
+											   (r32)(MinX + 2),
+											   (r32)(MinX + 1),
+											   (r32)(MinX + 0));
 			PixelPositionX = _mm_sub_ps(PixelPositionX, PositionX_x4);
 
 			__m128i ClipMask = StartupClipMask;
 
 			u32 *Pixel = (u32 *)Row;
-			for (int X = MinX; X <= MaxX; X += 4)
+			for (int X = MinX; X < MaxX; X += 4)
 			{
 				__m128 U = _mm_add_ps(_mm_mul_ps(PixelPositionX, nXAxisX_x4), PynX);
 				__m128 V = _mm_add_ps(_mm_mul_ps(PixelPositionX, nYAxisX_x4), PynY);
 
 				__m128i WriteMask = _mm_castps_si128(_mm_and_ps(_mm_and_ps(_mm_cmpge_ps(U, Zero_x4),
-					_mm_cmple_ps(U, One_x4)),
-					_mm_and_ps(_mm_cmpge_ps(V, Zero_x4),
-						_mm_cmple_ps(V, One_x4))));
+																		   _mm_cmple_ps(U, One_x4)),
+																_mm_and_ps(_mm_cmpge_ps(V, Zero_x4),
+																		   _mm_cmple_ps(V, One_x4))));
 
 				WriteMask = _mm_and_si128(WriteMask, ClipMask);
 
@@ -769,8 +769,9 @@ PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position,
 }
 
 //TODO: Naming
+//TODO: Add clipping rectangle to rest of the drawing functions.
 om_internal void
-RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer)
+RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer, rect2I ClipRect, b32 Even)
 {
 	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
 	{
@@ -835,14 +836,40 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer)
 #if 0
 			DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
 #else
-			rect2I ClipRect = { 4, 4, Buffer->Width - 4, Buffer->Height - 4 };
-			SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, false);
-			SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, true);
+			SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, 
+				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #endif
 			BaseAddress += sizeof(*Body);
 		} break;
 
 		InvalidDefaultCase;
+		}
+	}
+}
+
+//TODO: Pass bitmap instead of entire offscreen buffer?
+om_internal void
+PerformPartitionedRendering(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer)
+{
+	int PartitionCountX = 4;
+	int PartitionCountY = 4;
+
+	int PartitionWidth = Buffer->Width / PartitionCountX;
+	int PartitionHeight = Buffer->Height / PartitionCountY;
+	for (int PartitionY = 0; PartitionY < PartitionCountY; ++PartitionY)
+	{
+		for (int PartitionX = 0; PartitionX < PartitionCountX; ++PartitionX)
+		{
+			//TODO: Buffers can overflow. Needs fixing.
+			rect2I ClipRect;
+
+			ClipRect.MinX = PartitionX * PartitionWidth + 4;
+			ClipRect.MaxX = ClipRect.MinX + PartitionWidth - 4;
+			ClipRect.MinY = PartitionY * PartitionHeight + 4;
+			ClipRect.MaxY = ClipRect.MinY + PartitionHeight - 4;
+
+			RenderToBuffer(RenderBlueprint, Buffer, ClipRect, true);
+			RenderToBuffer(RenderBlueprint, Buffer, ClipRect, false);
 		}
 	}
 }

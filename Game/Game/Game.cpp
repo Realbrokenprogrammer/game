@@ -524,7 +524,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-	RenderToBuffer(RenderBlueprint, Buffer);
+	PerformPartitionedRendering(RenderBlueprint, Buffer);
 
 	DestroyRenderBlueprint(RenderBlueprint);
 
