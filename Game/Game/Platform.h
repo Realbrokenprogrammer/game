@@ -108,6 +108,13 @@ struct game_input
 	game_controller_input Controllers[5];
 };
 
+struct platform_thread_queue;
+#define PLATFORM_THREAD_QUEUE_CALLBACK(name) void name(platform_thread_queue *Queue, void *Data)
+typedef PLATFORM_THREAD_QUEUE_CALLBACK(platform_thread_queue_callback);
+
+typedef void platform_add_thread_entry(platform_thread_queue *Queue, platform_thread_queue_callback *Callback, void *Data);
+typedef void platform_complete_all_work(platform_thread_queue *Queue);
+
 inline game_controller_input *
 GetController(game_input *Input, int ControllerIndex)
 {
@@ -143,6 +150,11 @@ struct game_memory
 
 	u64 TransientStorageSize;
 	void *TransientStorage;
+
+	platform_thread_queue *ThreadQueue;
+
+	platform_add_thread_entry *PlatformAddThreadEntry;
+	platform_complete_all_work *PlatformCompleteAllThreadWork;
 
 	debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
 	debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;

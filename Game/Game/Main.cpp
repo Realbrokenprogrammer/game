@@ -16,6 +16,7 @@
 
 /*
 	TODO:
+		* REWRITE TO BE A WINDOWS ONLY PLATFORM LAYER.
 		* Saved game locations
 		* Get handle to our own executable file
 		* Asset loading path
@@ -641,81 +642,93 @@ SDLGetSecondsElapsed(u64 Start, u64 End)
 	return (Result);
 }
 
-struct thread_queue_entry_storage
+struct platform_thread_queue_entry
 {
-	void *UserPointer;
+	platform_thread_queue_callback *Callback;
+	void *Data;
 };
-struct thread_queue
+struct platform_thread_queue
 {
-	u32 volatile EntryCompletionCount;
-	u32 volatile NextEntryToDo;
-	u32 volatile EntryCount;
+	u32 volatile CompletionGoal;
+	u32 volatile CompletionCount;
+
+	u32 volatile NextEntryToWrite;
+	u32 volatile NextEntryToRead;
+
 	HANDLE SemaphoreHandle;
 
-	thread_queue_entry_storage Entries[256];
-};
-struct thread_queue_entry
-{
-	void *Data;
-	b32 IsValid;
+	platform_thread_queue_entry Entries[256];
 };
 
 struct win32_thread_info
 {
 	int LogicalThreadIndex;
-	thread_queue *Queue;
+	platform_thread_queue *Queue;
 };
 
 om_internal void
-AddThreadQueueEntry(thread_queue *Queue, void *Pointer)
+Win32AddThreadQueueEntry(platform_thread_queue *Queue, platform_thread_queue_callback *Callback, void *Data)
 {
-	OM_ASSERT(Queue->EntryCount < OM_ARRAYCOUNT(Queue->Entries));
-	Queue->Entries[Queue->EntryCount].UserPointer = Pointer;
+	u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % OM_ARRAYCOUNT(Queue->Entries);
+	OM_ASSERT(NewNextEntryToWrite != Queue->NextEntryToRead);
+
+	platform_thread_queue_entry *Entry = Queue->Entries + Queue->NextEntryToWrite;
+	Entry->Callback = Callback;
+	Entry->Data = Data;
+	++Queue->CompletionGoal;
 
 	_WriteBarrier(); 
 	_mm_sfence();
 
-	++Queue->EntryCount;
-
+	Queue->NextEntryToWrite = NewNextEntryToWrite;
+	
 	ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
 }
 
-om_internal thread_queue_entry
-CompleteAndGetNextThreadQueueEntry(thread_queue *Queue, thread_queue_entry Completed)
-{
-	thread_queue_entry Result;
-	Result.IsValid = false;
-
-	if (Completed.IsValid)
-	{
-		InterlockedIncrement((LONG volatile *)&Queue->EntryCompletionCount);
-	}
-
-	if (Queue->NextEntryToDo < Queue->EntryCount)
-	{
-		u32 Index = InterlockedIncrement((LONG volatile *)&Queue->NextEntryToDo) - 1;
-		Result.Data = Queue->Entries[Index].UserPointer;
-		Result.IsValid = true;
-		_ReadBarrier();
-	}
-
-	return (Result);
-}
-
 om_internal b32
-ThreadQueueWorkStillInProgress(thread_queue *Queue)
+Win32DoNextThreadQueueEntry(platform_thread_queue *Queue)
 {
-	b32 Result = (Queue->EntryCount != Queue->EntryCompletionCount);
-	return (Result);
+	b32 ShouldSleep = false;
+
+	u32 OriginalNextEntryToRead = Queue->NextEntryToRead;
+	u32 NewNextEntryToRead = (OriginalNextEntryToRead + 1) % OM_ARRAYCOUNT(Queue->Entries);
+
+	if (OriginalNextEntryToRead != Queue->NextEntryToWrite)
+	{
+		u32 Index = InterlockedCompareExchange((LONG volatile *)&Queue->NextEntryToRead, NewNextEntryToRead, OriginalNextEntryToRead);
+
+		if (Index == OriginalNextEntryToRead)
+		{
+			platform_thread_queue_entry Entry = Queue->Entries[Index];
+			Entry.Callback(Queue, Entry.Data);
+			InterlockedIncrement((LONG volatile *)&Queue->CompletionCount);
+		}
+	}
+	else
+	{
+		ShouldSleep = true;
+	}
+
+	return (ShouldSleep);
 }
 
-inline void
-DoThreadQueueWork(thread_queue_entry Entry, int LogicalThreadIndex)
+om_internal void
+Win32CompleteAllThreadWork(platform_thread_queue *Queue)
 {
-	OM_ASSERT(Entry.IsValid);
+	while (Queue->CompletionGoal != Queue->CompletionCount)
+	{
+		Win32DoNextThreadQueueEntry(Queue);
+	}
 
+	Queue->CompletionGoal = 0;
+	Queue->CompletionCount = 0;
+}
+
+om_internal 
+PLATFORM_THREAD_QUEUE_CALLBACK(DoThreadQueueWork)
+{
 	char Buffer[256];
-	wsprintf(Buffer, "Thread %u: %s\n", LogicalThreadIndex, (char *)Entry.Data);
+	wsprintf(Buffer, "Thread %u: %s\n", GetCurrentThreadId, (char *)Data);
 	OutputDebugStringA(Buffer);
 }
 
@@ -724,16 +737,9 @@ ThreadProc(LPVOID lpParameter)
 {
 	win32_thread_info *ThreadInfo = (win32_thread_info *)lpParameter;
 
-	thread_queue_entry Entry = {};
 	for (;;)
 	{
-		Entry = CompleteAndGetNextThreadQueueEntry(ThreadInfo->Queue, Entry);
-
-		if (Entry.IsValid)
-		{
-			DoThreadQueueWork(Entry, ThreadInfo->LogicalThreadIndex);
-		}
-		else
+		if (Win32DoNextThreadQueueEntry(ThreadInfo->Queue))
 		{
 			WaitForSingleObjectEx(ThreadInfo->Queue->SemaphoreHandle, INFINITE, FALSE);
 		}
@@ -742,18 +748,12 @@ ThreadProc(LPVOID lpParameter)
 //	return (0);
 }
 
-om_internal void
-PushString(thread_queue *Queue, char *String)
-{
-	AddThreadQueueEntry(Queue, String);
-}
-
 int main(int argc, char *argv[]) 
 {
 	sdl_state SDLState = {};
 
 	win32_thread_info ThreadInfo[7];
-	thread_queue Queue = {};
+	platform_thread_queue Queue = {};
 	u32 InitialCount = 0;
 	u32 ThreadCount = OM_ARRAYCOUNT(ThreadInfo);
 	Queue.SemaphoreHandle = CreateSemaphoreEx(0, InitialCount, ThreadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
@@ -767,26 +767,6 @@ int main(int argc, char *argv[])
 		DWORD ThreadID;
 		HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Info, 0, &ThreadID);
 		CloseHandle(ThreadHandle);
-	}
-
-	PushString(&Queue, "1");
-	PushString(&Queue, "2");
-	PushString(&Queue, "3");
-	PushString(&Queue, "4");
-	PushString(&Queue, "5");
-	PushString(&Queue, "6");
-	PushString(&Queue, "7");
-	PushString(&Queue, "8");
-	PushString(&Queue, "9");
-
-	thread_queue_entry Entry = {};
-	while (ThreadQueueWorkStillInProgress(&Queue))
-	{
-		Entry = CompleteAndGetNextThreadQueueEntry(&Queue, Entry);
-		if (Entry.IsValid)
-		{
-			DoThreadQueueWork(Entry, 7);
-		}
 	}
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
@@ -864,6 +844,9 @@ int main(int argc, char *argv[])
 			game_memory GameMemory = {};
 			GameMemory.PermanentStorageSize = om_megabytes(64);
 			GameMemory.TransientStorageSize = om_megabytes(100);
+			GameMemory.ThreadQueue = &Queue;
+			GameMemory.PlatformAddThreadEntry = Win32AddThreadQueueEntry;
+			GameMemory.PlatformCompleteAllThreadWork = Win32CompleteAllThreadWork;
 			GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
 			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
 			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;

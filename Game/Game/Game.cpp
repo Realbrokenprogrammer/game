@@ -310,6 +310,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	if (!Memory->IsInitialized)
 	{
+		PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
+		PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
+		GameState->RenderQueue = Memory->ThreadQueue;
+
 		char GrassBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
 		GameState->GrassBitmap = Memory->DEBUGLoadBitmap(GrassBitmap);
 
@@ -524,7 +528,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-	PerformPartitionedRendering(RenderBlueprint, Buffer);
+	PerformPartitionedRendering(GameState->RenderQueue, RenderBlueprint, Buffer);
 
 	DestroyRenderBlueprint(RenderBlueprint);
 

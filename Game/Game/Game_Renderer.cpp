@@ -854,8 +854,8 @@ struct partitioned_render_work
 	rect2I ClipRect;
 };
 
-om_internal void
-DoPartitionedRenderWork(void *Data)
+om_internal
+PLATFORM_THREAD_QUEUE_CALLBACK(DoPartitionedRenderWork)
 {
 	partitioned_render_work *Work = (partitioned_render_work *)Data;
 
@@ -867,7 +867,7 @@ DoPartitionedRenderWork(void *Data)
 // Note: Splits up the rendering into a 4x4 grid. This is to allow multiple threads
 // render different parts of the grid.
 om_internal void
-PerformPartitionedRendering(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer)
+PerformPartitionedRendering(platform_thread_queue *RenderQueue, render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer)
 {
 	int const PartitionCountX = 4;
 	int const PartitionCountY = 4;
@@ -895,16 +895,11 @@ PerformPartitionedRendering(render_blueprint *RenderBlueprint, game_offscreen_bu
 			Work->Buffer = Buffer;
 			Work->ClipRect = ClipRect;
 
-			//RenderToBuffer(RenderBlueprint, Buffer, ClipRect, true);
-			//RenderToBuffer(RenderBlueprint, Buffer, ClipRect, false);
+			PlatformAddThreadEntry(RenderQueue, DoPartitionedRenderWork, Work);
 		}
 	}
 
-	for (int WorkIndex = 0; WorkIndex < WorkCount; ++WorkIndex)
-	{
-		partitioned_render_work *Work = WorkArray + WorkIndex;
-		DoPartitionedRenderWork(Work);
-	}
+	PlatformCompleteAllThreadWork(RenderQueue);
 }
 
 om_internal void
