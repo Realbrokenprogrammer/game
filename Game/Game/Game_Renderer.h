@@ -72,6 +72,8 @@ struct render_blueprint_bitmap
 	render_blueprint_header Header;
 	loaded_bitmap *Bitmap;
 	vector2 Position;
+	r32 Scale;
+	r32 Rotation;
 	vector2 Offset;
 	r32 R, G, B, A;
 };

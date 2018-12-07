@@ -41,11 +41,21 @@ GetPoints(entity_physics_blueprint Shape, u32 *Size)
 				return (NULL);
 			}
 
+			//TODO: Trash solution for scaling and rotation. Fix asap.
+			//NOTE: This might be better to do when creating the player rect. 
+			//		Scale and Rotate the rect accordingly.
+			transform Transform = Shape.Transform;
+			r32 Rotation = Transform.Rotation * (OM_PI32 / 180.0f);
+
+			vector2 XAxis = (Transform.Scale + 1.0f*cosf(Rotation)) * Vector2(cosf(Rotation), sinf(Rotation));
+			vector2 YAxis = Perp(XAxis);
+
 			*Size = 4;
 			Axes[0] = Shape.Rectangle.Min;
-			Axes[1] = { Shape.Rectangle.Max.x, Shape.Rectangle.Min.y };
-			Axes[2] = Shape.Rectangle.Max;
-			Axes[3] = { Shape.Rectangle.Min.x, Shape.Rectangle.Max.y };
+			Axes[1] = Axes[0] + XAxis;
+			Axes[2] = Axes[0] + XAxis + YAxis;
+			Axes[3] = Axes[0] + YAxis;
+
 			return (Axes);
 		} break;
 		case CollisionShape_Polygon:
@@ -362,7 +372,7 @@ TestCollision(entity_physics_blueprint ShapeA, entity_physics_blueprint ShapeB)
 	// Both Shapes are polygons
 	u32 Vertices1Size = 0;
 	vector2 *Vertices1 = GetPoints(ShapeA, &Vertices1Size);
-	
+
 	u32 Vertices2Size = 0;
 	vector2 *Vertices2 = GetPoints(ShapeB, &Vertices2Size);
 

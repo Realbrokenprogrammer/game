@@ -80,6 +80,9 @@ AddPlayer(world_layer *Layer, vector2 Position)
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
 	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+	PhysicsBlueprint.Transform = {};
+	PhysicsBlueprint.Transform.Scale = 32.0f; // TODO: Scale according to Player later.
+	PhysicsBlueprint.Transform.Rotation = 45.0f;
 
 	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
 	MovementBlueprint.Speed = 50.0f;
@@ -103,6 +106,9 @@ AddGrass(world_layer *Layer, vector2 Position)
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
 	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+	PhysicsBlueprint.Transform = {};
+	PhysicsBlueprint.Transform.Scale = 32.0f; // TODO: Currently fixed scale, fix later.
+	PhysicsBlueprint.Transform.Rotation = 0.0f;
 
 	Entity->Collideable = true;
 	Entity->PhysicsBlueprint = PhysicsBlueprint;
@@ -120,6 +126,9 @@ AddWater(world_layer *Layer, vector2 Position)
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
 	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+	PhysicsBlueprint.Transform = {};
+	PhysicsBlueprint.Transform.Scale = 32.0f; // TODO: Currently fixed scale, fix later.
+	PhysicsBlueprint.Transform.Rotation = 0.0f;
 
 	Entity->Collideable = true;
 	Entity->PhysicsBlueprint = PhysicsBlueprint;
@@ -158,6 +167,9 @@ AddSlope(world_layer *Layer, vector2 Position, b32 Flip)
 	Point3 += Position;
 	
 	PhysicsBlueprint.Triangle = {Point1, Point2, Point3};
+	PhysicsBlueprint.Transform = {};
+	PhysicsBlueprint.Transform.Scale = 32.0f; // TODO: Currently fixed scale, fix later.
+	PhysicsBlueprint.Transform.Rotation = 0.0f;
 
 	Entity->Collideable = true;
 	Entity->PhysicsBlueprint = PhysicsBlueprint;
@@ -503,23 +515,28 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				case EntityType_Hero:
 				{
-					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_GrassTile:
 				{
-					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_WaterTile:
 				{
-					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileLeft:
 				{
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapLeft, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapLeft, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileRight:
 				{
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapRight, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapRight, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_Monster:
 				default:
