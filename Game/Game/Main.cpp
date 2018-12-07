@@ -641,36 +641,82 @@ SDLGetSecondsElapsed(u64 Start, u64 End)
 	return (Result);
 }
 
+struct thread_queue_entry_storage
+{
+	void *UserPointer;
+};
+struct thread_queue
+{
+	u32 volatile EntryCompletionCount;
+	u32 volatile NextEntryToDo;
+	u32 volatile EntryCount;
+	HANDLE SemaphoreHandle;
+
+	thread_queue_entry_storage Entries[256];
+};
 struct thread_queue_entry
 {
-	char *String;
+	void *Data;
+	b32 IsValid;
 };
 
 struct win32_thread_info
 {
-	HANDLE SemaphoreHandle;
 	int LogicalThreadIndex;
+	thread_queue *Queue;
 };
 
-om_global_variable u32 volatile EntryCompletionCount;
-om_global_variable u32 volatile NextEntryToDo;
-om_global_variable u32 volatile EntryCount;
-thread_queue_entry Entries[256];
-
 om_internal void
-PushString(HANDLE SemaphoreHandle, char *String)
+AddThreadQueueEntry(thread_queue *Queue, void *Pointer)
 {
-	OM_ASSERT(EntryCount < OM_ARRAYCOUNT(Entries));
-
-	thread_queue_entry *Entry = Entries + EntryCount;
-	Entry->String = String;
+	OM_ASSERT(Queue->EntryCount < OM_ARRAYCOUNT(Queue->Entries));
+	Queue->Entries[Queue->EntryCount].UserPointer = Pointer;
 
 	_WriteBarrier(); 
 	_mm_sfence();
 
-	++EntryCount;
+	++Queue->EntryCount;
 
-	ReleaseSemaphore(SemaphoreHandle, 1, 0);
+	ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
+}
+
+om_internal thread_queue_entry
+CompleteAndGetNextThreadQueueEntry(thread_queue *Queue, thread_queue_entry Completed)
+{
+	thread_queue_entry Result;
+	Result.IsValid = false;
+
+	if (Completed.IsValid)
+	{
+		InterlockedIncrement((LONG volatile *)&Queue->EntryCompletionCount);
+	}
+
+	if (Queue->NextEntryToDo < Queue->EntryCount)
+	{
+		u32 Index = InterlockedIncrement((LONG volatile *)&Queue->NextEntryToDo) - 1;
+		Result.Data = Queue->Entries[Index].UserPointer;
+		Result.IsValid = true;
+		_ReadBarrier();
+	}
+
+	return (Result);
+}
+
+om_internal b32
+ThreadQueueWorkStillInProgress(thread_queue *Queue)
+{
+	b32 Result = (Queue->EntryCount != Queue->EntryCompletionCount);
+	return (Result);
+}
+
+inline void
+DoThreadQueueWork(thread_queue_entry Entry, int LogicalThreadIndex)
+{
+	OM_ASSERT(Entry.IsValid);
+
+	char Buffer[256];
+	wsprintf(Buffer, "Thread %u: %s\n", LogicalThreadIndex, (char *)Entry.Data);
+	OutputDebugStringA(Buffer);
 }
 
 DWORD WINAPI
@@ -678,62 +724,70 @@ ThreadProc(LPVOID lpParameter)
 {
 	win32_thread_info *ThreadInfo = (win32_thread_info *)lpParameter;
 
+	thread_queue_entry Entry = {};
 	for (;;)
 	{
-		if (NextEntryToDo < EntryCount)
+		Entry = CompleteAndGetNextThreadQueueEntry(ThreadInfo->Queue, Entry);
+
+		if (Entry.IsValid)
 		{
-			int EntryIndex = InterlockedIncrement((LONG volatile *)&NextEntryToDo) - 1;
-			_ReadBarrier();
-
-
-			thread_queue_entry *Entry = Entries + EntryIndex;
-
-			char Buffer[256];
-			wsprintf(Buffer, "Thread %u: %s\n", ThreadInfo->LogicalThreadIndex, Entry->String);
-			OutputDebugStringA(Buffer);
-
-			InterlockedIncrement((LONG volatile *)&EntryCompletionCount);
+			DoThreadQueueWork(Entry, ThreadInfo->LogicalThreadIndex);
 		}
 		else
 		{
-			WaitForSingleObjectEx(ThreadInfo->SemaphoreHandle, INFINITE, FALSE);
+			WaitForSingleObjectEx(ThreadInfo->Queue->SemaphoreHandle, INFINITE, FALSE);
 		}
 	}
 
 //	return (0);
 }
 
+om_internal void
+PushString(thread_queue *Queue, char *String)
+{
+	AddThreadQueueEntry(Queue, String);
+}
+
 int main(int argc, char *argv[]) 
 {
 	sdl_state SDLState = {};
 
-	win32_thread_info ThreadInfo[8];
+	win32_thread_info ThreadInfo[7];
+	thread_queue Queue = {};
 	u32 InitialCount = 0;
 	u32 ThreadCount = OM_ARRAYCOUNT(ThreadInfo);
-	HANDLE SemaphoreHandle = CreateSemaphoreEx(0, InitialCount, ThreadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
+	Queue.SemaphoreHandle = CreateSemaphoreEx(0, InitialCount, ThreadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
 	
 	for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
 	{
 		win32_thread_info *Info = ThreadInfo + ThreadIndex;
 		Info->LogicalThreadIndex = ThreadIndex;
-		Info->SemaphoreHandle = SemaphoreHandle;
+		Info->Queue = &Queue;
 
 		DWORD ThreadID;
 		HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Info, 0, &ThreadID);
 		CloseHandle(ThreadHandle);
 	}
 
-	PushString(SemaphoreHandle, "1");
-	PushString(SemaphoreHandle, "2");
-	PushString(SemaphoreHandle, "3");
-	PushString(SemaphoreHandle, "4");
-	PushString(SemaphoreHandle, "5");
-	PushString(SemaphoreHandle, "6");
-	PushString(SemaphoreHandle, "7");
-	PushString(SemaphoreHandle, "8");
-	PushString(SemaphoreHandle, "9");
+	PushString(&Queue, "1");
+	PushString(&Queue, "2");
+	PushString(&Queue, "3");
+	PushString(&Queue, "4");
+	PushString(&Queue, "5");
+	PushString(&Queue, "6");
+	PushString(&Queue, "7");
+	PushString(&Queue, "8");
+	PushString(&Queue, "9");
 
-	while (EntryCount != EntryCompletionCount);
+	thread_queue_entry Entry = {};
+	while (ThreadQueueWorkStillInProgress(&Queue))
+	{
+		Entry = CompleteAndGetNextThreadQueueEntry(&Queue, Entry);
+		if (Entry.IsValid)
+		{
+			DoThreadQueueWork(Entry, 7);
+		}
+	}
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
 	

@@ -847,21 +847,42 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 	}
 }
 
+struct partitioned_render_work
+{
+	render_blueprint *RenderBlueprint;
+	game_offscreen_buffer *Buffer;
+	rect2I ClipRect;
+};
+
+om_internal void
+DoPartitionedRenderWork(void *Data)
+{
+	partitioned_render_work *Work = (partitioned_render_work *)Data;
+
+	RenderToBuffer(Work->RenderBlueprint, Work->Buffer, Work->ClipRect, true);
+	RenderToBuffer(Work->RenderBlueprint, Work->Buffer, Work->ClipRect, false);
+}
+
 //TODO: Pass bitmap instead of entire offscreen buffer?
 // Note: Splits up the rendering into a 4x4 grid. This is to allow multiple threads
 // render different parts of the grid.
 om_internal void
 PerformPartitionedRendering(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer)
 {
-	int PartitionCountX = 4;
-	int PartitionCountY = 4;
+	int const PartitionCountX = 4;
+	int const PartitionCountY = 4;
+	partitioned_render_work WorkArray[PartitionCountX * PartitionCountY];
 
 	int PartitionWidth = Buffer->Width / PartitionCountX;
 	int PartitionHeight = Buffer->Height / PartitionCountY;
+	
+	int WorkCount = 0;
 	for (int PartitionY = 0; PartitionY < PartitionCountY; ++PartitionY)
 	{
 		for (int PartitionX = 0; PartitionX < PartitionCountX; ++PartitionX)
 		{
+			partitioned_render_work *Work = WorkArray + WorkCount++;
+
 			//TODO: Buffers can overflow. Needs fixing.
 			rect2I ClipRect;
 
@@ -870,9 +891,19 @@ PerformPartitionedRendering(render_blueprint *RenderBlueprint, game_offscreen_bu
 			ClipRect.MinY = PartitionY * PartitionHeight + 4;
 			ClipRect.MaxY = ClipRect.MinY + PartitionHeight - 4;
 
-			RenderToBuffer(RenderBlueprint, Buffer, ClipRect, true);
-			RenderToBuffer(RenderBlueprint, Buffer, ClipRect, false);
+			Work->RenderBlueprint = RenderBlueprint;
+			Work->Buffer = Buffer;
+			Work->ClipRect = ClipRect;
+
+			//RenderToBuffer(RenderBlueprint, Buffer, ClipRect, true);
+			//RenderToBuffer(RenderBlueprint, Buffer, ClipRect, false);
 		}
+	}
+
+	for (int WorkIndex = 0; WorkIndex < WorkCount; ++WorkIndex)
+	{
+		partitioned_render_work *Work = WorkArray + WorkIndex;
+		DoPartitionedRenderWork(Work);
 	}
 }
 
