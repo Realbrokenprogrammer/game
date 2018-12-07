@@ -641,14 +641,63 @@ SDLGetSecondsElapsed(u64 Start, u64 End)
 	return (Result);
 }
 
+struct thread_queue_entry
+{
+	char *String;
+};
+
+struct win32_thread_info
+{
+	HANDLE SemaphoreHandle;
+	int LogicalThreadIndex;
+};
+
+om_global_variable u32 volatile EntryCompletionCount;
+om_global_variable u32 volatile NextEntryToDo;
+om_global_variable u32 volatile EntryCount;
+thread_queue_entry Entries[256];
+
+om_internal void
+PushString(HANDLE SemaphoreHandle, char *String)
+{
+	OM_ASSERT(EntryCount < OM_ARRAYCOUNT(Entries));
+
+	thread_queue_entry *Entry = Entries + EntryCount;
+	Entry->String = String;
+
+	_WriteBarrier(); 
+	_mm_sfence();
+
+	++EntryCount;
+
+	ReleaseSemaphore(SemaphoreHandle, 1, 0);
+}
+
 DWORD WINAPI
 ThreadProc(LPVOID lpParameter)
 {
-	char *OutputString = (char *)lpParameter;
+	win32_thread_info *ThreadInfo = (win32_thread_info *)lpParameter;
+
 	for (;;)
 	{
-		OutputDebugString(OutputString);
-		Sleep(1000);
+		if (NextEntryToDo < EntryCount)
+		{
+			int EntryIndex = InterlockedIncrement((LONG volatile *)&NextEntryToDo) - 1;
+			_ReadBarrier();
+
+
+			thread_queue_entry *Entry = Entries + EntryIndex;
+
+			char Buffer[256];
+			wsprintf(Buffer, "Thread %u: %s\n", ThreadInfo->LogicalThreadIndex, Entry->String);
+			OutputDebugStringA(Buffer);
+
+			InterlockedIncrement((LONG volatile *)&EntryCompletionCount);
+		}
+		else
+		{
+			WaitForSingleObjectEx(ThreadInfo->SemaphoreHandle, INFINITE, FALSE);
+		}
 	}
 
 //	return (0);
@@ -658,10 +707,33 @@ int main(int argc, char *argv[])
 {
 	sdl_state SDLState = {};
 
-	char *Param = "Thread Started\n";
-	DWORD ThreadID;
-	HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Param, 0, &ThreadID);
-	CloseHandle(ThreadHandle);
+	win32_thread_info ThreadInfo[8];
+	u32 InitialCount = 0;
+	u32 ThreadCount = OM_ARRAYCOUNT(ThreadInfo);
+	HANDLE SemaphoreHandle = CreateSemaphoreEx(0, InitialCount, ThreadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
+	
+	for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+	{
+		win32_thread_info *Info = ThreadInfo + ThreadIndex;
+		Info->LogicalThreadIndex = ThreadIndex;
+		Info->SemaphoreHandle = SemaphoreHandle;
+
+		DWORD ThreadID;
+		HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Info, 0, &ThreadID);
+		CloseHandle(ThreadHandle);
+	}
+
+	PushString(SemaphoreHandle, "1");
+	PushString(SemaphoreHandle, "2");
+	PushString(SemaphoreHandle, "3");
+	PushString(SemaphoreHandle, "4");
+	PushString(SemaphoreHandle, "5");
+	PushString(SemaphoreHandle, "6");
+	PushString(SemaphoreHandle, "7");
+	PushString(SemaphoreHandle, "8");
+	PushString(SemaphoreHandle, "9");
+
+	while (EntryCount != EntryCompletionCount);
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
 	
