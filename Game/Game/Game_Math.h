@@ -5,6 +5,52 @@
 //TODO: Group vector2, vector3 and vector4 operations
 //TODO: Match vector4 Lerp parameters with my own implemented Lerp
 
+// Rect2I Operations
+inline rect2I 
+Intersection(rect2I A, rect2I B)
+{
+	rect2I Result;
+
+	Result.MinX = (A.MinX < B.MinX) ? B.MinX : A.MinX;
+	Result.MinY = (A.MinY < B.MinY) ? B.MinY : A.MinY;
+	Result.MaxX = (A.MaxX > B.MaxX) ? B.MaxX : A.MaxX;
+	Result.MaxY = (A.MaxY > B.MaxY) ? B.MaxY : A.MaxY;
+
+	return (Result);
+}
+
+inline rect2I
+Union(rect2I A, rect2I B)
+{
+	rect2I Result;
+
+	Result.MinX = (A.MinX < B.MinX) ? A.MinX : B.MinX;
+	Result.MinY = (A.MinY < B.MinY) ? A.MinY : B.MinY;
+	Result.MaxX = (A.MaxX > B.MaxX) ? A.MaxX : B.MaxX;
+	Result.MaxY = (A.MaxY > B.MaxY) ? A.MaxY : B.MaxY;
+
+	return (Result);
+}
+
+inline b32
+HasArea(rect2I A)
+{
+	b32 Result = ((A.MinX < A.MaxX) && (A.MinY < A.MaxY));
+
+	return (Result);
+}
+
+inline rect2I
+InvertedInfinityRectangle(void)
+{
+	rect2I Result;
+	
+	Result.MinX = Result.MinY = INT_MAX;
+	Result.MaxX = Result.MaxY = -INT_MAX;
+	
+	return (Result);
+}
+
 inline vector2
 Vector2Int(i32 X, i32 Y)
 {

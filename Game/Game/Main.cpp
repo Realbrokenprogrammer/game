@@ -16,6 +16,7 @@
 
 /*
 	TODO:
+		* REWRITE TO BE A WINDOWS ONLY PLATFORM LAYER.
 		* Saved game locations
 		* Get handle to our own executable file
 		* Asset loading path
@@ -641,9 +642,132 @@ SDLGetSecondsElapsed(u64 Start, u64 End)
 	return (Result);
 }
 
+struct platform_thread_queue_entry
+{
+	platform_thread_queue_callback *Callback;
+	void *Data;
+};
+struct platform_thread_queue
+{
+	u32 volatile CompletionGoal;
+	u32 volatile CompletionCount;
+
+	u32 volatile NextEntryToWrite;
+	u32 volatile NextEntryToRead;
+
+	HANDLE SemaphoreHandle;
+
+	platform_thread_queue_entry Entries[256];
+};
+
+struct win32_thread_info
+{
+	int LogicalThreadIndex;
+	platform_thread_queue *Queue;
+};
+
+om_internal void
+Win32AddThreadQueueEntry(platform_thread_queue *Queue, platform_thread_queue_callback *Callback, void *Data)
+{
+	u32 NewNextEntryToWrite = (Queue->NextEntryToWrite + 1) % OM_ARRAYCOUNT(Queue->Entries);
+	OM_ASSERT(NewNextEntryToWrite != Queue->NextEntryToRead);
+
+	platform_thread_queue_entry *Entry = Queue->Entries + Queue->NextEntryToWrite;
+	Entry->Callback = Callback;
+	Entry->Data = Data;
+	++Queue->CompletionGoal;
+
+	_WriteBarrier(); 
+	_mm_sfence();
+
+	Queue->NextEntryToWrite = NewNextEntryToWrite;
+	
+	ReleaseSemaphore(Queue->SemaphoreHandle, 1, 0);
+}
+
+om_internal b32
+Win32DoNextThreadQueueEntry(platform_thread_queue *Queue)
+{
+	b32 ShouldSleep = false;
+
+	u32 OriginalNextEntryToRead = Queue->NextEntryToRead;
+	u32 NewNextEntryToRead = (OriginalNextEntryToRead + 1) % OM_ARRAYCOUNT(Queue->Entries);
+
+	if (OriginalNextEntryToRead != Queue->NextEntryToWrite)
+	{
+		u32 Index = InterlockedCompareExchange((LONG volatile *)&Queue->NextEntryToRead, NewNextEntryToRead, OriginalNextEntryToRead);
+
+		if (Index == OriginalNextEntryToRead)
+		{
+			platform_thread_queue_entry Entry = Queue->Entries[Index];
+			Entry.Callback(Queue, Entry.Data);
+			InterlockedIncrement((LONG volatile *)&Queue->CompletionCount);
+		}
+	}
+	else
+	{
+		ShouldSleep = true;
+	}
+
+	return (ShouldSleep);
+}
+
+om_internal void
+Win32CompleteAllThreadWork(platform_thread_queue *Queue)
+{
+	while (Queue->CompletionGoal != Queue->CompletionCount)
+	{
+		Win32DoNextThreadQueueEntry(Queue);
+	}
+
+	Queue->CompletionGoal = 0;
+	Queue->CompletionCount = 0;
+}
+
+om_internal 
+PLATFORM_THREAD_QUEUE_CALLBACK(DoThreadQueueWork)
+{
+	char Buffer[256];
+	wsprintf(Buffer, "Thread %u: %s\n", GetCurrentThreadId, (char *)Data);
+	OutputDebugStringA(Buffer);
+}
+
+DWORD WINAPI
+ThreadProc(LPVOID lpParameter)
+{
+	win32_thread_info *ThreadInfo = (win32_thread_info *)lpParameter;
+
+	for (;;)
+	{
+		if (Win32DoNextThreadQueueEntry(ThreadInfo->Queue))
+		{
+			WaitForSingleObjectEx(ThreadInfo->Queue->SemaphoreHandle, INFINITE, FALSE);
+		}
+	}
+
+//	return (0);
+}
+
 int main(int argc, char *argv[]) 
 {
 	sdl_state SDLState = {};
+
+	win32_thread_info ThreadInfo[7];
+	platform_thread_queue Queue = {};
+	u32 InitialCount = 0;
+	u32 ThreadCount = OM_ARRAYCOUNT(ThreadInfo);
+	Queue.SemaphoreHandle = CreateSemaphoreEx(0, InitialCount, ThreadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
+	
+	for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+	{
+		win32_thread_info *Info = ThreadInfo + ThreadIndex;
+		Info->LogicalThreadIndex = ThreadIndex;
+		Info->Queue = &Queue;
+
+		DWORD ThreadID;
+		HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Info, 0, &ThreadID);
+		CloseHandle(ThreadHandle);
+	}
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
 	
@@ -720,6 +844,9 @@ int main(int argc, char *argv[])
 			game_memory GameMemory = {};
 			GameMemory.PermanentStorageSize = om_megabytes(64);
 			GameMemory.TransientStorageSize = om_megabytes(100);
+			GameMemory.ThreadQueue = &Queue;
+			GameMemory.PlatformAddThreadEntry = Win32AddThreadQueueEntry;
+			GameMemory.PlatformCompleteAllThreadWork = Win32CompleteAllThreadWork;
 			GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
 			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
 			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;

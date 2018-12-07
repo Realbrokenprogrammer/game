@@ -41,6 +41,11 @@ struct game_state
 	loaded_bitmap SlopeBitmapRight;
 
 	r32 Time;
+
+	platform_thread_queue *RenderQueue;
 };
+
+om_global_variable platform_add_thread_entry *PlatformAddThreadEntry;
+om_global_variable platform_complete_all_work *PlatformCompleteAllThreadWork;
 
 #endif // GAME_H

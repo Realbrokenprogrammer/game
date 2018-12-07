@@ -310,6 +310,10 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	if (!Memory->IsInitialized)
 	{
+		PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
+		PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
+		GameState->RenderQueue = Memory->ThreadQueue;
+
 		char GrassBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
 		GameState->GrassBitmap = Memory->DEBUGLoadBitmap(GrassBitmap);
 
@@ -524,77 +528,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
-	{
-		render_blueprint_header *Header = (render_blueprint_header *)(RenderBlueprint->PushBufferBase + BaseAddress);
-		
-		switch (Header->Type)
-		{
-			case RenderCommand_render_blueprint_clear:
-			{
-				render_blueprint_clear *Body = (render_blueprint_clear *)Header;
-
-				SoftwareDrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), Body->Color.R, Body->Color.G, Body->Color.B);
-
-				BaseAddress += sizeof(*Body);
-			} break;
-			case RenderCommand_render_blueprint_line:
-			{
-				render_blueprint_line *Body = (render_blueprint_line *)Header;
-				//TODO: Needs a position vector to be drawn relative too. See Triangle.
-				vector2 StartPosition = Body->Start - RenderBlueprint->Basis->Position;
-				vector2 EndPosition = Body->End - RenderBlueprint->Basis->Position;
-
-				SoftwareDrawLine(Buffer, StartPosition, EndPosition, Body->R, Body->G, Body->B);
-
-				BaseAddress += sizeof(*Body);
-			} break;
-			case RenderCommand_render_blueprint_circle:
-			{
-				render_blueprint_circle *Body = (render_blueprint_circle *)Header;
-				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
-
-				SoftwareDrawCircle(Buffer, Position, Body->Radius, Body->R, Body->G, Body->B);
-
-				BaseAddress += sizeof(*Body);
-			} break;
-			case RenderCommand_render_blueprint_triangle:
-			{
-				render_blueprint_triangle *Body = (render_blueprint_triangle *)Header;
-				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
-				vector2 Point1 = Body->Point1 + Position;
-				vector2 Point2 = Body->Point2 + Position;
-				vector2 Point3 = Body->Point3 + Position;
-
-				//TODO: Do we want SoftwareDrawTriangle to take a triangle struct?
-				triangle T = {Point1, Point2, Point3};
-
-				SoftwareDrawTriangle(Buffer, T, Body->R, Body->G, Body->B);
-
-				BaseAddress += sizeof(*Body);
-			} break;
-			case RenderCommand_render_blueprint_rectangle:
-			{
-				render_blueprint_rectangle *Body = (render_blueprint_rectangle *)Header;
-				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
-				SoftwareDrawRect(Buffer, Position, Position + Body->Dimension, Body->R, Body->G, Body->B);
-				BaseAddress += sizeof(*Body);
-			} break;
-			case RenderCommand_render_blueprint_bitmap:
-			{
-				render_blueprint_bitmap *Body = (render_blueprint_bitmap *)Header;
-				vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
-#if 0
-				DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
-#else
-				SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, Vector4(Body->R, Body->G, Body->B, Body->A));
-#endif
-				BaseAddress += sizeof(*Body);
-			} break;
-
-			InvalidDefaultCase;
-		}
-	}
+	PerformPartitionedRendering(GameState->RenderQueue, RenderBlueprint, Buffer);
 
 	DestroyRenderBlueprint(RenderBlueprint);
 
