@@ -185,7 +185,7 @@ struct circle
 
 struct transform
 {
-	vector3 Translation;
+	vector2 Translation;
 	r32 Scale;
 	r32 Rotation;
 };

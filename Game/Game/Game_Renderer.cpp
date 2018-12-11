@@ -752,6 +752,7 @@ PushRectOutline(render_blueprint *Blueprint, vector2 Position, vector2 Dimension
 	PushRect(Blueprint, Position + Vector2(Dimension.x, 0.0f), Vector2(Thickness, Dimension.y), Offset, Color);
 }
 
+//TODO: Pass in actual transform instead of position, scale and rotation separately?
 inline void
 PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, r32 Scale, r32 Rotation, vector2 Offset, vector4 Color)
 {

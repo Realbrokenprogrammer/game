@@ -5,10 +5,10 @@
 #include "Platform.h"
 #include "Game_Intristics.h"
 #include "Game_Math.h"
+#include "Game_Physics.h"
 #include "Game_Entity.h"
 #include "Game_World.h"
 #include "Game_Camera.h"
-#include "Game_Physics.h"
 #include "Game_Renderer.h"
 
 //TODO: This could be improved, think of the structure of this later.

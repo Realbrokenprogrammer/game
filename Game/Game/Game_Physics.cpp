@@ -4,6 +4,7 @@ Overlaps(vector2 A, vector2 B)
 	return !(A.x > B.y || B.x > A.y);
 }
 
+//TODO: Scaling and rotation for Triangle.
 om_internal vector2 *
 GetPoints(entity_physics_blueprint Shape, u32 *Size)
 {
@@ -41,9 +42,6 @@ GetPoints(entity_physics_blueprint Shape, u32 *Size)
 				return (NULL);
 			}
 
-			//TODO: Trash solution for scaling and rotation. Fix asap.
-			//NOTE: This might be better to do when creating the player rect. 
-			//		Scale and Rotate the rect accordingly.
 			transform Transform = Shape.Transform;
 			r32 Rotation = Transform.Rotation * (OM_PI32 / 180.0f);
 
@@ -51,7 +49,7 @@ GetPoints(entity_physics_blueprint Shape, u32 *Size)
 			vector2 YAxis = Perp(XAxis);
 
 			*Size = 4;
-			Axes[0] = Shape.Rectangle.Min;
+			Axes[0] = { Transform.Translation.x, Transform.Translation.y };
 			Axes[1] = Axes[0] + XAxis;
 			Axes[2] = Axes[0] + XAxis + YAxis;
 			Axes[3] = Axes[0] + YAxis;
