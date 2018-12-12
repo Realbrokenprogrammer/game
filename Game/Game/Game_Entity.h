@@ -37,20 +37,16 @@ struct entity_movement_blueprint
 	r32 Drag;
 };
 
-enum collision_shape
-{
-	CollisionShape_Line,
-	CollisionShape_Circle,
-	CollisionShape_Triangle,
-	CollisionShape_Rectangle,
-	CollisionShape_Polygon
-};
-
 struct entity_physics_blueprint
 {
 	b32 Solid; //TODO: Make use of this later.
 
+	transform Transform;
 	collision_shape CollisionShape;
+	//NOTE: This is union currently not being used as intended. The rectangle points are calculated
+	// in both the renderer and the physics and the actual rectangle2 that is like a "bounding box" rectangle
+	// rectangle of 4 points will not suffice for that. Should we remove this union all together and only rely on the transform
+	// or fix the rect and use the rect struct in both the renderer and the physics?
 	union
 	{
 		line Line;

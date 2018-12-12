@@ -261,6 +261,17 @@ Normalize(vector2 A)
 	return (Result);
 }
 
+inline rect2
+GetBoundingBox(transform Transform)
+{
+	rect2 Result = {};
+
+	Result.Min = Transform.Translation;
+	Result.Max = { Transform.Translation.x + Transform.Scale, Transform.Translation.y + Transform.Scale };
+
+	return (Result);
+}
+
 inline vector2
 GetDimension(rect2 Rect)
 {

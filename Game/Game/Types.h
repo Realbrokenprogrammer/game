@@ -183,6 +183,13 @@ struct circle
 	vector2 Center;
 };
 
+struct transform
+{
+	vector2 Translation;
+	r32 Scale;
+	r32 Rotation;
+};
+
 inline u32
 SafeTruncateUInt64(u64 Value)
 {

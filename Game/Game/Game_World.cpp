@@ -57,19 +57,17 @@ om_internal u32 *
 GetBucketsForEntity(world *World, entity *Entity)
 {
 	u32 *Result = NULL;
-
-	vector2 Min = Entity->Position;
-	vector2 Max = { Entity->Position.x + 32.0f, Entity->Position.y + 32.0f };
+	rect2 EntityBoundingBox = GetBoundingBox(Entity->PhysicsBlueprint.Transform);
 	u32 Width = (World->WorldWidth / World->CellSize);
 
 	// Top Left
-	Result = AddToBucket(Min, Width, World->CellSize, Result);
+	Result = AddToBucket(EntityBoundingBox.Min, Width, World->CellSize, Result);
 	// Top Right
-	Result = AddToBucket({ Max.x, Min.y }, Width, World->CellSize, Result);
+	Result = AddToBucket({ EntityBoundingBox.Max.x, EntityBoundingBox.Min.y }, Width, World->CellSize, Result);
 	// Bottom Right
-	Result = AddToBucket({ Max.x, Max.y }, Width, World->CellSize, Result);
+	Result = AddToBucket({ EntityBoundingBox.Max.x, EntityBoundingBox.Max.y }, Width, World->CellSize, Result);
 	// BottomLeft
-	Result = AddToBucket({ Min.x, Max.y }, Width, World->CellSize, Result);
+	Result = AddToBucket({ EntityBoundingBox.Min.x, EntityBoundingBox.Max.y }, Width, World->CellSize, Result);
 
 	return (Result);
 }

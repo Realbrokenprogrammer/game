@@ -79,8 +79,11 @@ AddPlayer(world_layer *Layer, vector2 Position)
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
-	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
-
+	PhysicsBlueprint.Transform = {};
+	PhysicsBlueprint.Transform.Translation = Entity->Position;
+	PhysicsBlueprint.Transform.Scale = 64.0f; // TODO: Scale according to Player later.
+	PhysicsBlueprint.Transform.Rotation = 45.0f;
+	
 	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
 	MovementBlueprint.Speed = 50.0f;
 	MovementBlueprint.Drag = 0.8f;
@@ -102,7 +105,10 @@ AddGrass(world_layer *Layer, vector2 Position)
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
-	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+	PhysicsBlueprint.Transform = {};
+	PhysicsBlueprint.Transform.Translation = Entity->Position;
+	PhysicsBlueprint.Transform.Scale = 32.0f; // TODO: Currently fixed scale, fix later.
+	PhysicsBlueprint.Transform.Rotation = 0.0f;
 
 	Entity->Collideable = true;
 	Entity->PhysicsBlueprint = PhysicsBlueprint;
@@ -119,7 +125,10 @@ AddWater(world_layer *Layer, vector2 Position)
 
 	entity_physics_blueprint PhysicsBlueprint = {};
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
-	PhysicsBlueprint.Rectangle = { Entity->Position, {Entity->Position.x + 32.0f, Entity->Position.y + 32.0f} };
+	PhysicsBlueprint.Transform = {};
+	PhysicsBlueprint.Transform.Translation = Entity->Position;
+	PhysicsBlueprint.Transform.Scale = 32.0f; // TODO: Currently fixed scale, fix later.
+	PhysicsBlueprint.Transform.Rotation = 0.0f;
 
 	Entity->Collideable = true;
 	Entity->PhysicsBlueprint = PhysicsBlueprint;
@@ -158,6 +167,10 @@ AddSlope(world_layer *Layer, vector2 Position, b32 Flip)
 	Point3 += Position;
 	
 	PhysicsBlueprint.Triangle = {Point1, Point2, Point3};
+	PhysicsBlueprint.Transform = {};
+	PhysicsBlueprint.Transform.Translation = Entity->Position;
+	PhysicsBlueprint.Transform.Scale = 32.0f; // TODO: Currently fixed scale, fix later.
+	PhysicsBlueprint.Transform.Rotation = 0.0f;
 
 	Entity->Collideable = true;
 	Entity->PhysicsBlueprint = PhysicsBlueprint;
@@ -193,6 +206,13 @@ om_internal void
 CanCollide(entity *A, entity *B)
 {
 	//TODO: Implement
+}
+
+//TODO: Kind of a pointless function. Needs rework.
+om_internal void
+Translate(transform *Transform, vector2 Position) 
+{
+	Transform->Translation = Position;
 }
 
 //TODO: Collision with slopes / Non rectangle shapes.
@@ -239,8 +259,8 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 				{
 					// TODO: Later we might want to add the Entity's Position derivations into the physics spec
 					// so we don't have to update this rect here all the time.
-					Entity->PhysicsBlueprint.Rectangle = { {DesiredPosition}, {DesiredPosition.x + 32.0f, DesiredPosition.y + 32.0f} };
-					
+					Translate(&Entity->PhysicsBlueprint.Transform, DesiredPosition);
+
 					collision_info CollisionInfo = TestCollision(Entity->PhysicsBlueprint, TestEntity->PhysicsBlueprint);
 					if (CollisionInfo.IsColliding)
 					{
@@ -270,6 +290,7 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 		// that the entity wouldn't get stuck in the wall first and THEN the velocity would be corrected to
 		// move the player along the wall. Tho this might be incorrect for the calculations. Check this up.
 		Entity->Position += tMin * EntityDelta;
+		Translate(&Entity->PhysicsBlueprint.Transform, Entity->Position);
 	}
 
 	//TODO: Change using accel vector
@@ -343,7 +364,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		// TODO: Should later be loaded from level file.
 		u32 WorldTileWidth = 60;
 		u32 WorldTileHeight = 23;
-		u32 WorldCellSize = 128; //TODO: Set more educated value for this.
+		u32 WorldCellSize = 500; //TODO: Set more educated value for this.
 		InitializeWorld(World, WorldTileWidth*PIXELS_PER_TILE, WorldTileHeight*PIXELS_PER_TILE, WorldCellSize);
 
 		for (u32 TileY = 0; TileY < WorldTileHeight; ++TileY)
@@ -503,23 +524,28 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				case EntityType_Hero:
 				{
-					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_GrassTile:
 				{
-					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_WaterTile:
 				{
-					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileLeft:
 				{
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapLeft, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapLeft, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileRight:
 				{
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapRight, Entity->Position, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					transform Transform = Entity->PhysicsBlueprint.Transform;
+					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapRight, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_Monster:
 				default:

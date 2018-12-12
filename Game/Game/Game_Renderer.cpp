@@ -752,14 +752,17 @@ PushRectOutline(render_blueprint *Blueprint, vector2 Position, vector2 Dimension
 	PushRect(Blueprint, Position + Vector2(Dimension.x, 0.0f), Vector2(Thickness, Dimension.y), Offset, Color);
 }
 
+//TODO: Pass in actual transform instead of position, scale and rotation separately?
 inline void
-PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, vector2 Offset, vector4 Color)
+PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, r32 Scale, r32 Rotation, vector2 Offset, vector4 Color)
 {
 	render_blueprint_bitmap *RenderEntry = (render_blueprint_bitmap *)PushRenderBlueprint(Blueprint, render_blueprint_bitmap);
 	if (RenderEntry)
 	{
 		RenderEntry->Bitmap = Bitmap;
 		RenderEntry->Position = Position;
+		RenderEntry->Scale = Scale;
+		RenderEntry->Rotation = Rotation;
 		RenderEntry->Offset = Offset;
 		RenderEntry->R = Color.R;
 		RenderEntry->G = Color.G;
@@ -836,7 +839,7 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 #if 0
 			DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
 #else
-			SoftwareDrawTransformedBitmap(Buffer, Position, 32.0f, 0.0f, Body->Bitmap, 
+			SoftwareDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap, 
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #endif
 			BaseAddress += sizeof(*Body);
