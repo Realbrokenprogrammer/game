@@ -6,6 +6,86 @@
 
 #include <Windows.h> //TODO: This should later be removed.
 
+// Packing struct to avoid padding.
+// Source for bitmap header: https://www.fileformat.info/format/bmp/egff.htm
+#pragma pack(push, 1)
+struct bitmap_header
+{
+	u16 FileType;
+	u32 FileSize;
+	u16 Reserved1;
+	u16 Reserved2;
+	u32 BitmapOffset;
+	u32 Size;
+	i32 Width;
+	i32 Height;
+	u16 Planes;
+	u16 BitsPerPixel;
+	u32 Compression;
+	u32 SizeOfBitmap;
+	i32 HorzResolution;
+	i32 VertResolution;
+	u32 ColorsUsed;
+	u32 ColorsImportant;
+
+	u32 RedMask;
+	u32 GreenMask;
+	u32 BlueMask;
+};
+#pragma pack(pop)
+
+//TODO: Bitmap currently loaded upside down.. 
+om_internal loaded_bitmap
+DEBUGLoadBitmap(debug_platform_read_entire_file *ReadEntireFile, char* FileName)
+{
+	loaded_bitmap Result = {};
+
+	debug_read_file_result ReadResult = ReadEntireFile(FileName);
+	if (ReadResult.ContentsSize != 0) 
+	{
+		bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
+
+		u32 *Pixels = (u32 *)((u8 *)ReadResult.Contents + Header->BitmapOffset);
+
+		Result.Pixels = Pixels;
+		Result.Width = Header->Width;
+		Result.Height = Header->Height;
+
+		OM_ASSERT(Header->Compression == 3);
+
+		u32 RedMask = Header->RedMask;
+		u32 GreenMask = Header->GreenMask;
+		u32 BlueMask = Header->BlueMask;
+		u32 AlphaMask = ~(RedMask | GreenMask | BlueMask);
+
+		// Bitscan instrinsics to find out how much we need to shift the values down.
+		bit_scan_result RedShift = FindLeastSignificantSetBit(RedMask);
+		bit_scan_result GreenShift = FindLeastSignificantSetBit(GreenMask);
+		bit_scan_result BlueShift = FindLeastSignificantSetBit(BlueMask);
+		bit_scan_result AlphaShift = FindLeastSignificantSetBit(AlphaMask);
+
+		OM_ASSERT(RedShift.Found);
+		OM_ASSERT(GreenShift.Found);
+		OM_ASSERT(BlueShift.Found);
+		OM_ASSERT(AlphaShift.Found);
+
+		u32 *SourceDestination = Pixels;
+		for (i32 Y = 0; Y < Header->Height; ++Y) 
+		{
+			for (i32 X = 0; X < Header->Width; ++X)
+			{
+				u32 C = *SourceDestination;
+				*SourceDestination++ = ((((C >> AlphaShift.Index) & 0xFF) << 24)|
+										(((C >> RedShift.Index) & 0xFF) << 16)|
+										(((C >> GreenShift.Index) & 0xFF) << 8)|
+										(((C >> BlueShift.Index) & 0xFF) << 0));
+			}
+		}
+	}
+
+	return (Result);
+}
+
 om_internal void
 GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 {
@@ -347,8 +427,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		char SlopeBitmapRight[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
 		GameState->SlopeBitmapRight = Memory->DEBUGLoadBitmap(SlopeBitmapRight);
 
-		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
-		GameState->PlayerBitmap = Memory->DEBUGLoadBitmap(PlayerBitmap);
+		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap1.bmp";
+		GameState->PlayerBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, PlayerBitmap);
 
 		GameState->ToneHz = 256;
 
