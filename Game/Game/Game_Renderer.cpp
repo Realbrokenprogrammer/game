@@ -96,7 +96,10 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 {
 	// Degrees to radians.
 	Rotation = Rotation * (OM_PI32 / 180.0f);
-	
+
+	// Premultiply alpha
+	Color.RGB *= Color.A;
+
 	// Note: Currently not dealing with non-scaled rectangle so we'd probably want to scale the Texture width and height.
 	// Scale and rotate Axes based on specified Scale and Rotation.
 	vector2 XAxis = (Scale + 1.0f*cosf(Rotation)) * Vector2(cosf(Rotation), sinf(Rotation));
@@ -358,9 +361,9 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 					Texelb = _mm_min_ps(_mm_max_ps(Texelb, Zero_x4), MaxColorValue);
 
 					//Note: Going from sRGB to "linear" brightness space. Equiv to call to SRGB255ToLinear1.
-					Destr = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destr));
-					Destg = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destg));
-					Destb = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destb));
+					Destr = OM_MMSquare(Destr);
+					Destg = OM_MMSquare(Destg);
+					Destb = OM_MMSquare(Destb);
 					
 					//Note: Performing blend on destination
 					__m128 InvTexelA = _mm_sub_ps(One_x4, _mm_mul_ps(Inv255_x4, Texela));

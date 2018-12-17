@@ -192,7 +192,7 @@ DEBUG_LOAD_BITMAP(DEBUGLoadBitmap)
 	else
 	{
 		SDL_PixelFormat *Format = Image->format;
-		SDL_Surface *FormattedImage = SDL_ConvertSurfaceFormat(Image, SDL_PIXELFORMAT_BGRA32, 0);
+		SDL_Surface *FormattedImage = SDL_ConvertSurfaceFormat(Image, SDL_PIXELFORMAT_ARGB8888, 0);
 
 		if (FormattedImage == NULL)
 		{
@@ -588,7 +588,8 @@ om_internal void
 SDLDisplayBufferInWindow(sdl_offscreen_buffer *Buffer, SDL_Renderer *Renderer, i32 WindowWidth, i32 WindowHeight)
 {
 	SDL_UpdateTexture(Buffer->Texture, 0, Buffer->Memory, Buffer->Pitch);
-	if ((WindowHeight >= Buffer->Height*2) && (WindowWidth >= Buffer->Width*2)) {
+	if ((WindowHeight >= Buffer->Height*2) && (WindowWidth >= Buffer->Width*2)) 
+	{
 		SDL_Rect SrcRect = { 0, 0, Buffer->Width, Buffer->Height };
 		SDL_Rect DestRect = { 0, 0, 2 * Buffer->Width, 2 * Buffer->Height };
 		SDL_RenderCopy(Renderer,
@@ -600,15 +601,6 @@ SDLDisplayBufferInWindow(sdl_offscreen_buffer *Buffer, SDL_Renderer *Renderer, i
 	{
 		int OffsetX = 0;
 		int OffsetY = 0;
-
-		SDL_SetRenderDrawColor(Renderer, 0, 0, 0, 255);
-		SDL_Rect BlackRects[4] = {
-			{0, 0, WindowWidth, OffsetY},
-			{0, OffsetY + Buffer->Height, WindowWidth, WindowHeight},
-			{0, 0, OffsetX, WindowHeight},
-			{OffsetX + Buffer->Width, 0, WindowWidth, WindowHeight}
-		};
-		SDL_RenderFillRects(Renderer, BlackRects, OM_ARRAYCOUNT(BlackRects));
 
 		// NOTE(casey): For prototyping purposes, we're going to always blit
 		// 1-to-1 pixels to make sure we don't introduce artifacts with

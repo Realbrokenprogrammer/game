@@ -41,7 +41,7 @@ DEBUGLoadBitmap(debug_platform_read_entire_file *ReadEntireFile, char* FileName)
 	loaded_bitmap Result = {};
 
 	debug_read_file_result ReadResult = ReadEntireFile(FileName);
-	if (ReadResult.ContentsSize != 0) 
+	if (ReadResult.ContentsSize != 0)
 	{
 		bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
 
@@ -70,18 +70,42 @@ DEBUGLoadBitmap(debug_platform_read_entire_file *ReadEntireFile, char* FileName)
 		OM_ASSERT(AlphaShift.Found);
 
 		u32 *SourceDestination = Pixels;
-		for (i32 Y = 0; Y < Header->Height; ++Y) 
+		for (i32 Y = 0; Y < Header->Height; ++Y)
 		{
 			for (i32 X = 0; X < Header->Width; ++X)
 			{
 				u32 C = *SourceDestination;
-				*SourceDestination++ = ((((C >> AlphaShift.Index) & 0xFF) << 24)|
-										(((C >> RedShift.Index) & 0xFF) << 16)|
-										(((C >> GreenShift.Index) & 0xFF) << 8)|
+				*SourceDestination++ = ((((C >> AlphaShift.Index) & 0xFF) << 24) |
+										(((C >> RedShift.Index) & 0xFF) << 16) |
+										(((C >> GreenShift.Index) & 0xFF) << 8) |
 										(((C >> BlueShift.Index) & 0xFF) << 0));
 			}
 		}
 	}
+
+	return (Result);
+}
+
+om_internal loaded_bitmap
+CreateTransparentBitmap(u32 Width, u32 Height)
+{
+	loaded_bitmap Result = {};
+
+	Result.Width = Width;
+	Result.Height = Height;
+	i32 TotalBitmapSize = Width * Height;
+	Result.Pixels = (u32 *)malloc(TotalBitmapSize * sizeof(u32));
+	
+	// TODO: Set pixels in bitmap
+	u32 *SourceDestination = Result.Pixels;
+	for (i32 Y = 0; Y < Result.Height; ++Y)
+	{
+		for (i32 X = 0; X < Result.Width; ++X)
+		{
+			*SourceDestination++ = (0xFF << 24) | 0x00000000;
+		}
+	}
+
 
 	return (Result);
 }
@@ -162,7 +186,7 @@ AddPlayer(world_layer *Layer, vector2 Position)
 	PhysicsBlueprint.Transform = {};
 	PhysicsBlueprint.Transform.Translation = Entity->Position;
 	PhysicsBlueprint.Transform.Scale = 64.0f; // TODO: Scale according to Player later.
-	PhysicsBlueprint.Transform.Rotation = 45.0f;
+	PhysicsBlueprint.Transform.Rotation = 0.0f;
 	
 	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
 	MovementBlueprint.Speed = 50.0f;
@@ -427,7 +451,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		char SlopeBitmapRight[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
 		GameState->SlopeBitmapRight = Memory->DEBUGLoadBitmap(SlopeBitmapRight);
 
-		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap1.bmp";
+		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
 		GameState->PlayerBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, PlayerBitmap);
 
 		GameState->ToneHz = 256;
@@ -639,7 +663,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	DestroyRenderBlueprint(RenderBlueprint);
 
 	//TODO: Allow sample offsets here for more robust platform options
-	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);*/
+	//RenderGradient(Buffer, 0, 0);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
