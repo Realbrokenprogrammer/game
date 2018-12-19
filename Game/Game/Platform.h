@@ -13,6 +13,7 @@ struct loaded_bitmap
 	i32 Width;
 	i32 Height;
 	u32 *Pixels;
+	i32 Pitch;
 };
 
 #if 1 //TODO: Add compiler flag for this define OM_DEBUG

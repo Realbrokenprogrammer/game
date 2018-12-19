@@ -60,11 +60,11 @@ BilinearSample(loaded_bitmap *Texture, i32 X, i32 Y)
 	bilinear_sample Result;
 
 	//TODO: Add Pitch to loaded_bitmap.
-	u8 *TexelPtr = ((u8 *)Texture->Pixels) + Y * (Texture->Width * 4) + X * sizeof(u32);
+	u8 *TexelPtr = ((u8 *)Texture->Pixels) + Y * Texture->Pitch + X * sizeof(u32);
 	Result.A = *(u32 *)(TexelPtr);
 	Result.B = *(u32 *)(TexelPtr + sizeof(u32));
-	Result.C = *(u32 *)(TexelPtr + (Texture->Width * 4));
-	Result.D = *(u32 *)(TexelPtr + (Texture->Width * 4) + sizeof(u32));
+	Result.C = *(u32 *)(TexelPtr + Texture->Pitch);
+	Result.D = *(u32 *)(TexelPtr + Texture->Pitch + sizeof(u32));
 
 	return (Result);
 }
@@ -190,7 +190,7 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 		__m128 PositionX_x4 = _mm_set1_ps(Position.x);
 		__m128 PositionY_x4 = _mm_set1_ps(Position.y);
 		__m128 MaxColorValue = _mm_set1_ps(255.0f*255.0f);
-		__m128i TexturePitch_x4 = _mm_set1_epi32(Texture->Width * 4);
+		__m128i TexturePitch_x4 = _mm_set1_epi32(Texture->Pitch);
 
 		__m128 WidthSub2 = _mm_set1_ps((r32)(Texture->Width - 2));
 		__m128 HeightSub2 = _mm_set1_ps((r32)(Texture->Height - 2));
@@ -199,7 +199,7 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 		i32 RowAdvance = 2 * Buffer->Pitch;
 
 		void *TextureMemory = Texture->Pixels;
-		i32 TexturePitch = Texture->Width * 4;
+		i32 TexturePitch = Texture->Pitch;
 
 		int MinY = FillRect.MinY;
 		int MaxY = FillRect.MaxY;

@@ -203,6 +203,7 @@ DEBUG_LOAD_BITMAP(DEBUGLoadBitmap)
 			Result.Width = FormattedImage->w;
 			Result.Height = FormattedImage->h;
 			Result.Pixels = ((u32 *)FormattedImage->pixels);
+			Result.Pitch = Result.Width * BITMAP_BYTES_PER_PIXEL;
 		}
 
 		SDL_FreeSurface(Image);

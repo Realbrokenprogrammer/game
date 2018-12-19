@@ -34,7 +34,7 @@ struct bitmap_header
 };
 #pragma pack(pop)
 
-//TODO: Bitmap currently loaded upside down.. 
+//Note: This is not complete bitmap loading code hence it should only be used as such.
 om_internal loaded_bitmap
 DEBUGLoadBitmap(debug_platform_read_entire_file *ReadEntireFile, char* FileName)
 {
@@ -82,6 +82,15 @@ DEBUGLoadBitmap(debug_platform_read_entire_file *ReadEntireFile, char* FileName)
 			}
 		}
 	}
+
+	Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
+
+	//Note: Changes the pixels to point at the last row and makes the pitch negative to resolve bitmaps
+	//being stored upside down.
+#if 1
+	Result.Pixels = (u32 *)((u8 *)Result.Pixels + Result.Pitch*(Result.Height- 1));
+	Result.Pitch = -Result.Pitch;
+#endif
 
 	return (Result);
 }
@@ -451,8 +460,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		char SlopeBitmapRight[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
 		GameState->SlopeBitmapRight = Memory->DEBUGLoadBitmap(SlopeBitmapRight);
 
-		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
-		GameState->PlayerBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, PlayerBitmap);
+		GameState->PlayerBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
 
 		GameState->ToneHz = 256;
 

@@ -103,6 +103,8 @@ typedef i64 s64;
 #define OM_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define OM_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+#define BITMAP_BYTES_PER_PIXEL 4
+
 // TODO: Change fields to uppercase.
 union vector2
 {
