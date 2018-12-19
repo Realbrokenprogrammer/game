@@ -59,7 +59,6 @@ BilinearSample(loaded_bitmap *Texture, i32 X, i32 Y)
 {
 	bilinear_sample Result;
 
-	//TODO: Add Pitch to loaded_bitmap.
 	u8 *TexelPtr = ((u8 *)Texture->Pixels) + Y * Texture->Pitch + X * sizeof(u32);
 	Result.A = *(u32 *)(TexelPtr);
 	Result.B = *(u32 *)(TexelPtr + sizeof(u32));

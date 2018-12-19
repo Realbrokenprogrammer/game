@@ -115,6 +115,7 @@ CreateTransparentBitmap(u32 Width, u32 Height)
 		}
 	}
 
+	Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
 
 	return (Result);
 }
@@ -448,17 +449,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
 		GameState->RenderQueue = Memory->ThreadQueue;
 
-		char GrassBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
-		GameState->GrassBitmap = Memory->DEBUGLoadBitmap(GrassBitmap);
+		GameState->GrassBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp");
 
-		char WaterBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
-		GameState->WaterBitmap = Memory->DEBUGLoadBitmap(WaterBitmap);
+		GameState->WaterBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp");
 		
-		char SlopeBitmapLeft[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
-		GameState->SlopeBitmapLeft = Memory->DEBUGLoadBitmap(SlopeBitmapLeft);
+		GameState->SlopeBitmapLeft = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp");
 
-		char SlopeBitmapRight[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
-		GameState->SlopeBitmapRight = Memory->DEBUGLoadBitmap(SlopeBitmapRight);
+		GameState->SlopeBitmapRight = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
 
 		GameState->PlayerBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
 
