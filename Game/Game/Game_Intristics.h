@@ -39,6 +39,7 @@ struct bit_scan_result
 	u32 Index;
 };
 
+//TODO: Make use of compiler intrinsic
 inline bit_scan_result
 FindLeastSignificantSetBit(u32 Value)
 {

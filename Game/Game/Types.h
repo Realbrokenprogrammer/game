@@ -103,6 +103,8 @@ typedef i64 s64;
 #define OM_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define OM_MAX(a, b) ((a) > (b) ? (a) : (b))
 
+#define BITMAP_BYTES_PER_PIXEL 4
+
 // TODO: Change fields to uppercase.
 union vector2
 {
@@ -133,14 +135,48 @@ union vector4
 {
 	struct
 	{
-		r32 X, Y, Z, W; 
-	};
+		union
+		{
+			vector3 XYZ;
+			struct
+			{
+				r32 X, Y, Z;
+			};
+		};
 
+		r32 W;
+	};
 	struct
 	{
-		r32 R, G, B, A;
-	};
+		union
+		{
+			vector3 RGB;
+			struct
+			{
+				r32 R, G, B;
+			};
+		};
 
+		r32 A;
+	};
+	struct
+	{
+		vector2 xy;
+		r32 Ignored0_;
+		r32 Ignored1_;
+	};
+	struct
+	{
+		r32 Ignored2_;
+		vector2 yz;
+		r32 Ignored3_;
+	};
+	struct
+	{
+		r32 Ignored4_;
+		r32 Ignored5_;
+		vector2 zw;
+	};
 	r32 E[4];
 };
 

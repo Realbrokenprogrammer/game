@@ -59,12 +59,11 @@ BilinearSample(loaded_bitmap *Texture, i32 X, i32 Y)
 {
 	bilinear_sample Result;
 
-	//TODO: Add Pitch to loaded_bitmap.
-	u8 *TexelPtr = ((u8 *)Texture->Pixels) + Y * (Texture->Width * 4) + X * sizeof(u32);
+	u8 *TexelPtr = ((u8 *)Texture->Pixels) + Y * Texture->Pitch + X * sizeof(u32);
 	Result.A = *(u32 *)(TexelPtr);
 	Result.B = *(u32 *)(TexelPtr + sizeof(u32));
-	Result.C = *(u32 *)(TexelPtr + (Texture->Width * 4));
-	Result.D = *(u32 *)(TexelPtr + (Texture->Width * 4) + sizeof(u32));
+	Result.C = *(u32 *)(TexelPtr + Texture->Pitch);
+	Result.D = *(u32 *)(TexelPtr + Texture->Pitch + sizeof(u32));
 
 	return (Result);
 }
@@ -96,7 +95,10 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 {
 	// Degrees to radians.
 	Rotation = Rotation * (OM_PI32 / 180.0f);
-	
+
+	// Premultiply alpha
+	Color.RGB *= Color.A;
+
 	// Note: Currently not dealing with non-scaled rectangle so we'd probably want to scale the Texture width and height.
 	// Scale and rotate Axes based on specified Scale and Rotation.
 	vector2 XAxis = (Scale + 1.0f*cosf(Rotation)) * Vector2(cosf(Rotation), sinf(Rotation));
@@ -187,7 +189,7 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 		__m128 PositionX_x4 = _mm_set1_ps(Position.x);
 		__m128 PositionY_x4 = _mm_set1_ps(Position.y);
 		__m128 MaxColorValue = _mm_set1_ps(255.0f*255.0f);
-		__m128i TexturePitch_x4 = _mm_set1_epi32(Texture->Width * 4);
+		__m128i TexturePitch_x4 = _mm_set1_epi32(Texture->Pitch);
 
 		__m128 WidthSub2 = _mm_set1_ps((r32)(Texture->Width - 2));
 		__m128 HeightSub2 = _mm_set1_ps((r32)(Texture->Height - 2));
@@ -196,7 +198,7 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 		i32 RowAdvance = 2 * Buffer->Pitch;
 
 		void *TextureMemory = Texture->Pixels;
-		i32 TexturePitch = Texture->Width * 4;
+		i32 TexturePitch = Texture->Pitch;
 
 		int MinY = FillRect.MinY;
 		int MaxY = FillRect.MaxY;
@@ -358,9 +360,9 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 					Texelb = _mm_min_ps(_mm_max_ps(Texelb, Zero_x4), MaxColorValue);
 
 					//Note: Going from sRGB to "linear" brightness space. Equiv to call to SRGB255ToLinear1.
-					Destr = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destr));
-					Destg = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destg));
-					Destb = OM_MMSquare(_mm_mul_ps(Inv255_x4, Destb));
+					Destr = OM_MMSquare(Destr);
+					Destg = OM_MMSquare(Destg);
+					Destb = OM_MMSquare(Destb);
 					
 					//Note: Performing blend on destination
 					__m128 InvTexelA = _mm_sub_ps(One_x4, _mm_mul_ps(Inv255_x4, Texela));
@@ -752,7 +754,7 @@ PushRectOutline(render_blueprint *Blueprint, vector2 Position, vector2 Dimension
 	PushRect(Blueprint, Position + Vector2(Dimension.x, 0.0f), Vector2(Thickness, Dimension.y), Offset, Color);
 }
 
-//TODO: Pass in actual transform instead of position, scale and rotation separately?
+//TODO: Pass in actual transform instead of position, scale and rotation separately.
 inline void
 PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position, r32 Scale, r32 Rotation, vector2 Offset, vector4 Color)
 {

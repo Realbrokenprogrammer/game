@@ -6,6 +6,120 @@
 
 #include <Windows.h> //TODO: This should later be removed.
 
+// Packing struct to avoid padding.
+// Source for bitmap header: https://www.fileformat.info/format/bmp/egff.htm
+#pragma pack(push, 1)
+struct bitmap_header
+{
+	u16 FileType;
+	u32 FileSize;
+	u16 Reserved1;
+	u16 Reserved2;
+	u32 BitmapOffset;
+	u32 Size;
+	i32 Width;
+	i32 Height;
+	u16 Planes;
+	u16 BitsPerPixel;
+	u32 Compression;
+	u32 SizeOfBitmap;
+	i32 HorzResolution;
+	i32 VertResolution;
+	u32 ColorsUsed;
+	u32 ColorsImportant;
+
+	u32 RedMask;
+	u32 GreenMask;
+	u32 BlueMask;
+};
+#pragma pack(pop)
+
+//Note: This is not complete bitmap loading code hence it should only be used as such.
+om_internal loaded_bitmap
+DEBUGLoadBitmap(debug_platform_read_entire_file *ReadEntireFile, char* FileName)
+{
+	loaded_bitmap Result = {};
+
+	debug_read_file_result ReadResult = ReadEntireFile(FileName);
+	if (ReadResult.ContentsSize != 0)
+	{
+		bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
+
+		u32 *Pixels = (u32 *)((u8 *)ReadResult.Contents + Header->BitmapOffset);
+
+		Result.Pixels = Pixels;
+		Result.Width = Header->Width;
+		Result.Height = Header->Height;
+
+		OM_ASSERT(Header->Compression == 3);
+
+		u32 RedMask = Header->RedMask;
+		u32 GreenMask = Header->GreenMask;
+		u32 BlueMask = Header->BlueMask;
+		u32 AlphaMask = ~(RedMask | GreenMask | BlueMask);
+
+		// Bitscan instrinsics to find out how much we need to shift the values down.
+		bit_scan_result RedShift = FindLeastSignificantSetBit(RedMask);
+		bit_scan_result GreenShift = FindLeastSignificantSetBit(GreenMask);
+		bit_scan_result BlueShift = FindLeastSignificantSetBit(BlueMask);
+		bit_scan_result AlphaShift = FindLeastSignificantSetBit(AlphaMask);
+
+		OM_ASSERT(RedShift.Found);
+		OM_ASSERT(GreenShift.Found);
+		OM_ASSERT(BlueShift.Found);
+		OM_ASSERT(AlphaShift.Found);
+
+		u32 *SourceDestination = Pixels;
+		for (i32 Y = 0; Y < Header->Height; ++Y)
+		{
+			for (i32 X = 0; X < Header->Width; ++X)
+			{
+				u32 C = *SourceDestination;
+				*SourceDestination++ = ((((C >> AlphaShift.Index) & 0xFF) << 24) |
+										(((C >> RedShift.Index) & 0xFF) << 16) |
+										(((C >> GreenShift.Index) & 0xFF) << 8) |
+										(((C >> BlueShift.Index) & 0xFF) << 0));
+			}
+		}
+	}
+
+	Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
+
+	//Note: Changes the pixels to point at the last row and makes the pitch negative to resolve bitmaps
+	//being stored upside down.
+#if 1
+	Result.Pixels = (u32 *)((u8 *)Result.Pixels + Result.Pitch*(Result.Height- 1));
+	Result.Pitch = -Result.Pitch;
+#endif
+
+	return (Result);
+}
+
+om_internal loaded_bitmap
+CreateTransparentBitmap(u32 Width, u32 Height)
+{
+	loaded_bitmap Result = {};
+
+	Result.Width = Width;
+	Result.Height = Height;
+	i32 TotalBitmapSize = Width * Height;
+	Result.Pixels = (u32 *)malloc(TotalBitmapSize * sizeof(u32));
+	
+	// TODO: Set pixels in bitmap
+	u32 *SourceDestination = Result.Pixels;
+	for (i32 Y = 0; Y < Result.Height; ++Y)
+	{
+		for (i32 X = 0; X < Result.Width; ++X)
+		{
+			*SourceDestination++ = (0xFF << 24) | 0x00000000;
+		}
+	}
+
+	Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
+
+	return (Result);
+}
+
 om_internal void
 GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 {
@@ -82,7 +196,7 @@ AddPlayer(world_layer *Layer, vector2 Position)
 	PhysicsBlueprint.Transform = {};
 	PhysicsBlueprint.Transform.Translation = Entity->Position;
 	PhysicsBlueprint.Transform.Scale = 64.0f; // TODO: Scale according to Player later.
-	PhysicsBlueprint.Transform.Rotation = 45.0f;
+	PhysicsBlueprint.Transform.Rotation = 0.0f;
 	
 	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
 	MovementBlueprint.Speed = 50.0f;
@@ -335,20 +449,15 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
 		GameState->RenderQueue = Memory->ThreadQueue;
 
-		char GrassBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
-		GameState->GrassBitmap = Memory->DEBUGLoadBitmap(GrassBitmap);
+		GameState->GrassBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp");
 
-		char WaterBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
-		GameState->WaterBitmap = Memory->DEBUGLoadBitmap(WaterBitmap);
+		GameState->WaterBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp");
 		
-		char SlopeBitmapLeft[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
-		GameState->SlopeBitmapLeft = Memory->DEBUGLoadBitmap(SlopeBitmapLeft);
+		GameState->SlopeBitmapLeft = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp");
 
-		char SlopeBitmapRight[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
-		GameState->SlopeBitmapRight = Memory->DEBUGLoadBitmap(SlopeBitmapRight);
+		GameState->SlopeBitmapRight = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
 
-		char PlayerBitmap[] = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
-		GameState->PlayerBitmap = Memory->DEBUGLoadBitmap(PlayerBitmap);
+		GameState->PlayerBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
 
 		GameState->ToneHz = 256;
 
@@ -559,7 +668,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	DestroyRenderBlueprint(RenderBlueprint);
 
 	//TODO: Allow sample offsets here for more robust platform options
-	/*RenderGradient(Buffer, GameState->BlueOffset, GameState->RedOffset);*/
+	//RenderGradient(Buffer, 0, 0);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
