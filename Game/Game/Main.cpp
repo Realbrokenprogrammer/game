@@ -650,7 +650,7 @@ struct platform_thread_queue
 
 	HANDLE SemaphoreHandle;
 
-	platform_thread_queue_entry Entries[256];
+	platform_thread_queue_entry Entries[500];
 };
 
 struct win32_thread_info

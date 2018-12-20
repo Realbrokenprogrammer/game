@@ -630,7 +630,7 @@ SoftwareDrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, vector2
 }
 
 om_internal render_blueprint *
-CreateRenderBlueprint(render_basis *RenderBasis, u32 MaxPushBufferSize)
+CreateRenderBlueprint(game_assets *Assets, render_basis *RenderBasis, u32 MaxPushBufferSize)
 {
 	render_blueprint *Result = (render_blueprint *)malloc(sizeof(render_blueprint));
 	Result->PushBufferBase = (u8 *)malloc(MaxPushBufferSize);
@@ -639,6 +639,8 @@ CreateRenderBlueprint(render_basis *RenderBasis, u32 MaxPushBufferSize)
 
 	Result->MaxPushBufferSize = MaxPushBufferSize;
 	Result->PushBufferSize = 0;
+
+	Result->Assets = Assets;
 
 	return (Result);
 }
@@ -770,6 +772,20 @@ PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position,
 		RenderEntry->G = Color.G;
 		RenderEntry->B = Color.B;
 		RenderEntry->A = Color.A;
+	}
+}
+
+inline void
+PushBitmap(render_blueprint *Blueprint, game_asset_id ID, vector2 Position, r32 Scale, r32 Rotation, vector2 Offset, vector4 Color)
+{
+	loaded_bitmap *Bitmap = GetBitmap(Blueprint->Assets, ID);
+	if (Bitmap)
+	{
+		PushBitmap(Blueprint, Bitmap, Position, Scale, Rotation, Offset, Color);
+	}
+	else
+	{
+		LoadAsset(Blueprint->Assets, ID);
 	}
 }
 

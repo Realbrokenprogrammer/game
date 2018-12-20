@@ -85,6 +85,8 @@ struct render_blueprint
 	u32 MaxPushBufferSize;
 	u32 PushBufferSize;
 	u8 *PushBufferBase;
+
+	struct game_assets *Assets;
 };
 
 #endif // GAME_RENDERER_H

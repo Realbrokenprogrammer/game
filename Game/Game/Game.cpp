@@ -120,6 +120,69 @@ CreateTransparentBitmap(u32 Width, u32 Height)
 	return (Result);
 }
 
+struct load_asset_work
+{
+	game_assets *Assets;
+	char *FileName;
+	game_asset_id ID;
+	//task_with_memory *Task;
+	loaded_bitmap *Bitmap;
+};
+om_internal 
+PLATFORM_THREAD_QUEUE_CALLBACK(LoadAssetWork)
+{
+	load_asset_work *Work = (load_asset_work *)Data;
+
+	*Work->Bitmap = DEBUGLoadBitmap(Work->Assets->ReadEntireFile, Work->FileName);
+
+	Work->Assets->Bitmaps[Work->ID] = Work->Bitmap;
+
+	free(Work); //TODO: This should be removed once our own memory arena has been implemented.
+}
+
+om_internal void
+LoadAsset(game_assets *Assets, game_asset_id ID)
+{
+	//TODO: Memory arena is not implemented yet. Later we want to do something like.
+	//task_with_memory *Task = BeginTaskWithMemory();
+
+	debug_platform_read_entire_file *ReadEntireFile = Assets->ReadEntireFile;
+
+	//TODO: Later we do not want to malloc these but use our own memory arena since this is
+	// crazy error prone.
+	load_asset_work *Work = (load_asset_work *) malloc(sizeof(load_asset_work));
+	Work->Assets = Assets;
+	Work->ID = ID;
+	Work->FileName = "";
+	Work->Bitmap = (loaded_bitmap *) malloc(sizeof(loaded_bitmap));
+
+	PlatformAddThreadEntry(Assets->AssetLoadingQueue, LoadAssetWork, Work);
+	
+	switch (ID)
+	{
+		case GAI_Grass:
+		{
+			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
+		} break;
+		case GAI_Water:
+		{
+			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
+		} break;
+		case GAI_SlopeLeft:
+		{
+			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
+		} break;
+		case GAI_SlopeRight:
+		{
+			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
+		} break;
+		case GAI_Player:
+		{
+			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
+		} break;
+	}
+}
+
 om_internal void
 GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 {
@@ -449,15 +512,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
 		GameState->RenderQueue = Memory->ThreadQueue;
 
-		GameState->GrassBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp");
-
-		GameState->WaterBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp");
-		
-		GameState->SlopeBitmapLeft = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp");
-
-		GameState->SlopeBitmapRight = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
-
-		GameState->PlayerBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
+		GameState->Assets.ReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
+		GameState->Assets.AssetLoadingQueue = Memory->ThreadQueue;
 
 		GameState->ToneHz = 256;
 
@@ -619,7 +675,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	GameState->Time += Input->dtForFrame;
 	render_basis Basis = { GameState->Camera.Position };
-	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&Basis, om_megabytes(4));
+	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&GameState->Assets, &Basis, om_megabytes(4));
 
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
@@ -634,27 +690,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				case EntityType_Hero:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GAI_Player, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_GrassTile:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GAI_Grass, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_WaterTile:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GAI_Water, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileLeft:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapLeft, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GAI_SlopeLeft, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileRight:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapRight, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GAI_SlopeRight, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_Monster:
 				default:
