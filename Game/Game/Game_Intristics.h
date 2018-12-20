@@ -5,6 +5,18 @@
 #include "math.h"
 #include <xmmintrin.h>
 
+#if COMPILER_MSVC
+#define CompletePreviousWritesBeforeFutureWrites _WriteBarrier();
+
+inline u32 AtomicCompareExchangeUInt32(u32 volatile *Value, u32 Expected, u32 New)
+{
+	u32 Result = _InterlockedCompareExchange((long *)Value, Expected, New);
+
+	return(Result);
+}
+#else
+#endif
+
 //Note: Intel intristics helper defines.
 #define OM_MMSquare(A) _mm_mul_ps(A, A)
 #define OM_MMIndexF(A, I) ((r32 *)&(A))[I]
@@ -31,6 +43,30 @@ CeilReal32ToInt32(r32 R32)
 	// TODO: SSE 4.1?
 	i32 Result = _mm_cvtss_si32(_mm_ceil_ss(_mm_setzero_ps(), _mm_set_ss(R32)));
 	return(Result);
+}
+
+inline r32
+Sin(r32 Angle)
+{
+	r32 Result = sinf(Angle);
+
+	return (Result);
+}
+
+inline r32
+Cos(r32 Angle)
+{
+	r32 Result = cosf(Angle);
+
+	return (Result);
+}
+
+inline r32
+ATan2(r32 Y, r32 X)
+{
+	r32 Result = atan2f(Y, X);
+
+	return (Result);
 }
 
 struct bit_scan_result

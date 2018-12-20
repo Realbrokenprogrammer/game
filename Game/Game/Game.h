@@ -26,13 +26,35 @@ enum asset_state
 {
 	AssetState_Unloaded,
 	AssetState_Queued,
-	AssetState_Loaded
+	AssetState_Loaded,
+	AssetState_Locked
 };
 
-struct asset_handle
+struct asset_slot
 {
 	asset_state State;
 	loaded_bitmap *Bitmap;
+};
+
+struct asset_tag
+{
+	u32 ID;
+	r32 Value;
+};
+
+struct asset_bitmap_info
+{
+	i32 Width;
+	i32 Height;
+
+	u32 FirstTagIndex;
+	u32 OnePastLastTagIndex;
+};
+
+struct asset_group
+{
+	u32 FirstTagIndex;
+	u32 OnePastLastTagIndex;
 };
 
 struct game_assets
@@ -41,7 +63,7 @@ struct game_assets
 
 	debug_platform_read_entire_file *ReadEntireFile;
 
-	loaded_bitmap *Bitmaps[GAI_Count];
+	asset_slot Bitmaps[GAI_Count];
 
 	//TODO: This should later be removed and kept within the memory arena for the assets.
 	platform_thread_queue *AssetLoadingQueue;
@@ -50,7 +72,7 @@ struct game_assets
 inline loaded_bitmap *
 GetBitmap(game_assets *Assets, game_asset_id ID)
 {
-	loaded_bitmap *Result = Assets->Bitmaps[ID];
+	loaded_bitmap *Result = Assets->Bitmaps[ID].Bitmap;
 
 	return (Result);
 }

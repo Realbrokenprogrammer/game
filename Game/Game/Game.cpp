@@ -127,6 +127,8 @@ struct load_asset_work
 	game_asset_id ID;
 	//task_with_memory *Task;
 	loaded_bitmap *Bitmap;
+
+	asset_state FinalState;
 };
 om_internal 
 PLATFORM_THREAD_QUEUE_CALLBACK(LoadAssetWork)
@@ -135,8 +137,11 @@ PLATFORM_THREAD_QUEUE_CALLBACK(LoadAssetWork)
 
 	*Work->Bitmap = DEBUGLoadBitmap(Work->Assets->ReadEntireFile, Work->FileName);
 
-	Work->Assets->Bitmaps[Work->ID] = Work->Bitmap;
+	CompletePreviousWritesBeforeFutureWrites;
 
+	Work->Assets->Bitmaps[Work->ID].Bitmap = Work->Bitmap;
+	Work->Assets->Bitmaps[Work->ID].State = Work->FinalState;
+	
 	free(Work); //TODO: This should be removed once our own memory arena has been implemented.
 }
 
@@ -145,42 +150,74 @@ LoadAsset(game_assets *Assets, game_asset_id ID)
 {
 	//TODO: Memory arena is not implemented yet. Later we want to do something like.
 	//task_with_memory *Task = BeginTaskWithMemory();
-
-	debug_platform_read_entire_file *ReadEntireFile = Assets->ReadEntireFile;
-
-	//TODO: Later we do not want to malloc these but use our own memory arena since this is
-	// crazy error prone.
-	load_asset_work *Work = (load_asset_work *) malloc(sizeof(load_asset_work));
-	Work->Assets = Assets;
-	Work->ID = ID;
-	Work->FileName = "";
-	Work->Bitmap = (loaded_bitmap *) malloc(sizeof(loaded_bitmap));
-
-	PlatformAddThreadEntry(Assets->AssetLoadingQueue, LoadAssetWork, Work);
-	
-	switch (ID)
+	if (AtomicCompareExchangeUInt32((u32 *)&Assets->Bitmaps[ID].State, AssetState_Unloaded, AssetState_Queued) == AssetState_Unloaded)
 	{
-		case GAI_Grass:
+		debug_platform_read_entire_file *ReadEntireFile = Assets->ReadEntireFile;
+
+		//TODO: Later we do not want to malloc these but use our own memory arena since this is
+		// crazy error prone.
+		load_asset_work *Work = (load_asset_work *)malloc(sizeof(load_asset_work));
+		Work->Assets = Assets;
+		Work->ID = ID;
+		Work->FileName = "";
+		Work->Bitmap = (loaded_bitmap *)malloc(sizeof(loaded_bitmap));
+		Work->FinalState = AssetState_Loaded;
+
+		switch (ID)
 		{
-			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
-		} break;
-		case GAI_Water:
-		{
-			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
-		} break;
-		case GAI_SlopeLeft:
-		{
-			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
-		} break;
-		case GAI_SlopeRight:
-		{
-			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
-		} break;
-		case GAI_Player:
-		{
-			Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
-		} break;
+			case GAI_Grass:
+			{
+				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
+			} break;
+			case GAI_Water:
+			{
+				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
+			} break;
+			case GAI_SlopeLeft:
+			{
+				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
+			} break;
+			case GAI_SlopeRight:
+			{
+				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
+			} break;
+			case GAI_Player:
+			{
+				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
+			} break;
+		}
+
+		PlatformAddThreadEntry(Assets->AssetLoadingQueue, LoadAssetWork, Work);
 	}
+}
+
+om_internal i32
+PickBestAsset(i32 InfoCount, asset_bitmap_info *Infos, asset_tag *Tags, r32 *MatchVector, r32 *WeightedVector)
+{
+	r32 BestDifference = R32MAX;
+	i32 BestIndex = 0;
+
+	for (i32 InfoIndex = 0; InfoIndex < InfoCount; ++InfoIndex)
+	{
+		asset_bitmap_info *Info = Infos + InfoIndex;
+		r32 TotalWeightedDifference = 0.0f;
+
+		for (u32 TagIndex = Info->FirstTagIndex; TagIndex < Info->OnePastLastTagIndex; ++TagIndex)
+		{
+			asset_tag *Tag = Tags + TagIndex;
+			r32 Difference = MatchVector[Tag->ID] - Tag->Value;
+			r32 WeightedDifference = WeightedVector[Tag->ID] * AbsoluteValue(Difference);
+			TotalWeightedDifference += WeightedDifference;
+		}
+
+		if (BestDifference > TotalWeightedDifference)
+		{
+			BestDifference = TotalWeightedDifference;
+			BestIndex = InfoIndex;
+		}
+	}
+
+	return (BestIndex);
 }
 
 om_internal void
