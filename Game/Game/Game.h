@@ -11,6 +11,69 @@
 #include "Game_Camera.h"
 #include "Game_Renderer.h"
 
+
+//TODO: Memory arena allignment offset
+//TODO: Memory arena size remaining
+//TODO: Memory arena push helper functions
+//TODO: Memory arena Subarena helper function
+//TODO: ZeroStruct / Size helper function.
+//TODO: Move to its own .h and .cpp?
+//TODO: Once all above is resolved: Review new asset loading code.
+struct memory_arena
+{
+	memory_index Size;
+	u8 *Base;
+	memory_index Used;
+
+	i32 TempCount;
+};
+
+struct temporary_memory
+{
+	memory_arena *Arena;
+	memory_index Used;
+};
+
+inline void
+InitializeMemoryArena(memory_arena *Arena, memory_index Size, void *Base)
+{
+	Arena->Size = Size;
+	Arena->Base = (u8 *)Base;
+	Arena->Used = 0;
+	Arena->TempCount = 0;
+}
+
+inline temporary_memory
+CreateTemporaryMemory(memory_arena *Arena)
+{
+	temporary_memory Result;
+
+	Result.Arena = Arena;
+	Result.Used = Arena->Used;
+
+	++Arena->TempCount;
+
+	return (Result);
+}
+
+inline void
+DestroyTemporaryMemory(temporary_memory TemporaryMemory)
+{
+	memory_arena *Arena = TemporaryMemory.Arena;
+	OM_ASSERT(Arena->Used >= TemporaryMemory.Used);
+
+	Arena->Used = TemporaryMemory.Used;
+	OM_ASSERT(Arena->TempCount > 0);
+
+	--Arena->TempCount;
+}
+
+inline void
+CheckMemoryArena(memory_arena *Arena)
+{
+	OM_ASSERT(Arena->TempCount == 0);
+}
+
 enum game_asset_id
 {
 	GAI_Grass,
