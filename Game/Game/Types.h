@@ -57,6 +57,8 @@ typedef i16 s16;
 typedef i32 s32;
 typedef i64 s64;
 
+typedef size_t memory_index;
+
 #define U16MAX 65535
 #define I32MIN ((i32)0x80000000)
 #define I32MAX ((i32)0x7fffffff)
