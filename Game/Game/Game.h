@@ -12,9 +12,6 @@
 #include "Game_Camera.h"
 #include "Game_Renderer.h"
 
-//TODO: Once all above is resolved: Review new asset loading code.
-//TODO: Separate thread queues into one high priority queue and one low priority queue.
-
 enum game_asset_id
 {
 	GAI_Grass,
@@ -63,14 +60,12 @@ struct asset_group
 
 struct game_assets
 {
-	//TODO: Memory arena for the assets.
-
+	// TODO: This back-pointer is dumb.
+	struct transient_state *TransientState;
+	memory_arena Arena;
 	debug_platform_read_entire_file *ReadEntireFile;
 
 	asset_slot Bitmaps[GAI_Count];
-
-	//TODO: This should later be removed and kept within the memory arena for the assets.
-	platform_thread_queue *AssetLoadingQueue;
 };
 
 inline loaded_bitmap *
@@ -102,13 +97,28 @@ struct game_state
 
 	camera Camera;
 
-	int ToneHz;
+	r32 Time;
+};
+
+struct task_with_memory
+{
+	b32 BeingUsed;
+	memory_arena Arena;
+
+	temporary_memory MemoryFlush;
+};
+
+struct transient_state
+{
+	b32 Initialized;
+	memory_arena TransientArena;
+
+	task_with_memory Tasks[4];
+
+	platform_thread_queue *HighPriorityQueue;
+	platform_thread_queue *LowPriorityQueue;
 
 	game_assets Assets;
-
-	r32 Time;
-
-	platform_thread_queue *RenderQueue;
 };
 
 om_global_variable platform_add_thread_entry *PlatformAddThreadEntry;

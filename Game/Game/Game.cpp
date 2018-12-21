@@ -120,12 +120,42 @@ CreateTransparentBitmap(u32 Width, u32 Height)
 	return (Result);
 }
 
+om_internal task_with_memory *
+BeginTaskWithMemory(transient_state *TransientState)
+{
+	task_with_memory *FoundTask = 0;
+
+	for (u32 TaskIndex = 0; TaskIndex < OM_ARRAYCOUNT(TransientState->Tasks); ++TaskIndex)
+	{
+		task_with_memory *Task = TransientState->Tasks + TaskIndex;
+		if (!Task->BeingUsed)
+		{
+			FoundTask = Task;
+			Task->BeingUsed = true;
+			Task->MemoryFlush = CreateTemporaryMemory(&Task->Arena);
+			break;
+		}
+	}
+
+	return (FoundTask);
+}
+
+inline void
+EndTaskWithMemory(task_with_memory *Task)
+{
+	DestroyTemporaryMemory(Task->MemoryFlush);
+
+	CompletePreviousWritesBeforeFutureWrites;
+
+	Task->BeingUsed = false;
+}
+
 struct load_asset_work
 {
 	game_assets *Assets;
 	char *FileName;
 	game_asset_id ID;
-	//task_with_memory *Task;
+	task_with_memory *Task;
 	loaded_bitmap *Bitmap;
 
 	asset_state FinalState;
@@ -142,52 +172,53 @@ PLATFORM_THREAD_QUEUE_CALLBACK(LoadAssetWork)
 	Work->Assets->Bitmaps[Work->ID].Bitmap = Work->Bitmap;
 	Work->Assets->Bitmaps[Work->ID].State = Work->FinalState;
 	
-	free(Work); //TODO: This should be removed once our own memory arena has been implemented.
+	EndTaskWithMemory(Work->Task);
 }
 
 om_internal void
 LoadAsset(game_assets *Assets, game_asset_id ID)
 {
-	//TODO: Memory arena is not implemented yet. Later we want to do something like.
-	//task_with_memory *Task = BeginTaskWithMemory();
 	if (AtomicCompareExchangeUInt32((u32 *)&Assets->Bitmaps[ID].State, AssetState_Unloaded, AssetState_Queued) == AssetState_Unloaded)
 	{
-		debug_platform_read_entire_file *ReadEntireFile = Assets->ReadEntireFile;
-
-		//TODO: Later we do not want to malloc these but use our own memory arena since this is
-		// crazy error prone.
-		load_asset_work *Work = (load_asset_work *)malloc(sizeof(load_asset_work));
-		Work->Assets = Assets;
-		Work->ID = ID;
-		Work->FileName = "";
-		Work->Bitmap = (loaded_bitmap *)malloc(sizeof(loaded_bitmap));
-		Work->FinalState = AssetState_Loaded;
-
-		switch (ID)
+		task_with_memory *Task = BeginTaskWithMemory(Assets->TransientState);
+		if (Task)
 		{
-			case GAI_Grass:
-			{
-				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
-			} break;
-			case GAI_Water:
-			{
-				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
-			} break;
-			case GAI_SlopeLeft:
-			{
-				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
-			} break;
-			case GAI_SlopeRight:
-			{
-				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
-			} break;
-			case GAI_Player:
-			{
-				Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
-			} break;
-		}
+			debug_platform_read_entire_file *ReadEntireFile = Assets->ReadEntireFile;
 
-		PlatformAddThreadEntry(Assets->AssetLoadingQueue, LoadAssetWork, Work);
+			load_asset_work *Work = PushStruct(&Task->Arena, load_asset_work);;
+			Work->Assets = Assets;
+			Work->ID = ID;
+			Work->Task = Task;
+			Work->FileName = "";
+			Work->Bitmap = PushStruct(&Assets->Arena, loaded_bitmap);
+			Work->FinalState = AssetState_Loaded;
+
+			switch (ID)
+			{
+				case GAI_Grass:
+				{
+					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
+				} break;
+				case GAI_Water:
+				{
+					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
+				} break;
+				case GAI_SlopeLeft:
+				{
+					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
+				} break;
+				case GAI_SlopeRight:
+				{
+					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
+				} break;
+				case GAI_Player:
+				{
+					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
+				} break;
+			}
+
+			PlatformAddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadAssetWork, Work);
+		}
 	}
 }
 
@@ -540,19 +571,15 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+	PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
+	PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
+
 	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
 
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	if (!Memory->IsInitialized)
 	{
-		PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
-		PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
-		GameState->RenderQueue = Memory->ThreadQueue;
-
-		GameState->Assets.ReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
-		GameState->Assets.AssetLoadingQueue = Memory->ThreadQueue;
-
-		GameState->ToneHz = 256;
+		//TODO: Make use of memory arena for the world and remove VirtualAlloc.
 
 		// Initializing World
 		world *World = nullptr;
@@ -651,6 +678,32 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		Memory->IsInitialized = true;
 	}
 
+	OM_ASSERT(sizeof(transient_state) <= Memory->TransientStorageSize);
+	
+	transient_state *TransientState = (transient_state *)Memory->TransientStorage;
+	if (!TransientState->Initialized)
+	{
+		InitializeMemoryArena(&TransientState->TransientArena, Memory->TransientStorageSize - sizeof(transient_state),
+			(u8 *)Memory->TransientStorage + sizeof(transient_state));
+
+		CreateSubArena(&TransientState->Assets.Arena, &TransientState->TransientArena, om_megabytes(64));
+		TransientState->Assets.ReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
+		TransientState->Assets.TransientState = TransientState;
+
+		for (uint32_t TaskIndex = 0; TaskIndex < OM_ARRAYCOUNT(TransientState->Tasks); ++TaskIndex)
+		{
+			task_with_memory *Task = TransientState->Tasks + TaskIndex;
+
+			Task->BeingUsed = false;
+			CreateSubArena(&Task->Arena, &TransientState->TransientArena, om_megabytes(1));
+		}
+
+		TransientState->HighPriorityQueue = Memory->HighPriorityQueue;
+		TransientState->LowPriorityQueue = Memory->LowPriorityQueue;
+
+		TransientState->Initialized = true;
+	}
+
 	//TODO: Can we make this more efficient?
 	//TODO: Update Bucket entries instead of clearing and adding all entities every frame since most are static entities.
 	ClearWorldBuckets(GameState->World);
@@ -667,7 +720,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		
 		if (Controller->IsAnalog)
 		{
-			GameState->ToneHz = 256 + (int)(128.0f*(Controller->StickAverageY));
+			//GameState->ToneHz = 256 + (int)(128.0f*(Controller->StickAverageY));
 		}
 		else
 		{
@@ -712,7 +765,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	GameState->Time += Input->dtForFrame;
 	render_basis Basis = { GameState->Camera.Position };
-	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&GameState->Assets, &Basis, om_megabytes(4));
+	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&TransientState->Assets, &Basis, om_megabytes(4));
 
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
@@ -756,7 +809,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-	PerformPartitionedRendering(GameState->RenderQueue, RenderBlueprint, Buffer);
+	PerformPartitionedRendering(TransientState->HighPriorityQueue, RenderBlueprint, Buffer);
 
 	DestroyRenderBlueprint(RenderBlueprint);
 
