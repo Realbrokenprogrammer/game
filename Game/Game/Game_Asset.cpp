@@ -92,7 +92,6 @@ DEBUGLoadBitmap(char* FileName)
 struct load_asset_work
 {
 	game_assets *Assets;
-	char *FileName;
 	bitmap_id ID;
 	task_with_memory *Task;
 	loaded_bitmap *Bitmap;
@@ -104,7 +103,8 @@ PLATFORM_THREAD_QUEUE_CALLBACK(LoadAssetWork)
 {
 	load_asset_work *Work = (load_asset_work *)Data;
 
-	*Work->Bitmap = DEBUGLoadBitmap(Work->FileName);
+	asset_bitmap_info *Info = Work->Assets->BitmapInfos + Work->ID.Value;
+	*Work->Bitmap = DEBUGLoadBitmap(Info->FileName);
 
 	CompletePreviousWritesBeforeFutureWrites;
 
@@ -127,33 +127,8 @@ LoadBitmap(game_assets *Assets, bitmap_id ID)
 			Work->Assets = Assets;
 			Work->ID = ID;
 			Work->Task = Task;
-			Work->FileName = "";
 			Work->Bitmap = PushStruct(&Assets->Arena, loaded_bitmap);
 			Work->FinalState = AssetState_Loaded;
-
-			switch (ID.Value)
-			{
-				case Asset_Type_Grass:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
-				} break;
-				case Asset_Type_Water:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
-				} break;
-				case Asset_Type_SlopeLeft:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
-				} break;
-				case Asset_Type_SlopeRight:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
-				} break;
-				case Asset_Type_Player:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
-				} break;
-			}
 
 			PlatformAddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadAssetWork, Work);
 		}
@@ -181,6 +156,48 @@ GetFirstBitmapID(game_assets *Assets, asset_type_id TypeID)
 	return (Result);
 }
 
+om_internal bitmap_id
+DEBUGAddBitmapInfo(game_assets *Assets, char *FileName)
+{
+	OM_ASSERT(Assets->DEBUGUsedBitmapCount < Assets->BitmapCount);
+
+	bitmap_id ID = { Assets->DEBUGUsedBitmapCount++ };
+
+	asset_bitmap_info *Info = Assets->BitmapInfos + ID.Value;
+	Info->FileName = FileName;
+
+	return (ID);
+}
+
+om_internal void
+BeginAssetType(game_assets *Assets, asset_type_id TypeID)
+{
+	OM_ASSERT(Assets->DEBUGAssetType == 0);
+
+	Assets->DEBUGAssetType = Assets->AssetTypes + TypeID;
+	Assets->DEBUGAssetType->FirstAssetIndex = Assets->DEBUGUsedAssetCount;
+	Assets->DEBUGAssetType->OnePastLastAssetIndex = Assets->DEBUGAssetType->FirstAssetIndex;
+}
+
+om_internal void
+AddBitmapAsset(game_assets *Assets, char *FileName)
+{
+	OM_ASSERT(Assets->DEBUGAssetType);
+
+	asset *Asset = Assets->Assets + Assets->DEBUGAssetType->OnePastLastAssetIndex++;
+	Asset->FirstTagIndex = 0;
+	Asset->OnePastLastTagIndex = 0;
+	Asset->SlotID = DEBUGAddBitmapInfo(Assets, FileName).Value;
+}
+
+om_internal void
+EndAssetType(game_assets *Assets)
+{
+	OM_ASSERT(Assets->DEBUGAssetType);
+	Assets->DEBUGUsedAssetCount = Assets->DEBUGAssetType->OnePastLastAssetIndex;
+	Assets->DEBUGAssetType = 0;
+}
+
 om_internal game_assets *
 CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *TransientState)
 {
@@ -188,7 +205,8 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	CreateSubArena(&Assets->Arena, Arena, Size);
 	Assets->TransientState = TransientState;
 
-	Assets->BitmapCount = Asset_Type_Count;
+	Assets->BitmapCount = 256*Asset_Type_Count; //TODO: Temporary large value for debugging.
+	Assets->BitmapInfos = PushArray(Arena, Assets->BitmapCount, asset_bitmap_info);
 	Assets->Bitmaps = PushArray(Arena, Assets->BitmapCount, asset_slot);
 
 	//TODO: There is currently no sounds so this is just temporary.
@@ -198,27 +216,40 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	Assets->TagCount = 0;
 	Assets->Tags = 0;
 
-	Assets->AssetCount = Assets->BitmapCount;
+	Assets->AssetCount = Assets->SoundCount + Assets->BitmapCount;
 	Assets->Assets = PushArray(Arena, Assets->AssetCount, asset);
 
-	for (u32 AssetID = 0; AssetID < Asset_Type_Count; ++AssetID)
-	{
-		asset_type *Type = Assets->AssetTypes + AssetID;
-		Type->FirstAssetIndex = AssetID;
-		Type->OnePastLastAssetIndex = AssetID + 1;
+	Assets->DEBUGUsedBitmapCount = 1;
+	Assets->DEBUGUsedAssetCount = 1;
 
-		asset *Asset = Assets->Assets + Type->FirstAssetIndex;
-		Asset->FirstTagIndex = 0;
-		Asset->OnePastLastTagIndex = 0;
-		Asset->SlotID = Type->FirstAssetIndex;
-	}
+	BeginAssetType(Assets, Asset_Type_Grass);
+	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp");
+	EndAssetType(Assets);
+
+	BeginAssetType(Assets, Asset_Type_Water);
+	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp");
+	EndAssetType(Assets);
+
+	BeginAssetType(Assets, Asset_Type_SlopeLeft);
+	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp");
+	EndAssetType(Assets);
+
+	BeginAssetType(Assets, Asset_Type_SlopeRight);
+	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
+	EndAssetType(Assets);
+
+	BeginAssetType(Assets, Asset_Type_Player);
+	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
+	EndAssetType(Assets);
 
 	//TODO: Bellow are just temporary examples of how arary'd and structured assets would be loaded in.
 	/*
-	Assets->Stone[0] = DEBUGLoadBitmap("stone00.bmp");
-	Assets->Stone[1] = DEBUGLoadBitmap("stone01.bmp");
-	Assets->Stone[2] = DEBUGLoadBitmap("stone02.bmp");
-	Assets->Stone[3] = DEBUGLoadBitmap("stone03.bmp");
+		BeginAssetType(Assets, Asset_Type_Stone);
+		AddBitmapAsset(Assets, "Stone00.bmp");
+		AddBitmapAsset(Assets, "Stone01.bmp");
+		AddBitmapAsset(Assets, "Stone02.bmp");
+		AddBitmapAsset(Assets, "Stone03.bmp");
+		EndAssetType(Assets);
 	*/
 
 	return (Assets);

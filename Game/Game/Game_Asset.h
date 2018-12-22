@@ -68,8 +68,7 @@ struct asset
 
 struct asset_bitmap_info
 {
-	i32 Width;
-	i32 Height;
+	char *FileName;
 	//Note: Additional bitmap information later stored in the asset files could be added here.
 };
 
@@ -80,6 +79,7 @@ struct game_assets
 	memory_arena Arena;
 	
 	u32 BitmapCount;
+	asset_bitmap_info *BitmapInfos;
 	asset_slot *Bitmaps;
 
 	u32 SoundCount;
@@ -96,6 +96,11 @@ struct game_assets
 	//TODO: Remove these example array'd assets. These are only for example!!!
 	loaded_bitmap Stone[4];
 	test_structured_asset Characters[4];
+
+	//TODO: Temp, should be removed once we load packed asset files.
+	u32 DEBUGUsedBitmapCount;
+	u32 DEBUGUsedAssetCount;
+	asset_type *DEBUGAssetType;
 };
 
 struct bitmap_id
