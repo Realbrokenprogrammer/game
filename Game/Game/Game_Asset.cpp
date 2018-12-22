@@ -14,8 +14,14 @@ PickBestAsset(game_assets *Assets, asset_type_id TypeID, asset_vector *MatchVect
 		for (u32 TagIndex = Asset->FirstTagIndex; TagIndex < Asset->OnePastLastTagIndex; ++TagIndex)
 		{
 			asset_tag *Tag = Assets->Tags + TagIndex;
-			r32 Difference = MatchVector->E[Tag->ID] - Tag->Value;
-			r32 Weighted = WeightVector->E[Tag->ID] * AbsoluteValue(Difference);
+			
+			r32 A = MatchVector->E[Tag->ID];
+			r32 B = Tag->Value;
+			r32 D0 = AbsoluteValue(A - B);
+			r32 D1 = AbsoluteValue((A - Assets->TagRange[Tag->ID] * SignOf(A)) - B);
+			r32 Difference = OM_MIN(D0, D1);
+
+			r32 Weighted = WeightVector->E[Tag->ID] * Difference;
 			TotalWeightedDifference += Weighted;
 		}
 
@@ -118,7 +124,60 @@ DEBUGLoadBitmap(char* FileName)
 	return (Result);
 }
 
-struct load_asset_work
+//Note: Source for WAVE header: http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html
+struct WAVE_header
+{
+	u32 RIFFID;
+	u32 Size;
+	u32 WAVEID;
+};
+
+#define RIFF_CODE(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+
+enum
+{
+	WAVE_ChunkID_fmt = RIFF_CODE('f', 'm', 't', ' '),
+	WAVE_ChunkID_RIFF = RIFF_CODE('R', 'I', 'F', 'F'),
+	WAVE_ChunkID_WAVE = RIFF_CODE('W', 'A', 'V', 'E')
+};
+
+struct WAVE_chunk
+{
+	u32 ID;
+	u32 Size;
+};
+
+struct WAVE_fmt {
+	u16 wFormatTag;
+	u16 nChannels;
+	u32 nSamplesPerSec;
+	u32 nAvgBytesPerSec;
+	u16 nBlockAlign;
+	u16 wBitsPerSample;
+	u16 cbSize;
+	u16 wValidBitsPerSample;
+	u32 dwChannelMask;
+	u32 SubFormat[4];
+};
+
+om_internal loaded_sound
+DEBUGLoadWAV(char *FileName)
+{
+	loaded_sound Result = {};
+
+	debug_read_file_result ReadResult = DEBUGPlatformReadEntireFile(FileName);
+	if (ReadResult.ContentsSize != 0)
+	{
+		WAVE_header *Header = (WAVE_header *)ReadResult.Contents;
+
+		OM_ASSERT(Header->RIFFID == WAVE_ChunkID_RIFF);
+		OM_ASSERT(Header->WAVEID == WAVE_ChunkID_WAVE);
+	}
+
+	return (Result);
+}
+
+struct load_bitmap_work
 {
 	game_assets *Assets;
 	bitmap_id ID;
@@ -128,9 +187,9 @@ struct load_asset_work
 	asset_state FinalState;
 };
 om_internal
-PLATFORM_THREAD_QUEUE_CALLBACK(LoadAssetWork)
+PLATFORM_THREAD_QUEUE_CALLBACK(LoadBitmapWork)
 {
-	load_asset_work *Work = (load_asset_work *)Data;
+	load_bitmap_work *Work = (load_bitmap_work *)Data;
 
 	asset_bitmap_info *Info = Work->Assets->BitmapInfos + Work->ID.Value;
 	*Work->Bitmap = DEBUGLoadBitmap(Info->FileName);
@@ -152,22 +211,63 @@ LoadBitmap(game_assets *Assets, bitmap_id ID)
 		task_with_memory *Task = BeginTaskWithMemory(Assets->TransientState);
 		if (Task)
 		{
-			load_asset_work *Work = PushStruct(&Task->Arena, load_asset_work);;
+			load_bitmap_work *Work = PushStruct(&Task->Arena, load_bitmap_work);;
 			Work->Assets = Assets;
 			Work->ID = ID;
 			Work->Task = Task;
 			Work->Bitmap = PushStruct(&Assets->Arena, loaded_bitmap);
 			Work->FinalState = AssetState_Loaded;
 
-			PlatformAddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadAssetWork, Work);
+			PlatformAddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadBitmapWork, Work);
 		}
 	}
 }
 
-om_internal void
-LoadSound(game_assets *Assets, audio_id ID)
+struct load_sound_work
 {
-	//TODO: Implement this.
+	game_assets *Assets;
+	sound_id ID;
+	task_with_memory *Task;
+	loaded_sound *Sound;
+
+	asset_state FinalState;
+};
+
+om_internal
+PLATFORM_THREAD_QUEUE_CALLBACK(LoadSoundWork)
+{
+	load_sound_work *Work = (load_sound_work *)Data;
+
+	asset_sound_info *Info = Work->Assets->SoundInfos + Work->ID.Value;
+	*Work->Sound = DEBUGLoadWAV(Info->FileName);
+
+	CompletePreviousWritesBeforeFutureWrites;
+
+	Work->Assets->Sounds[Work->ID.Value].Sound = Work->Sound;
+	Work->Assets->Sounds[Work->ID.Value].State = Work->FinalState;
+
+	EndTaskWithMemory(Work->Task);
+}
+
+om_internal void
+LoadSound(game_assets *Assets, sound_id ID)
+{
+	if (ID.Value &&
+		(AtomicCompareExchangeUInt32((u32 *)&Assets->Sounds[ID.Value].State, AssetState_Unloaded, AssetState_Queued) == AssetState_Unloaded))
+	{
+		task_with_memory *Task = BeginTaskWithMemory(Assets->TransientState);
+		if (Task)
+		{
+			load_sound_work *Work = PushStruct(&Task->Arena, load_sound_work);;
+			Work->Assets = Assets;
+			Work->ID = ID;
+			Work->Task = Task;
+			Work->Sound = PushStruct(&Assets->Arena, loaded_sound);
+			Work->FinalState = AssetState_Loaded;
+
+			PlatformAddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadSoundWork, Work);
+		}
+	}
 }
 
 om_internal bitmap_id
@@ -249,6 +349,14 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	game_assets *Assets = PushStruct(Arena, game_assets);
 	CreateSubArena(&Assets->Arena, Arena, Size);
 	Assets->TransientState = TransientState;
+
+	for (u32 TagType = 0; TagType < Asset_Tag_Count; ++TagType)
+	{
+		Assets->TagRange[TagType] = 1000000.0f;
+	}
+
+	//TODO: Example of how to set a tag range for specific tag:
+	//Assets->TagRange[Asset_Tag_PlayerFacingDirection] = Tau32;
 
 	Assets->BitmapCount = 256*Asset_Type_Count; //TODO: Temporary large value for debugging.
 	Assets->BitmapInfos = PushArray(Arena, Assets->BitmapCount, asset_bitmap_info);

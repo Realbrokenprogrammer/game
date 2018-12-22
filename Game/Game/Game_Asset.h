@@ -2,6 +2,12 @@
 #define GAME_ASSET_H
 #pragma once
 
+struct loaded_sound
+{
+	i32 SampleCount;
+	void *Memory;
+};
+
 //TODO: This is a test example to see how a structured asset would look like.
 struct test_structured_asset
 {
@@ -21,7 +27,11 @@ enum asset_state
 struct asset_slot
 {
 	asset_state State;
-	loaded_bitmap *Bitmap;
+	union
+	{
+		loaded_bitmap *Bitmap;
+		loaded_sound *Sound;
+	};
 };
 
 //TODO: The asset tags are currently temporary and will need to be changed into something sane once we know what kind of assets
@@ -77,17 +87,26 @@ struct asset_bitmap_info
 	//Note: Additional bitmap information later stored in the asset files could be added here.
 };
 
+struct asset_sound_info
+{
+	char *FileName;
+	//Note: Additional sound information later stored in the asset files could be added here.
+};
+
 struct game_assets
 {
 	// TODO: This back-pointer is dumb.
 	struct transient_state *TransientState;
 	memory_arena Arena;
 	
+	r32 TagRange[Asset_Tag_Count];
+
 	u32 BitmapCount;
 	asset_bitmap_info *BitmapInfos;
 	asset_slot *Bitmaps;
 
 	u32 SoundCount;
+	asset_sound_info *SoundInfos;
 	asset_slot *Sounds;
 
 	u32 TagCount;
@@ -115,7 +134,7 @@ struct bitmap_id
 	u32 Value;
 };
 
-struct audio_id
+struct sound_id
 {
 	u32 Value;
 };
@@ -129,6 +148,6 @@ GetBitmap(game_assets *Assets, bitmap_id ID)
 }
 
 om_internal void LoadBitmap(game_assets *Assets, bitmap_id ID);
-om_internal void LoadSound(game_assets *Assets, audio_id ID);
+om_internal void LoadSound(game_assets *Assets, sound_id ID);
 
 #endif GAME_ASSET_H

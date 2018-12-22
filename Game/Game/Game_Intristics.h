@@ -95,6 +95,14 @@ FindLeastSignificantSetBit(u32 Value)
 }
 
 inline r32
+SignOf(r32 Value)
+{
+	r32 Result = (Value >= 0.0f) ? 1.0f : -1.0f;
+	
+	return (Result);
+}
+
+inline r32
 SquareRoot(r32 Value)
 {
 	r32 Result = sqrtf(Value);
