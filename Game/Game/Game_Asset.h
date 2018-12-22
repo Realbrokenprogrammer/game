@@ -55,15 +55,20 @@ struct asset_tag
 
 struct asset_type
 {
-	u32 FirstAssetIndex;
+	u32 FirstAssetIndex;		//Note: Range of all the assets to consider for this asset type.
 	u32 OnePastLastAssetIndex;
 };
 
 struct asset
 {
-	u32 FirstTagIndex;
+	u32 FirstTagIndex;			//Note: Range of all the tags to consider for this asset.
 	u32 OnePastLastTagIndex;
 	u32 SlotID;
+};
+
+struct asset_vector
+{
+	r32 E[Asset_Tag_Count];
 };
 
 struct asset_bitmap_info
@@ -100,7 +105,9 @@ struct game_assets
 	//TODO: Temp, should be removed once we load packed asset files.
 	u32 DEBUGUsedBitmapCount;
 	u32 DEBUGUsedAssetCount;
+	u32 DEBUGUsedTagCount;
 	asset_type *DEBUGAssetType;
+	asset *DEBUGAsset;
 };
 
 struct bitmap_id

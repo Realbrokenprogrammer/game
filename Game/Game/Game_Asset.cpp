@@ -1,4 +1,34 @@
 
+om_internal bitmap_id
+PickBestAsset(game_assets *Assets, asset_type_id TypeID, asset_vector *MatchVector, asset_vector *WeightVector)
+{
+	bitmap_id Result = {};
+	r32 BestDifference = R32MAX;
+
+	asset_type *Type = Assets->AssetTypes + TypeID;
+	for (u32 AssetIndex = Type->FirstAssetIndex; AssetIndex < Type->OnePastLastAssetIndex; ++AssetIndex)
+	{
+		asset *Asset = Assets->Assets + AssetIndex;
+
+		r32 TotalWeightedDifference = 0.0f;
+		for (u32 TagIndex = Asset->FirstTagIndex; TagIndex < Asset->OnePastLastTagIndex; ++TagIndex)
+		{
+			asset_tag *Tag = Assets->Tags + TagIndex;
+			r32 Difference = MatchVector->E[Tag->ID] - Tag->Value;
+			r32 Weighted = WeightVector->E[Tag->ID] * AbsoluteValue(Difference);
+			TotalWeightedDifference += Weighted;
+		}
+
+		if (BestDifference > TotalWeightedDifference)
+		{
+			BestDifference = TotalWeightedDifference;
+			Result.Value = Asset->SlotID;
+		}
+	}
+
+	return (Result);
+}
+
 // Packing struct to avoid padding.
 // Source for bitmap header: https://www.fileformat.info/format/bmp/egff.htm
 #pragma pack(push, 1)
@@ -26,7 +56,6 @@ struct bitmap_header
 	u32 BlueMask;
 };
 #pragma pack(pop)
-
 
 //Note: This is not complete bitmap loading code hence it should only be used as such.
 om_internal loaded_bitmap
@@ -183,11 +212,26 @@ om_internal void
 AddBitmapAsset(game_assets *Assets, char *FileName)
 {
 	OM_ASSERT(Assets->DEBUGAssetType);
+	OM_ASSERT(Assets->DEBUGAssetType->OnePastLastAssetIndex < Assets->AssetCount);
 
 	asset *Asset = Assets->Assets + Assets->DEBUGAssetType->OnePastLastAssetIndex++;
-	Asset->FirstTagIndex = 0;
-	Asset->OnePastLastTagIndex = 0;
+	Asset->FirstTagIndex = Assets->DEBUGUsedTagCount;
+	Asset->OnePastLastTagIndex = Asset->FirstTagIndex;
 	Asset->SlotID = DEBUGAddBitmapInfo(Assets, FileName).Value;
+
+	Assets->DEBUGAsset = Asset;
+}
+
+om_internal void
+AddAssetTag(game_assets *Assets, asset_tag_id ID, r32 Value)
+{
+	OM_ASSERT(Assets->DEBUGAsset);
+
+	++Assets->DEBUGAsset->OnePastLastTagIndex;
+	asset_tag *Tag = Assets->Tags + Assets->DEBUGUsedTagCount++;
+	
+	Tag->ID = ID;
+	Tag->Value = Value;
 }
 
 om_internal void
@@ -196,6 +240,7 @@ EndAssetType(game_assets *Assets)
 	OM_ASSERT(Assets->DEBUGAssetType);
 	Assets->DEBUGUsedAssetCount = Assets->DEBUGAssetType->OnePastLastAssetIndex;
 	Assets->DEBUGAssetType = 0;
+	Assets->DEBUGAsset = 0;
 }
 
 om_internal game_assets *
@@ -213,8 +258,8 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	Assets->SoundCount = 1;
 	Assets->Sounds = PushArray(Arena, Assets->SoundCount, asset_slot);
 
-	Assets->TagCount = 0;
-	Assets->Tags = 0;
+	Assets->TagCount = 1024 * Asset_Type_Count;
+	Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
 
 	Assets->AssetCount = Assets->SoundCount + Assets->BitmapCount;
 	Assets->Assets = PushArray(Arena, Assets->AssetCount, asset);
@@ -242,13 +287,31 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
 	EndAssetType(Assets);
 
-	//TODO: Bellow are just temporary examples of how arary'd and structured assets would be loaded in.
 	/*
+		//TODO: Bellow are just temporary examples of how arary'd and structured assets would be loaded in.
 		BeginAssetType(Assets, Asset_Type_Stone);
 		AddBitmapAsset(Assets, "Stone00.bmp");
 		AddBitmapAsset(Assets, "Stone01.bmp");
 		AddBitmapAsset(Assets, "Stone02.bmp");
 		AddBitmapAsset(Assets, "Stone03.bmp");
+		EndAssetType(Assets);
+
+		//TODO: Bellow are temporary example of how a structured asset with tags would be loaded in.
+		real32 AngleRight = 0.0f*Tau32;
+		real32 AngleBack = 0.25f*Tau32;
+		real32 AngleLeft = 0.5f*Tau32;
+		real32 AngleFront = 0.75f*Tau32;
+
+
+		BeginAssetType(Assets, Asset_Head);
+		AddBitmapAsset(Assets, "player_right_head.bmp");
+		AddTag(Assets, Tag_FacingDirection, AngleRight);
+		AddBitmapAsset(Assets, "player_back_head.bmp");
+		AddTag(Assets, Tag_FacingDirection, AngleBack);
+		AddBitmapAsset(Assets, "player_left_head.bmp");
+		AddTag(Assets, Tag_FacingDirection, AngleLeft);
+		AddBitmapAsset(Assets, "player_front_head.bmp");
+		AddTag(Assets, Tag_FacingDirection, AngleFront);
 		EndAssetType(Assets);
 	*/
 

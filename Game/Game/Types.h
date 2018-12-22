@@ -88,6 +88,7 @@ typedef size_t memory_index;
 #define InvalidDefaultCase default: {InvalidCodePath;} break
 
 #define OM_PI32 3.14159265359f
+#define OM_TAU32 6.28318530717958647692f
 
 #define om_kilobytes(Value) ((Value)*1024)
 #define om_megabytes(Value) (om_kilobytes(Value)*1024)

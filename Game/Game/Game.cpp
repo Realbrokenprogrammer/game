@@ -62,37 +62,6 @@ EndTaskWithMemory(task_with_memory *Task)
 	Task->BeingUsed = false;
 }
 
-#if 0
-om_internal i32
-PickBestAsset(i32 InfoCount, asset_bitmap_info *Infos, asset_tag *Tags, r32 *MatchVector, r32 *WeightedVector)
-{
-	r32 BestDifference = R32MAX;
-	i32 BestIndex = 0;
-
-	for (i32 InfoIndex = 0; InfoIndex < InfoCount; ++InfoIndex)
-	{
-		asset_bitmap_info *Info = Infos + InfoIndex;
-		r32 TotalWeightedDifference = 0.0f;
-
-		for (u32 TagIndex = Info->FirstTagIndex; TagIndex < Info->OnePastLastTagIndex; ++TagIndex)
-		{
-			asset_tag *Tag = Tags + TagIndex;
-			r32 Difference = MatchVector[Tag->ID] - Tag->Value;
-			r32 WeightedDifference = WeightedVector[Tag->ID] * AbsoluteValue(Difference);
-			TotalWeightedDifference += WeightedDifference;
-		}
-
-		if (BestDifference > TotalWeightedDifference)
-		{
-			BestDifference = TotalWeightedDifference;
-			BestIndex = InfoIndex;
-		}
-	}
-
-	return (BestIndex);
-}
-#endif
-
 om_internal void
 GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 {
