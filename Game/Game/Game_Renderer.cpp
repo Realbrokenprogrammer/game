@@ -776,7 +776,7 @@ PushBitmap(render_blueprint *Blueprint, loaded_bitmap *Bitmap, vector2 Position,
 }
 
 inline void
-PushBitmap(render_blueprint *Blueprint, game_asset_id ID, vector2 Position, r32 Scale, r32 Rotation, vector2 Offset, vector4 Color)
+PushBitmap(render_blueprint *Blueprint, bitmap_id ID, vector2 Position, r32 Scale, r32 Rotation, vector2 Offset, vector4 Color)
 {
 	loaded_bitmap *Bitmap = GetBitmap(Blueprint->Assets, ID);
 	if (Bitmap)
@@ -785,7 +785,7 @@ PushBitmap(render_blueprint *Blueprint, game_asset_id ID, vector2 Position, r32 
 	}
 	else
 	{
-		LoadAsset(Blueprint->Assets, ID);
+		LoadBitmap(Blueprint->Assets, ID);
 	}
 }
 

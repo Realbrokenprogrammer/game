@@ -3,97 +3,9 @@
 #include "Game_Physics.cpp"
 #include "Game_Camera.cpp"
 #include "Game_Renderer.cpp"
+#include "Game_Asset.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
-
-// Packing struct to avoid padding.
-// Source for bitmap header: https://www.fileformat.info/format/bmp/egff.htm
-#pragma pack(push, 1)
-struct bitmap_header
-{
-	u16 FileType;
-	u32 FileSize;
-	u16 Reserved1;
-	u16 Reserved2;
-	u32 BitmapOffset;
-	u32 Size;
-	i32 Width;
-	i32 Height;
-	u16 Planes;
-	u16 BitsPerPixel;
-	u32 Compression;
-	u32 SizeOfBitmap;
-	i32 HorzResolution;
-	i32 VertResolution;
-	u32 ColorsUsed;
-	u32 ColorsImportant;
-
-	u32 RedMask;
-	u32 GreenMask;
-	u32 BlueMask;
-};
-#pragma pack(pop)
-
-//Note: This is not complete bitmap loading code hence it should only be used as such.
-om_internal loaded_bitmap
-DEBUGLoadBitmap(debug_platform_read_entire_file *ReadEntireFile, char* FileName)
-{
-	loaded_bitmap Result = {};
-
-	debug_read_file_result ReadResult = ReadEntireFile(FileName);
-	if (ReadResult.ContentsSize != 0)
-	{
-		bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
-
-		u32 *Pixels = (u32 *)((u8 *)ReadResult.Contents + Header->BitmapOffset);
-
-		Result.Pixels = Pixels;
-		Result.Width = Header->Width;
-		Result.Height = Header->Height;
-
-		OM_ASSERT(Header->Compression == 3);
-
-		u32 RedMask = Header->RedMask;
-		u32 GreenMask = Header->GreenMask;
-		u32 BlueMask = Header->BlueMask;
-		u32 AlphaMask = ~(RedMask | GreenMask | BlueMask);
-
-		// Bitscan instrinsics to find out how much we need to shift the values down.
-		bit_scan_result RedShift = FindLeastSignificantSetBit(RedMask);
-		bit_scan_result GreenShift = FindLeastSignificantSetBit(GreenMask);
-		bit_scan_result BlueShift = FindLeastSignificantSetBit(BlueMask);
-		bit_scan_result AlphaShift = FindLeastSignificantSetBit(AlphaMask);
-
-		OM_ASSERT(RedShift.Found);
-		OM_ASSERT(GreenShift.Found);
-		OM_ASSERT(BlueShift.Found);
-		OM_ASSERT(AlphaShift.Found);
-
-		u32 *SourceDestination = Pixels;
-		for (i32 Y = 0; Y < Header->Height; ++Y)
-		{
-			for (i32 X = 0; X < Header->Width; ++X)
-			{
-				u32 C = *SourceDestination;
-				*SourceDestination++ = ((((C >> AlphaShift.Index) & 0xFF) << 24) |
-										(((C >> RedShift.Index) & 0xFF) << 16) |
-										(((C >> GreenShift.Index) & 0xFF) << 8) |
-										(((C >> BlueShift.Index) & 0xFF) << 0));
-			}
-		}
-	}
-
-	Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
-
-	//Note: Changes the pixels to point at the last row and makes the pitch negative to resolve bitmaps
-	//being stored upside down.
-#if 1
-	Result.Pixels = (u32 *)((u8 *)Result.Pixels + Result.Pitch*(Result.Height- 1));
-	Result.Pitch = -Result.Pitch;
-#endif
-
-	return (Result);
-}
 
 om_internal loaded_bitmap
 CreateTransparentBitmap(u32 Width, u32 Height)
@@ -140,7 +52,7 @@ BeginTaskWithMemory(transient_state *TransientState)
 	return (FoundTask);
 }
 
-inline void
+om_internal void
 EndTaskWithMemory(task_with_memory *Task)
 {
 	DestroyTemporaryMemory(Task->MemoryFlush);
@@ -150,78 +62,7 @@ EndTaskWithMemory(task_with_memory *Task)
 	Task->BeingUsed = false;
 }
 
-struct load_asset_work
-{
-	game_assets *Assets;
-	char *FileName;
-	game_asset_id ID;
-	task_with_memory *Task;
-	loaded_bitmap *Bitmap;
-
-	asset_state FinalState;
-};
-om_internal 
-PLATFORM_THREAD_QUEUE_CALLBACK(LoadAssetWork)
-{
-	load_asset_work *Work = (load_asset_work *)Data;
-
-	*Work->Bitmap = DEBUGLoadBitmap(Work->Assets->ReadEntireFile, Work->FileName);
-
-	CompletePreviousWritesBeforeFutureWrites;
-
-	Work->Assets->Bitmaps[Work->ID].Bitmap = Work->Bitmap;
-	Work->Assets->Bitmaps[Work->ID].State = Work->FinalState;
-	
-	EndTaskWithMemory(Work->Task);
-}
-
-om_internal void
-LoadAsset(game_assets *Assets, game_asset_id ID)
-{
-	if (AtomicCompareExchangeUInt32((u32 *)&Assets->Bitmaps[ID].State, AssetState_Unloaded, AssetState_Queued) == AssetState_Unloaded)
-	{
-		task_with_memory *Task = BeginTaskWithMemory(Assets->TransientState);
-		if (Task)
-		{
-			debug_platform_read_entire_file *ReadEntireFile = Assets->ReadEntireFile;
-
-			load_asset_work *Work = PushStruct(&Task->Arena, load_asset_work);;
-			Work->Assets = Assets;
-			Work->ID = ID;
-			Work->Task = Task;
-			Work->FileName = "";
-			Work->Bitmap = PushStruct(&Assets->Arena, loaded_bitmap);
-			Work->FinalState = AssetState_Loaded;
-
-			switch (ID)
-			{
-				case GAI_Grass:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp";
-				} break;
-				case GAI_Water:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp";
-				} break;
-				case GAI_SlopeLeft:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp";
-				} break;
-				case GAI_SlopeRight:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp";
-				} break;
-				case GAI_Player:
-				{
-					Work->FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp";
-				} break;
-			}
-
-			PlatformAddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadAssetWork, Work);
-		}
-	}
-}
-
+#if 0
 om_internal i32
 PickBestAsset(i32 InfoCount, asset_bitmap_info *Infos, asset_tag *Tags, r32 *MatchVector, r32 *WeightedVector)
 {
@@ -250,6 +91,7 @@ PickBestAsset(i32 InfoCount, asset_bitmap_info *Infos, asset_tag *Tags, r32 *Mat
 
 	return (BestIndex);
 }
+#endif
 
 om_internal void
 GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
@@ -573,11 +415,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
 	PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
 	PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
+	DEBUGPlatformReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
 
 	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
 
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
-	if (!Memory->IsInitialized)
+	if (!GameState->Initialized)
 	{
 		//TODO: Make use of memory arena for the world and remove VirtualAlloc.
 
@@ -675,7 +518,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		GameState->Time = 0;
 
 		//TODO: This may be more appropriate to let the platform layer do.
-		Memory->IsInitialized = true;
+		GameState->Initialized = true;
 	}
 
 	OM_ASSERT(sizeof(transient_state) <= Memory->TransientStorageSize);
@@ -685,10 +528,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 	{
 		InitializeMemoryArena(&TransientState->TransientArena, Memory->TransientStorageSize - sizeof(transient_state),
 			(u8 *)Memory->TransientStorage + sizeof(transient_state));
-
-		CreateSubArena(&TransientState->Assets.Arena, &TransientState->TransientArena, om_megabytes(64));
-		TransientState->Assets.ReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
-		TransientState->Assets.TransientState = TransientState;
 
 		for (uint32_t TaskIndex = 0; TaskIndex < OM_ARRAYCOUNT(TransientState->Tasks); ++TaskIndex)
 		{
@@ -701,6 +540,9 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		TransientState->HighPriorityQueue = Memory->HighPriorityQueue;
 		TransientState->LowPriorityQueue = Memory->LowPriorityQueue;
 
+		// Creating the game_asset structure that manages all the assets for the game.
+		TransientState->Assets = CreateGameAssets(&TransientState->TransientArena, om_megabytes(64), TransientState);
+		
 		TransientState->Initialized = true;
 	}
 
@@ -765,7 +607,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	GameState->Time += Input->dtForFrame;
 	render_basis Basis = { GameState->Camera.Position };
-	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&TransientState->Assets, &Basis, om_megabytes(4));
+	render_blueprint *RenderBlueprint = CreateRenderBlueprint(TransientState->Assets, &Basis, om_megabytes(4));
 
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
@@ -780,27 +622,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				case EntityType_Hero:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, GAI_Player, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Player), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_GrassTile:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, GAI_Grass, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Grass), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_WaterTile:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, GAI_Water, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Water), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileLeft:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, GAI_SlopeLeft, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_SlopeLeft), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileRight:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, GAI_SlopeRight, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_SlopeRight), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_Monster:
 				default:

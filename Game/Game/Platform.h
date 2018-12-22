@@ -144,8 +144,6 @@ IsDown(game_button_state State)
 
 struct game_memory
 {
-	b32 IsInitialized;
-
 	u64 PermanentStorageSize;
 	void *PermanentStorage;			//NOTE: Required to be cleared to zero at startup.
 

@@ -10,8 +10,6 @@
 #include <windows.h>
 #include <stdio.h>
 
-#include "Game.h"
-
 #include "Main.h" //TODO: Main.h should be renamed, same with Main.cpp.
 
 /*
@@ -20,7 +18,6 @@
 		* Saved game locations
 		* Get handle to our own executable file
 		* Asset loading path
-		* Threading (Launch a thread)
 		* Raw Input (support for multiple keyboards
 		* Sleep/timeBeginPeriod
 		* ClipCursor() (Multimonitor support)

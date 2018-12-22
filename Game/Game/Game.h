@@ -11,70 +11,7 @@
 #include "Game_World.h"
 #include "Game_Camera.h"
 #include "Game_Renderer.h"
-
-enum game_asset_id
-{
-	GAI_Grass,
-	GAI_Water,
-	GAI_SlopeLeft,
-	GAI_SlopeRight,
-	GAI_Player,
-
-	GAI_Count
-};
-
-enum asset_state
-{
-	AssetState_Unloaded,
-	AssetState_Queued,
-	AssetState_Loaded,
-	AssetState_Locked
-};
-
-struct asset_slot
-{
-	asset_state State;
-	loaded_bitmap *Bitmap;
-};
-
-struct asset_tag
-{
-	u32 ID;
-	r32 Value;
-};
-
-struct asset_bitmap_info
-{
-	i32 Width;
-	i32 Height;
-
-	u32 FirstTagIndex;
-	u32 OnePastLastTagIndex;
-};
-
-struct asset_group
-{
-	u32 FirstTagIndex;
-	u32 OnePastLastTagIndex;
-};
-
-struct game_assets
-{
-	// TODO: This back-pointer is dumb.
-	struct transient_state *TransientState;
-	memory_arena Arena;
-	debug_platform_read_entire_file *ReadEntireFile;
-
-	asset_slot Bitmaps[GAI_Count];
-};
-
-inline loaded_bitmap *
-GetBitmap(game_assets *Assets, game_asset_id ID)
-{
-	loaded_bitmap *Result = Assets->Bitmaps[ID].Bitmap;
-
-	return (Result);
-}
+#include "Game_Asset.h"
 
 //TODO: This could be improved, think of the structure of this later.
 enum game_mode
@@ -88,6 +25,8 @@ enum game_mode
 
 struct game_state
 {
+	b32 Initialized;
+
 	world *World;
 
 	entity *ControlledEntity;
@@ -115,14 +54,17 @@ struct transient_state
 
 	task_with_memory Tasks[4];
 
+	game_assets *Assets;
+
 	platform_thread_queue *HighPriorityQueue;
 	platform_thread_queue *LowPriorityQueue;
-
-	game_assets Assets;
 };
 
 om_global_variable platform_add_thread_entry *PlatformAddThreadEntry;
 om_global_variable platform_complete_all_work *PlatformCompleteAllThreadWork;
-om_internal void LoadAsset(game_assets *Assets, game_asset_id ID);
+om_global_variable debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
+
+om_internal task_with_memory *BeginTaskWithMemory(transient_state *TransientState);
+om_internal void EndTaskWithMemory(task_with_memory *Task);
 
 #endif // GAME_H

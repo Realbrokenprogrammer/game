@@ -30,6 +30,9 @@
     <ClCompile Include="..\Game\Game_Renderer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\Game\Game_Asset.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Game\Game_Math.h">
@@ -63,6 +66,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\Game\Game_Memory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Game\Game_Asset.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
