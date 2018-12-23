@@ -77,7 +77,11 @@ GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
 		*SampleOut++ = SampleValue;
 		*SampleOut++ = SampleValue;
 
-		tSine += 2.0f * OM_PI32 * 1.0f / (r32)WavePeriod;
+		tSine += OM_TAU32 * 1.0f / (r32)WavePeriod;
+		if (tSine > OM_TAU32)
+		{
+			tSine -= OM_TAU32;
+		}
 	}
 }
 
@@ -402,6 +406,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			GameState->World = World;
 		}
 
+		GameState->TestSound = DEBUGLoadWAV("C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\music_test.wav");
+
 		// TODO: Should later be loaded from level file.
 		u32 WorldTileWidth = 60;
 		u32 WorldTileHeight = 23;
@@ -632,4 +638,15 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	//GameOutputSound(SoundBuffer, GameState->ToneHz);
+
+	i16 *SampleOut = SoundBuffer->Samples;
+	for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
+	{
+		u32 TestSoundSampleIndex = (GameState->TestSampleIndex + SampleIndex) % GameState->TestSound.SampleCount;
+		i16 SampleValue = GameState->TestSound.Samples[0][TestSoundSampleIndex];
+		*SampleOut++ = SampleValue;
+		*SampleOut++ = SampleValue;
+	}
+
+	GameState->TestSampleIndex += SoundBuffer->SampleCount;
 }

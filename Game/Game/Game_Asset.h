@@ -4,8 +4,9 @@
 
 struct loaded_sound
 {
-	i32 SampleCount;
-	void *Memory;
+	u32 SampleCount;
+	u32 ChannelCount;
+	i16 *Samples[2];
 };
 
 //TODO: This is a test example to see how a structured asset would look like.

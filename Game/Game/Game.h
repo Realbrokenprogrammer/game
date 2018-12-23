@@ -37,6 +37,9 @@ struct game_state
 	camera Camera;
 
 	r32 Time;
+
+	loaded_sound TestSound;
+	u32 TestSampleIndex;
 };
 
 struct task_with_memory

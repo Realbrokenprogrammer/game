@@ -61,6 +61,43 @@ struct bitmap_header
 	u32 GreenMask;
 	u32 BlueMask;
 };
+
+//Note: Source for WAVE header: http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html
+struct WAVE_header
+{
+	u32 RIFFID;
+	u32 Size;
+	u32 WAVEID;
+};
+
+#define RIFF_CODE(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
+
+enum
+{
+	WAVE_ChunkID_fmt = RIFF_CODE('f', 'm', 't', ' '),
+	WAVE_ChunkID_data = RIFF_CODE('d', 'a', 't', 'a'),
+	WAVE_ChunkID_RIFF = RIFF_CODE('R', 'I', 'F', 'F'),
+	WAVE_ChunkID_WAVE = RIFF_CODE('W', 'A', 'V', 'E')
+};
+
+struct WAVE_chunk
+{
+	u32 ID;
+	u32 Size;
+};
+
+struct WAVE_fmt {
+	u16 wFormatTag;
+	u16 nChannels;
+	u32 nSamplesPerSec;
+	u32 nAvgBytesPerSec;
+	u16 nBlockAlign;
+	u16 wBitsPerSample;
+	u16 cbSize;
+	u16 wValidBitsPerSample;
+	u32 dwChannelMask;
+	u8 SubFormat[16];
+};
 #pragma pack(pop)
 
 //Note: This is not complete bitmap loading code hence it should only be used as such.
@@ -124,41 +161,66 @@ DEBUGLoadBitmap(char* FileName)
 	return (Result);
 }
 
-//Note: Source for WAVE header: http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html
-struct WAVE_header
+struct riff_iterator
 {
-	u32 RIFFID;
-	u32 Size;
-	u32 WAVEID;
+	u8 *At;
+	u8 *Stop;
 };
 
-#define RIFF_CODE(a, b, c, d) (((u32)(a) << 0) | ((u32)(b) << 8) | ((u32)(c) << 16) | ((u32)(d) << 24))
-
-enum
+inline riff_iterator
+ParseChunkAt(void *At, void *Stop)
 {
-	WAVE_ChunkID_fmt = RIFF_CODE('f', 'm', 't', ' '),
-	WAVE_ChunkID_RIFF = RIFF_CODE('R', 'I', 'F', 'F'),
-	WAVE_ChunkID_WAVE = RIFF_CODE('W', 'A', 'V', 'E')
-};
+	riff_iterator Iterator = {};
 
-struct WAVE_chunk
+	Iterator.At = (u8 *)At;
+	Iterator.Stop = (u8 *)Stop;
+
+	return (Iterator);
+}
+
+inline riff_iterator
+NextChunk(riff_iterator Iterator)
 {
-	u32 ID;
-	u32 Size;
-};
+	WAVE_chunk *Chunk = (WAVE_chunk *)Iterator.At;
+	u32 Size = (Chunk->Size + 1) & ~1;
+	Iterator.At += sizeof(WAVE_chunk) + Size;
 
-struct WAVE_fmt {
-	u16 wFormatTag;
-	u16 nChannels;
-	u32 nSamplesPerSec;
-	u32 nAvgBytesPerSec;
-	u16 nBlockAlign;
-	u16 wBitsPerSample;
-	u16 cbSize;
-	u16 wValidBitsPerSample;
-	u32 dwChannelMask;
-	u32 SubFormat[4];
-};
+	return (Iterator);
+}
+
+inline b32
+IsValid(riff_iterator Iterator)
+{
+	b32 Result = (Iterator.At < Iterator.Stop);
+
+	return (Result);
+}
+
+inline void *
+GetChunkData(riff_iterator Iterator)
+{
+	void *Result = (Iterator.At + sizeof(WAVE_chunk));
+
+	return (Result);
+}
+
+inline u32
+GetType(riff_iterator Iterator)
+{
+	WAVE_chunk *Chunk = (WAVE_chunk *)Iterator.At;
+	u32 Result = Chunk->ID;
+
+	return (Result);
+}
+
+inline u32
+GetChunkDataSize(riff_iterator Iterator)
+{
+	WAVE_chunk *Chunk = (WAVE_chunk *)Iterator.At;
+	u32 Result = Chunk->Size;
+
+	return (Result);
+}
 
 om_internal loaded_sound
 DEBUGLoadWAV(char *FileName)
@@ -172,6 +234,62 @@ DEBUGLoadWAV(char *FileName)
 
 		OM_ASSERT(Header->RIFFID == WAVE_ChunkID_RIFF);
 		OM_ASSERT(Header->WAVEID == WAVE_ChunkID_WAVE);
+
+		u32 ChannelCount = 0;
+		u32 SampleDataSize = 0;
+		i16 *SampleData = 0;
+
+		for (riff_iterator Iterator = ParseChunkAt(Header + 1, (u8 *)(Header + 1) + Header->Size - 4); IsValid(Iterator); Iterator = NextChunk(Iterator))
+		{
+			switch (GetType(Iterator))
+			{
+				case WAVE_ChunkID_fmt:
+				{
+					WAVE_fmt *fmt = (WAVE_fmt *)GetChunkData(Iterator);
+					OM_ASSERT(fmt->wFormatTag == 1); //Note: We only support PCM.
+					OM_ASSERT(fmt->nSamplesPerSec == 48000);
+					OM_ASSERT(fmt->wBitsPerSample == 16);
+					OM_ASSERT(fmt->nBlockAlign == (sizeof(int16)*fmt->nChannels));
+					ChannelCount = fmt->nChannels;
+				} break;
+
+				case WAVE_ChunkID_data:
+				{
+					SampleData = (i16 *)GetChunkData(Iterator);
+					SampleDataSize = GetChunkDataSize(Iterator);
+				} break;
+			}
+		}
+
+		OM_ASSERT(ChannelCount && SampleData);
+
+		Result.ChannelCount = ChannelCount;
+		Result.SampleCount = SampleDataSize / (ChannelCount * sizeof(i16));
+
+		if (ChannelCount == 1)
+		{
+			Result.Samples[0] = SampleData;
+			Result.Samples[1] = 0;
+		}
+		else if (ChannelCount == 2)
+		{
+			Result.Samples[0] = SampleData;
+			Result.Samples[1] = SampleData + Result.SampleCount;
+
+			for (u32 SampleIndex = 0; SampleIndex < Result.SampleCount; ++SampleIndex)
+			{
+				i16 Source = SampleData[2 * SampleIndex];
+				SampleData[2 * SampleIndex] = SampleData[SampleIndex];
+				SampleData[SampleIndex] = Source;
+			}
+		}
+		else
+		{
+			OM_ASSERT(!"Invalid number of channels in WAV file.");
+		}
+
+		// TODO: Load the right channels.
+		Result.ChannelCount = 1;
 	}
 
 	return (Result);
