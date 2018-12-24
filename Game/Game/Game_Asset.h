@@ -49,11 +49,15 @@ enum asset_type_id
 {
 	Asset_Type_None,
 
+	//Note: Bitmaps
 	Asset_Type_Grass,
 	Asset_Type_Water,
 	Asset_Type_SlopeLeft,
 	Asset_Type_SlopeRight,
 	Asset_Type_Player,
+
+	//Note: Sounds
+	Asset_Type_Music,
 
 	Asset_Type_Count
 };
@@ -124,6 +128,7 @@ struct game_assets
 
 	//TODO: Temp, should be removed once we load packed asset files.
 	u32 DEBUGUsedBitmapCount;
+	u32 DEBUGUsedSoundCount;
 	u32 DEBUGUsedAssetCount;
 	u32 DEBUGUsedTagCount;
 	asset_type *DEBUGAssetType;
@@ -144,6 +149,14 @@ inline loaded_bitmap *
 GetBitmap(game_assets *Assets, bitmap_id ID)
 {
 	loaded_bitmap *Result = Assets->Bitmaps[ID.Value].Bitmap;
+
+	return (Result);
+}
+
+inline loaded_sound *
+GetSound(game_assets *Assets, sound_id ID)
+{
+	loaded_sound *Result = Assets->Sounds[ID.Value].Sound;
 
 	return (Result);
 }

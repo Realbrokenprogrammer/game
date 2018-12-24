@@ -13,6 +13,14 @@
 #include "Game_Renderer.h"
 #include "Game_Asset.h"
 
+struct playing_sound
+{
+	r32 Volume[2];
+	sound_id ID;
+	i32 SamplesPlayed;
+	playing_sound *Next;
+};
+
 //TODO: This could be improved, think of the structure of this later.
 enum game_mode
 {
@@ -27,6 +35,7 @@ struct game_state
 {
 	b32 Initialized;
 
+	memory_arena WorldArena;
 	world *World;
 
 	entity *ControlledEntity;
@@ -38,8 +47,8 @@ struct game_state
 
 	r32 Time;
 
-	loaded_sound TestSound;
-	u32 TestSampleIndex;
+	playing_sound *FirstPlayingSound;
+	playing_sound *FirstFreePlayingSound;
 };
 
 struct task_with_memory
