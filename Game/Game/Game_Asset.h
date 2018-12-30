@@ -2,6 +2,16 @@
 #define GAME_ASSET_H
 #pragma once
 
+struct bitmap_id
+{
+	u32 Value;
+};
+
+struct sound_id
+{
+	u32 Value;
+};
+
 struct loaded_sound
 {
 	u32 SampleCount;
@@ -95,6 +105,9 @@ struct asset_bitmap_info
 struct asset_sound_info
 {
 	char *FileName;
+	u32 FirstSampleIndex;
+	u32 SampleCount;
+	sound_id NextIDToPlay;
 	//Note: Additional sound information later stored in the asset files could be added here.
 };
 
@@ -135,19 +148,10 @@ struct game_assets
 	asset *DEBUGAsset;
 };
 
-struct bitmap_id
-{
-	u32 Value;
-};
-
-struct sound_id
-{
-	u32 Value;
-};
-
 inline loaded_bitmap *
 GetBitmap(game_assets *Assets, bitmap_id ID)
 {
+	OM_ASSERT(ID.Value <= Assets->BitmapCount);
 	loaded_bitmap *Result = Assets->Bitmaps[ID.Value].Bitmap;
 
 	return (Result);
@@ -156,7 +160,33 @@ GetBitmap(game_assets *Assets, bitmap_id ID)
 inline loaded_sound *
 GetSound(game_assets *Assets, sound_id ID)
 {
+	OM_ASSERT(ID.Value <= Assets->SoundCount);
 	loaded_sound *Result = Assets->Sounds[ID.Value].Sound;
+
+	return (Result);
+}
+
+inline asset_sound_info *
+GetSoundInfo(game_assets *Assets, sound_id ID)
+{
+	OM_ASSERT(ID.Value <= Assets->SoundCount);
+	asset_sound_info *Result = Assets->SoundInfos + ID.Value;
+
+	return (Result);
+}
+
+inline b32
+IsValid(bitmap_id ID)
+{
+	b32 Result = (ID.Value != 0);
+	
+	return (Result);
+}
+
+inline b32
+IsValid(sound_id ID)
+{
+	b32 Result = (ID.Value != 0);
 
 	return (Result);
 }

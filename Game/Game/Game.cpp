@@ -4,6 +4,7 @@
 #include "Game_Camera.cpp"
 #include "Game_Renderer.cpp"
 #include "Game_Asset.cpp"
+#include "Game_Audio.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
 
@@ -60,52 +61,6 @@ EndTaskWithMemory(task_with_memory *Task)
 	CompletePreviousWritesBeforeFutureWrites;
 
 	Task->BeingUsed = false;
-}
-
-om_internal void
-GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
-{
-	om_local_persist r32 tSine;
-	i16 ToneVolume = 3000;
-	int WavePeriod = SoundBuffer->SamplesPerSecond / ToneHz;
-
-	i16 *SampleOut = SoundBuffer->Samples;
-	for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
-	{
-		r32 SineValue = sinf(tSine);
-		i16 SampleValue = (i16)(SineValue * ToneVolume);
-		*SampleOut++ = SampleValue;
-		*SampleOut++ = SampleValue;
-
-		tSine += OM_TAU32 * 1.0f / (r32)WavePeriod;
-		if (tSine > OM_TAU32)
-		{
-			tSine -= OM_TAU32;
-		}
-	}
-}
-
-om_internal playing_sound *
-PlaySound(game_state *GameState, sound_id SoundID)
-{
-	if (!GameState->FirstFreePlayingSound)
-	{
-		GameState->FirstFreePlayingSound = PushStruct(&GameState->WorldArena, playing_sound);
-		GameState->FirstFreePlayingSound->Next = 0;
-	}
-
-	playing_sound *PlayingSound = GameState->FirstFreePlayingSound;
-	GameState->FirstFreePlayingSound = PlayingSound->Next;
-
-	PlayingSound->SamplesPlayed = 0;
-	PlayingSound->Volume[0] = 0.5f;
-	PlayingSound->Volume[1] = 0.5f;
-	PlayingSound->ID = SoundID;
-
-	PlayingSound->Next = GameState->FirstPlayingSound;
-	GameState->FirstPlayingSound = PlayingSound;
-
-	return(PlayingSound);
 }
 
 om_internal void
@@ -436,6 +391,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		u32 WorldCellSize = 500; //TODO: Set more educated value for this.
 		InitializeWorld(World, WorldTileWidth*PIXELS_PER_TILE, WorldTileHeight*PIXELS_PER_TILE, WorldCellSize);
 
+		InitializeAudioState(&GameState->AudioState, &GameState->WorldArena);
+
 		for (u32 TileY = 0; TileY < WorldTileHeight; ++TileY)
 		{
 			for (u32 TileX = 0; TileX < WorldTileWidth; ++TileX)
@@ -541,7 +498,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		TransientState->Assets = CreateGameAssets(&TransientState->TransientArena, om_megabytes(64), TransientState);
 		
 		// Play music
-		PlaySound(GameState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+		PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
 
 		TransientState->Initialized = true;
 	}
@@ -595,7 +552,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			if (Controller->ActionUp.EndedDown)
 			{
 				//TODO: Playing long sound on button press. This is for testing purposes and has to be removed.
-				PlaySound(GameState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+				PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
 			}
 
 			MoveEntity(GameState->World, Player, Input->dtForFrame, ddPosition);
@@ -669,86 +626,5 @@ extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
 	transient_state *TransientState = (transient_state *)Memory->TransientStorage;
 	
-	temporary_memory SoundMixerMemory = CreateTemporaryMemory(&TransientState->TransientArena);
-
-	r32 *Channel0 = PushArray(&TransientState->TransientArena, SoundBuffer->SampleCount, r32);
-	r32 *Channel1 = PushArray(&TransientState->TransientArena, SoundBuffer->SampleCount, r32);
-
-	//Note:	Clearing the mixer channels.
-	{
-		r32 *Destination0 = Channel0;
-		r32 *Destination1 = Channel1;
-
-		for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
-		{
-			*Destination0++ = 0.0f;
-			*Destination1++ = 0.0f;
-		}
-	}
-
-	//Note: Add all sounds together.
-	for (playing_sound **PlayingSoundPointer = &GameState->FirstPlayingSound; *PlayingSoundPointer;)
-	{
-		playing_sound *PlayingSound = *PlayingSoundPointer;
-		b32 SoundFinished = false;
-		loaded_sound *LoadedSound = GetSound(TransientState->Assets, PlayingSound->ID);
-
-		if (LoadedSound)
-		{
-			r32 Volume0 = PlayingSound->Volume[0];
-			r32 Volume1 = PlayingSound->Volume[1];
-			r32 *Destination0 = Channel0;
-			r32 *Destination1 = Channel1;
-
-			OM_ASSERT(PlayingSound->SamplesPlayed >= 0);
-
-			u32 SamplesToMix = SoundBuffer->SampleCount;
-			u32 SamplesRemainingInSound = LoadedSound->SampleCount - PlayingSound->SamplesPlayed;
-			if (SamplesToMix > SamplesRemainingInSound)
-			{
-				SamplesToMix = SamplesRemainingInSound;
-			}
-
-			for (u32 SampleIndex = PlayingSound->SamplesPlayed; SampleIndex < (PlayingSound->SamplesPlayed + SamplesToMix); ++SampleIndex)
-			{
-				//TODO: Add support for stereo
-				r32 SampleValue = LoadedSound->Samples[0][SampleIndex];
-				*Destination0++ += Volume0 * SampleValue;
-				*Destination1++ += Volume1 * SampleValue;
-			}
-
-			SoundFinished = ((u32)PlayingSound->SamplesPlayed == LoadedSound->SampleCount);
-			PlayingSound->SamplesPlayed += SamplesToMix;
-		}
-		else
-		{
-			LoadSound(TransientState->Assets, PlayingSound->ID);
-		}
-
-		if (SoundFinished)
-		{
-			*PlayingSoundPointer = PlayingSound->Next;
-			PlayingSound->Next = GameState->FirstFreePlayingSound;
-			GameState->FirstFreePlayingSound = PlayingSound;
-		}
-		else
-		{
-			PlayingSoundPointer = &PlayingSound->Next;
-		}
-	}
-
-	//Note: Converting the buffer values into 16 bit.
-	{
-		r32 *Source0 = Channel0;
-		r32 *Source1 = Channel1;
-
-		i16 *SampleOut = SoundBuffer->Samples;
-		for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
-		{
-			*SampleOut++ = (i16)(*Source0++ + 0.5f);
-			*SampleOut++ = (i16)(*Source1++ + 0.5f);
-		}
-	}
-
-	DestroyTemporaryMemory(SoundMixerMemory);
+	OutputMixedSounds(&GameState->AudioState, SoundBuffer, TransientState->Assets, &TransientState->TransientArena);
 }

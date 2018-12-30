@@ -12,14 +12,7 @@
 #include "Game_Camera.h"
 #include "Game_Renderer.h"
 #include "Game_Asset.h"
-
-struct playing_sound
-{
-	r32 Volume[2];
-	sound_id ID;
-	i32 SamplesPlayed;
-	playing_sound *Next;
-};
+#include "Game_Audio.h"
 
 //TODO: This could be improved, think of the structure of this later.
 enum game_mode
@@ -46,9 +39,9 @@ struct game_state
 	camera Camera;
 
 	r32 Time;
+	r32 tSine;
 
-	playing_sound *FirstPlayingSound;
-	playing_sound *FirstFreePlayingSound;
+	audio_state AudioState;
 };
 
 struct task_with_memory
