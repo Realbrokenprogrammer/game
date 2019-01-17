@@ -4,7 +4,10 @@
 
 struct playing_sound
 {
-	r32 Volume[2];
+	vector2 CurrentVolume;
+	vector2 dCurrentVolume; //TODO: Naming.
+	vector2 TargetVolume;
+
 	sound_id ID;
 	i32 SamplesPlayed;
 	playing_sound *Next;
@@ -16,6 +19,8 @@ struct audio_state
 
 	playing_sound *FirstPlayingSound;
 	playing_sound *FirstFreePlayingSound;
+
+	vector2 MasterVolume;
 };
 
 #endif // GAME_AUDIO_H

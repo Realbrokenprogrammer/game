@@ -42,6 +42,7 @@ struct game_state
 	r32 tSine;
 
 	audio_state AudioState;
+	playing_sound *Music;
 };
 
 struct task_with_memory

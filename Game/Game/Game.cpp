@@ -498,7 +498,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		TransientState->Assets = CreateGameAssets(&TransientState->TransientArena, om_megabytes(64), TransientState);
 		
 		// Play music
-		PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+		GameState->Music = PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
 
 		TransientState->Initialized = true;
 	}
@@ -552,7 +552,20 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			if (Controller->ActionUp.EndedDown)
 			{
 				//TODO: Playing long sound on button press. This is for testing purposes and has to be removed.
-				PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+				//PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+				ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(1.0f, 1.0f));
+			}
+			if (Controller->ActionDown.EndedDown)
+			{
+				ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(0.0f, 0.0f));
+			}
+			if (Controller->ActionLeft.EndedDown)
+			{
+				ChangeVolume(&GameState->AudioState, GameState->Music, 5.0f, Vector2(1.0f, 0.0f));
+			}
+			if (Controller->ActionRight.EndedDown)
+			{
+				ChangeVolume(&GameState->AudioState, GameState->Music, 5.0f, Vector2(0.0f, 1.0f));
 			}
 
 			MoveEntity(GameState->World, Player, Input->dtForFrame, ddPosition);
