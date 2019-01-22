@@ -38,6 +38,7 @@ PlaySoundID(audio_state *AudioState, sound_id SoundID)
 	PlayingSound->CurrentVolume = PlayingSound->TargetVolume = Vector2(1.0f, 1.0f);
 	PlayingSound->dCurrentVolume = Vector2(0.0f, 0.0f);
 	PlayingSound->ID = SoundID;
+	PlayingSound->dSample = 1.0f;
 
 	PlayingSound->Next = AudioState->FirstPlayingSound;
 	AudioState->FirstPlayingSound = PlayingSound;
@@ -58,6 +59,12 @@ ChangeVolume(audio_state *AudioState, playing_sound *Sound, r32 FadeDurationInSe
 		Sound->TargetVolume = Volume;
 		Sound->dCurrentVolume = OneOverFade * (Sound->TargetVolume - Sound->CurrentVolume);
 	}
+}
+
+om_internal void
+ChangePitch(audio_state *AudioState, playing_sound *Sound, r32 dSample)
+{
+	Sound->dSample = dSample;
 }
 
 om_internal void
@@ -104,10 +111,12 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 				vector2 Volume = PlayingSound->CurrentVolume;
 				vector2 dVolume = SecondsPerSample * PlayingSound->dCurrentVolume;
 
-				OM_ASSERT(PlayingSound->SamplesPlayed >= 0);
+				r32 dSample = PlayingSound->dSample;
+				OM_ASSERT(PlayingSound->SamplesPlayed >= 0.0f);
 
 				u32 SamplesToMix = TotalSamplesToMix;
-				u32 SamplesRemainingInSound = LoadedSound->SampleCount - PlayingSound->SamplesPlayed;
+				r32 RealSamplesRemainingInSound = (LoadedSound->SampleCount - RoundReal32ToInt32(PlayingSound->SamplesPlayed)) / dSample;
+				u32 SamplesRemainingInSound = RoundReal32ToInt32(RealSamplesRemainingInSound);
 				if (SamplesToMix > SamplesRemainingInSound)
 				{
 					SamplesToMix = SamplesRemainingInSound;
@@ -128,14 +137,26 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 					}
 				}
 
-				for (u32 SampleIndex = PlayingSound->SamplesPlayed; SampleIndex < (PlayingSound->SamplesPlayed + SamplesToMix); ++SampleIndex)
+				r32 SamplePosition = PlayingSound->SamplesPlayed;
+				for (u32 LoopIndex = 0; LoopIndex < SamplesToMix; ++LoopIndex)
 				{
-					//TODO: Add support for stereo
+#if 1
+					u32 SampleIndex = FloorReal32ToInt32(SamplePosition);
+					r32 Frac = SamplePosition - (r32)SampleIndex;
+					r32 Sample0 = (r32)LoadedSound->Samples[0][SampleIndex];
+					r32 Sample1 = (r32)LoadedSound->Samples[0][SampleIndex + 1];
+					r32 SampleValue = Lerp(Sample0, Sample1, Frac);
+#else
+					u32 SampleIndex = RoundReal32ToInt32(SamplePosition);
 					r32 SampleValue = LoadedSound->Samples[0][SampleIndex];
+#endif
+
+					//TODO: Add support for stereo
 					*Destination0++ += AudioState->MasterVolume.E[0] * Volume.E[0] * SampleValue;
 					*Destination1++ += AudioState->MasterVolume.E[1] * Volume.E[1] * SampleValue;
 
 					Volume += dVolume;
+					SamplePosition += dSample;
 				}
 
 				PlayingSound->CurrentVolume = Volume;
@@ -150,7 +171,7 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 				}
 
 				OM_ASSERT(TotalSamplesToMix >= SamplesToMix);
-				PlayingSound->SamplesPlayed += SamplesToMix;
+				PlayingSound->SamplesPlayed = SamplePosition;
 				TotalSamplesToMix -= SamplesToMix;
 
 				if ((u32)PlayingSound->SamplesPlayed == LoadedSound->SampleCount)

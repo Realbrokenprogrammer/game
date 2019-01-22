@@ -880,6 +880,9 @@ int main(int argc, char *argv[])
 					FILETIME NewDLLWriteTime = SDLGetLastWriteTime(SourceGameCodeDLLFullPath);
 					if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
 					{
+						Win32CompleteAllThreadWork(&HighPriorityQueue);
+						Win32CompleteAllThreadWork(&LowPriorityQueue);
+
 						SDLUnloadGameCode(&Game);
 						Game = SDLLoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath);
 					}

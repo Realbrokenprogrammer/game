@@ -8,8 +8,10 @@ struct playing_sound
 	vector2 dCurrentVolume; //TODO: Naming.
 	vector2 TargetVolume;
 
+	r32 dSample;
+
 	sound_id ID;
-	i32 SamplesPlayed;
+	r32 SamplesPlayed;
 	playing_sound *Next;
 };
 

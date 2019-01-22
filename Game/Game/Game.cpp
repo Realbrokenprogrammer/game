@@ -561,11 +561,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			}
 			if (Controller->ActionLeft.EndedDown)
 			{
-				ChangeVolume(&GameState->AudioState, GameState->Music, 5.0f, Vector2(1.0f, 0.0f));
+				//ChangeVolume(&GameState->AudioState, GameState->Music, 5.0f, Vector2(1.0f, 0.0f));
+				ChangePitch(&GameState->AudioState, GameState->Music, 5.0f);
 			}
 			if (Controller->ActionRight.EndedDown)
 			{
-				ChangeVolume(&GameState->AudioState, GameState->Music, 5.0f, Vector2(0.0f, 1.0f));
+				//ChangeVolume(&GameState->AudioState, GameState->Music, 5.0f, Vector2(0.0f, 1.0f));
+				ChangePitch(&GameState->AudioState, GameState->Music, 0.7f);
 			}
 
 			MoveEntity(GameState->World, Player, Input->dtForFrame, ddPosition);
