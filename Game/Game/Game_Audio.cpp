@@ -68,7 +68,8 @@ ChangePitch(audio_state *AudioState, playing_sound *Sound, r32 dSample)
 }
 
 om_internal void
-OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer, game_assets *Assets, memory_arena *TemporaryArena)
+DEBUGOutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer, 
+	game_assets *Assets, memory_arena *TemporaryArena)
 {
 	temporary_memory SoundMixerMemory = CreateTemporaryMemory(TemporaryArena);
 
@@ -217,6 +218,177 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 			// TODO: Clamp once in SIMD
 			*SampleOut++ = (i16)(*Source0++ + 0.5f);
 			*SampleOut++ = (i16)(*Source1++ + 0.5f);
+		}
+	}
+
+	DestroyTemporaryMemory(SoundMixerMemory);
+}
+
+om_internal void
+OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer, game_assets *Assets, memory_arena *TemporaryArena)
+{
+	temporary_memory SoundMixerMemory = CreateTemporaryMemory(TemporaryArena);
+
+	u32 SampleCountAlign4 = Align4(SoundBuffer->SampleCount);
+	u32 SampleCount4 = SampleCountAlign4 / 4;
+
+	__m128 *Channel0 = PushArray(TemporaryArena, SoundBuffer->SampleCount, __m128, 16);
+	__m128 *Channel1 = PushArray(TemporaryArena, SoundBuffer->SampleCount, __m128, 16);
+
+	r32 SecondsPerSample = 1.0f / (r32)SoundBuffer->SamplesPerSecond;
+#define AudioStateOutputChannelCount 2
+
+	__m128 Zero_x4 = _mm_set1_ps(0.0f);
+
+	//Note:	Clearing the mixer channels.
+	{
+		__m128 *Destination0 = Channel0;
+		__m128 *Destination1 = Channel1;
+
+		for (u32 SampleIndex = 0; SampleIndex < SampleCount4; ++SampleIndex)
+		{
+			_mm_store_ps((float *)Destination0++, Zero_x4);
+			_mm_store_ps((float *)Destination1++, Zero_x4);
+		}
+	}
+
+	//Note: Add all sounds together.
+	for (playing_sound **PlayingSoundPointer = &AudioState->FirstPlayingSound; *PlayingSoundPointer;)
+	{
+		playing_sound *PlayingSound = *PlayingSoundPointer;
+		b32 SoundFinished = false;
+
+		u32 TotalSamplesToMix = SoundBuffer->SampleCount;
+		r32 *Destination0 = (r32 *)Channel0;
+		r32 *Destination1 = (r32 *)Channel1;
+
+		while (TotalSamplesToMix && !SoundFinished)
+		{
+			loaded_sound *LoadedSound = GetSound(Assets, PlayingSound->ID);
+			if (LoadedSound)
+			{
+				asset_sound_info *Info = GetSoundInfo(Assets, PlayingSound->ID);
+				LoadSound(Assets, Info->NextIDToPlay);
+
+				vector2 Volume = PlayingSound->CurrentVolume;
+				vector2 dVolume = SecondsPerSample * PlayingSound->dCurrentVolume;
+
+				r32 dSample = PlayingSound->dSample;
+				OM_ASSERT(PlayingSound->SamplesPlayed >= 0.0f);
+
+				u32 SamplesToMix = TotalSamplesToMix;
+				r32 RealSamplesRemainingInSound = (LoadedSound->SampleCount - RoundReal32ToInt32(PlayingSound->SamplesPlayed)) / dSample;
+				u32 SamplesRemainingInSound = RoundReal32ToInt32(RealSamplesRemainingInSound);
+				if (SamplesToMix > SamplesRemainingInSound)
+				{
+					SamplesToMix = SamplesRemainingInSound;
+				}
+
+				b32 VolumeEnded[AudioStateOutputChannelCount] = {};
+				for (u32 ChannelIndex = 0; ChannelIndex < OM_ARRAYCOUNT(VolumeEnded); ++ChannelIndex)
+				{
+					// TODO: Fix bug regarding both volumes ending at the same time.
+					if (dVolume.E[ChannelIndex] != 0.0f)
+					{
+						r32 DeltaVolume = (PlayingSound->TargetVolume.E[ChannelIndex] - Volume.E[ChannelIndex]);
+						u32 VolumeSampleCount = (u32)((DeltaVolume / dVolume.E[ChannelIndex]) + 0.5f);
+						if (SamplesToMix > VolumeSampleCount)
+						{
+							SamplesToMix = VolumeSampleCount;
+							VolumeEnded[ChannelIndex] = true;
+						}
+					}
+				}
+
+				r32 SamplePosition = PlayingSound->SamplesPlayed;
+				for (u32 LoopIndex = 0; LoopIndex < SamplesToMix; ++LoopIndex)
+				{
+#if 1
+					u32 SampleIndex = FloorReal32ToInt32(SamplePosition);
+					r32 Frac = SamplePosition - (r32)SampleIndex;
+					r32 Sample0 = (r32)LoadedSound->Samples[0][SampleIndex];
+					r32 Sample1 = (r32)LoadedSound->Samples[0][SampleIndex + 1];
+					r32 SampleValue = Lerp(Sample0, Sample1, Frac);
+#else
+					u32 SampleIndex = RoundReal32ToInt32(SamplePosition);
+					r32 SampleValue = LoadedSound->Samples[0][SampleIndex];
+#endif
+
+					//TODO: Add support for stereo
+					*Destination0++ += AudioState->MasterVolume.E[0] * Volume.E[0] * SampleValue;
+					*Destination1++ += AudioState->MasterVolume.E[1] * Volume.E[1] * SampleValue;
+
+					Volume += dVolume;
+					SamplePosition += dSample;
+				}
+
+				PlayingSound->CurrentVolume = Volume;
+
+				for (u32 ChannelIndex = 0; ChannelIndex < OM_ARRAYCOUNT(VolumeEnded); ++ChannelIndex)
+				{
+					if (VolumeEnded[ChannelIndex])
+					{
+						PlayingSound->CurrentVolume.E[ChannelIndex] = PlayingSound->TargetVolume.E[ChannelIndex];
+						PlayingSound->dCurrentVolume.E[ChannelIndex] = 0.0f;
+					}
+				}
+
+				OM_ASSERT(TotalSamplesToMix >= SamplesToMix);
+				PlayingSound->SamplesPlayed = SamplePosition;
+				TotalSamplesToMix -= SamplesToMix;
+
+				if ((u32)PlayingSound->SamplesPlayed == LoadedSound->SampleCount)
+				{
+					if (IsValid(Info->NextIDToPlay))
+					{
+						PlayingSound->ID = Info->NextIDToPlay;
+						PlayingSound->SamplesPlayed = 0;
+					}
+					else
+					{
+						SoundFinished = true;
+					}
+				}
+			}
+			else
+			{
+				LoadSound(Assets, PlayingSound->ID);
+				break;
+			}
+		}
+
+		if (SoundFinished)
+		{
+			*PlayingSoundPointer = PlayingSound->Next;
+			PlayingSound->Next = AudioState->FirstFreePlayingSound;
+			AudioState->FirstFreePlayingSound = PlayingSound;
+		}
+		else
+		{
+			PlayingSoundPointer = &PlayingSound->Next;
+		}
+	}
+
+	//Note: Converting the buffer values into 16 bit.
+	{
+		__m128 *Source0 = Channel0;
+		__m128 *Source1 = Channel1;
+
+		__m128i *SampleOut = (__m128i *)SoundBuffer->Samples;
+		for (u32 SampleIndex = 0; SampleIndex < SampleCount4; ++SampleIndex)
+		{
+			__m128 S0 = _mm_load_ps((float *)Source0++);
+			__m128 S1 = _mm_load_ps((float *)Source1++);
+
+			__m128i L = _mm_cvtps_epi32(S0);
+			__m128i R = _mm_cvtps_epi32(S1);
+
+			__m128i LR0 = _mm_unpacklo_epi32(L, R);
+			__m128i LR1 = _mm_unpackhi_epi32(L, R);
+
+			__m128i S01 = _mm_packs_epi32(LR0, LR1);
+
+			*SampleOut++ = S01;
 		}
 	}
 

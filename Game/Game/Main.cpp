@@ -832,8 +832,8 @@ int main(int argc, char *argv[])
 			GlobalRunning = true;
 
 			//TODO: Pool with bitmap VirtualAlloc.
-			u32 MaxPossibleOverrun = 2 * 8 * sizeof(u16);
-			i16 *Samples = (i16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			u32 MaxPossibleOverrun = 2 * 4 * sizeof(u16);
+			i16 *Samples = (i16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize + MaxPossibleOverrun, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 #ifdef OM_DEBUG
 			void *BaseAddress = (void *)om_terabytes(2);
 #else

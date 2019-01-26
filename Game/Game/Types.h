@@ -101,7 +101,10 @@ typedef size_t memory_index;
 
 #define OM_ARRAYCOUNT(Array) (sizeof(Array) / sizeof((Array)[0]))
 
+// Align macros
+#define Align4(Value) ((Value + 3) & ~3)
 #define Align8(Value) ((Value + 7) & ~7)
+#define Align16(Value) ((Value + 15) & ~15)
 
 #define OM_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define OM_MAX(a, b) ((a) > (b) ? (a) : (b))
