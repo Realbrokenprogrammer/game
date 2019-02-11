@@ -311,7 +311,7 @@ DEBUGLoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount
 		OM_ASSERT(ChannelCount && SampleData);
 
 		Result.ChannelCount = ChannelCount;
-		Result.SampleCount = SampleDataSize / (ChannelCount * sizeof(i16));
+		u32 SampleCount = SampleDataSize / (ChannelCount * sizeof(i16));
 
 		if (ChannelCount == 1)
 		{
@@ -321,9 +321,9 @@ DEBUGLoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount
 		else if (ChannelCount == 2)
 		{
 			Result.Samples[0] = SampleData;
-			Result.Samples[1] = SampleData + Result.SampleCount;
+			Result.Samples[1] = SampleData + SampleCount;
 
-			for (u32 SampleIndex = 0; SampleIndex < Result.SampleCount; ++SampleIndex)
+			for (u32 SampleIndex = 0; SampleIndex < SampleCount; ++SampleIndex)
 			{
 				i16 Source = SampleData[2 * SampleIndex];
 				SampleData[2 * SampleIndex] = SampleData[SampleIndex];
@@ -336,18 +336,33 @@ DEBUGLoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount
 		}
 
 		// TODO: Load the right channels.
+		b32 AtEnd = true;
 		Result.ChannelCount = 1;
 
 		if (SectionSampleCount)
 		{
-			OM_ASSERT((SectionFirstSampleIndex + SectionSampleCount) <= Result.SampleCount);
-			Result.SampleCount = SectionSampleCount;
+			OM_ASSERT((SectionFirstSampleIndex + SectionSampleCount) <= SampleCount);
+			AtEnd = ((SectionFirstSampleIndex + SectionSampleCount) == SampleCount);
+			SampleCount = SectionSampleCount;
 
 			for (u32 ChannelIndex = 0; ChannelIndex < Result.ChannelCount; ++ChannelIndex)
 			{
 				Result.Samples[ChannelIndex] += SectionFirstSampleIndex;
 			}
 		}
+
+		if (AtEnd)
+		{
+			for (u32 ChannelIndex = 0; ChannelIndex < Result.ChannelCount; ++ChannelIndex)
+			{
+				for (u32 SampleIndex = SampleCount; SampleIndex < (SampleCount + 8); ++SampleIndex)
+				{
+					Result.Samples[ChannelIndex][SampleIndex] = 0;
+				}
+			}
+		}
+
+		Result.SampleCount = SampleCount;
 	}
 
 	return (Result);

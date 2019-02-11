@@ -14,7 +14,7 @@ struct sound_id
 
 struct loaded_sound
 {
-	u32 SampleCount;
+	u32 SampleCount; // NOTE: This is the sample count divided by 8
 	u32 ChannelCount;
 	i16 *Samples[2];
 };
