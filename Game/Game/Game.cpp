@@ -3,97 +3,10 @@
 #include "Game_Physics.cpp"
 #include "Game_Camera.cpp"
 #include "Game_Renderer.cpp"
+#include "Game_Asset.cpp"
+#include "Game_Audio.cpp"
 
 #include <Windows.h> //TODO: This should later be removed.
-
-// Packing struct to avoid padding.
-// Source for bitmap header: https://www.fileformat.info/format/bmp/egff.htm
-#pragma pack(push, 1)
-struct bitmap_header
-{
-	u16 FileType;
-	u32 FileSize;
-	u16 Reserved1;
-	u16 Reserved2;
-	u32 BitmapOffset;
-	u32 Size;
-	i32 Width;
-	i32 Height;
-	u16 Planes;
-	u16 BitsPerPixel;
-	u32 Compression;
-	u32 SizeOfBitmap;
-	i32 HorzResolution;
-	i32 VertResolution;
-	u32 ColorsUsed;
-	u32 ColorsImportant;
-
-	u32 RedMask;
-	u32 GreenMask;
-	u32 BlueMask;
-};
-#pragma pack(pop)
-
-//Note: This is not complete bitmap loading code hence it should only be used as such.
-om_internal loaded_bitmap
-DEBUGLoadBitmap(debug_platform_read_entire_file *ReadEntireFile, char* FileName)
-{
-	loaded_bitmap Result = {};
-
-	debug_read_file_result ReadResult = ReadEntireFile(FileName);
-	if (ReadResult.ContentsSize != 0)
-	{
-		bitmap_header *Header = (bitmap_header *)ReadResult.Contents;
-
-		u32 *Pixels = (u32 *)((u8 *)ReadResult.Contents + Header->BitmapOffset);
-
-		Result.Pixels = Pixels;
-		Result.Width = Header->Width;
-		Result.Height = Header->Height;
-
-		OM_ASSERT(Header->Compression == 3);
-
-		u32 RedMask = Header->RedMask;
-		u32 GreenMask = Header->GreenMask;
-		u32 BlueMask = Header->BlueMask;
-		u32 AlphaMask = ~(RedMask | GreenMask | BlueMask);
-
-		// Bitscan instrinsics to find out how much we need to shift the values down.
-		bit_scan_result RedShift = FindLeastSignificantSetBit(RedMask);
-		bit_scan_result GreenShift = FindLeastSignificantSetBit(GreenMask);
-		bit_scan_result BlueShift = FindLeastSignificantSetBit(BlueMask);
-		bit_scan_result AlphaShift = FindLeastSignificantSetBit(AlphaMask);
-
-		OM_ASSERT(RedShift.Found);
-		OM_ASSERT(GreenShift.Found);
-		OM_ASSERT(BlueShift.Found);
-		OM_ASSERT(AlphaShift.Found);
-
-		u32 *SourceDestination = Pixels;
-		for (i32 Y = 0; Y < Header->Height; ++Y)
-		{
-			for (i32 X = 0; X < Header->Width; ++X)
-			{
-				u32 C = *SourceDestination;
-				*SourceDestination++ = ((((C >> AlphaShift.Index) & 0xFF) << 24) |
-										(((C >> RedShift.Index) & 0xFF) << 16) |
-										(((C >> GreenShift.Index) & 0xFF) << 8) |
-										(((C >> BlueShift.Index) & 0xFF) << 0));
-			}
-		}
-	}
-
-	Result.Pitch = Result.Width*BITMAP_BYTES_PER_PIXEL;
-
-	//Note: Changes the pixels to point at the last row and makes the pitch negative to resolve bitmaps
-	//being stored upside down.
-#if 1
-	Result.Pixels = (u32 *)((u8 *)Result.Pixels + Result.Pitch*(Result.Height- 1));
-	Result.Pitch = -Result.Pitch;
-#endif
-
-	return (Result);
-}
 
 om_internal loaded_bitmap
 CreateTransparentBitmap(u32 Width, u32 Height)
@@ -120,23 +33,34 @@ CreateTransparentBitmap(u32 Width, u32 Height)
 	return (Result);
 }
 
-om_internal void
-GameOutputSound(game_sound_output_buffer *SoundBuffer, int ToneHz)
+om_internal task_with_memory *
+BeginTaskWithMemory(transient_state *TransientState)
 {
-	om_local_persist r32 tSine;
-	i16 ToneVolume = 3000;
-	int WavePeriod = SoundBuffer->SamplesPerSecond / ToneHz;
+	task_with_memory *FoundTask = 0;
 
-	i16 *SampleOut = SoundBuffer->Samples;
-	for (int SampleIndex = 0; SampleIndex < SoundBuffer->SampleCount; ++SampleIndex)
+	for (u32 TaskIndex = 0; TaskIndex < OM_ARRAYCOUNT(TransientState->Tasks); ++TaskIndex)
 	{
-		r32 SineValue = sinf(tSine);
-		i16 SampleValue = (i16)(SineValue * ToneVolume);
-		*SampleOut++ = SampleValue;
-		*SampleOut++ = SampleValue;
-
-		tSine += 2.0f * OM_PI32 * 1.0f / (r32)WavePeriod;
+		task_with_memory *Task = TransientState->Tasks + TaskIndex;
+		if (!Task->BeingUsed)
+		{
+			FoundTask = Task;
+			Task->BeingUsed = true;
+			Task->MemoryFlush = CreateTemporaryMemory(&Task->Arena);
+			break;
+		}
 	}
+
+	return (FoundTask);
+}
+
+om_internal void
+EndTaskWithMemory(task_with_memory *Task)
+{
+	DestroyTemporaryMemory(Task->MemoryFlush);
+
+	CompletePreviousWritesBeforeFutureWrites;
+
+	Task->BeingUsed = false;
 }
 
 om_internal void
@@ -440,26 +364,17 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+	PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
+	PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
+	DEBUGPlatformReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
+
 	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
 
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
-	if (!Memory->IsInitialized)
+	if (!GameState->Initialized)
 	{
-		PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
-		PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
-		GameState->RenderQueue = Memory->ThreadQueue;
-
-		GameState->GrassBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp");
-
-		GameState->WaterBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp");
-		
-		GameState->SlopeBitmapLeft = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp");
-
-		GameState->SlopeBitmapRight = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
-
-		GameState->PlayerBitmap = DEBUGLoadBitmap(Memory->DEBUGPlatformReadEntireFile, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
-
-		GameState->ToneHz = 256;
+		//TODO: Make use of memory arena for the world and remove VirtualAlloc.
+		InitializeMemoryArena(&GameState->WorldArena, Memory->PermanentStorageSize - sizeof(game_state), (u8 *)Memory->PermanentStorage + sizeof(game_state));
 
 		// Initializing World
 		world *World = nullptr;
@@ -475,6 +390,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		u32 WorldTileHeight = 23;
 		u32 WorldCellSize = 500; //TODO: Set more educated value for this.
 		InitializeWorld(World, WorldTileWidth*PIXELS_PER_TILE, WorldTileHeight*PIXELS_PER_TILE, WorldCellSize);
+
+		InitializeAudioState(&GameState->AudioState, &GameState->WorldArena);
 
 		for (u32 TileY = 0; TileY < WorldTileHeight; ++TileY)
 		{
@@ -555,7 +472,35 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		GameState->Time = 0;
 
 		//TODO: This may be more appropriate to let the platform layer do.
-		Memory->IsInitialized = true;
+		GameState->Initialized = true;
+	}
+
+	OM_ASSERT(sizeof(transient_state) <= Memory->TransientStorageSize);
+	
+	transient_state *TransientState = (transient_state *)Memory->TransientStorage;
+	if (!TransientState->Initialized)
+	{
+		InitializeMemoryArena(&TransientState->TransientArena, Memory->TransientStorageSize - sizeof(transient_state),
+			(u8 *)Memory->TransientStorage + sizeof(transient_state));
+
+		for (uint32_t TaskIndex = 0; TaskIndex < OM_ARRAYCOUNT(TransientState->Tasks); ++TaskIndex)
+		{
+			task_with_memory *Task = TransientState->Tasks + TaskIndex;
+
+			Task->BeingUsed = false;
+			CreateSubArena(&Task->Arena, &TransientState->TransientArena, om_megabytes(1));
+		}
+
+		TransientState->HighPriorityQueue = Memory->HighPriorityQueue;
+		TransientState->LowPriorityQueue = Memory->LowPriorityQueue;
+
+		// Creating the game_asset structure that manages all the assets for the game.
+		TransientState->Assets = CreateGameAssets(&TransientState->TransientArena, om_megabytes(64), TransientState);
+		
+		// Play music
+		GameState->Music = PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+
+		TransientState->Initialized = true;
 	}
 
 	//TODO: Can we make this more efficient?
@@ -574,7 +519,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		
 		if (Controller->IsAnalog)
 		{
-			GameState->ToneHz = 256 + (int)(128.0f*(Controller->StickAverageY));
+			//GameState->ToneHz = 256 + (int)(128.0f*(Controller->StickAverageY));
 		}
 		else
 		{
@@ -604,6 +549,26 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				GameState->ControlledEntity = GameState->Player2;
 			}
+			if (Controller->ActionUp.EndedDown)
+			{
+				//TODO: Playing long sound on button press. This is for testing purposes and has to be removed.
+				//PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+				ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(1.0f, 1.0f));
+			}
+			if (Controller->ActionDown.EndedDown)
+			{
+				ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(0.0f, 0.0f));
+			}
+			if (Controller->ActionLeft.EndedDown)
+			{
+				//ChangeVolume(&GameState->AudioState, GameState->Music, 5.0f, Vector2(1.0f, 0.0f));
+				ChangePitch(&GameState->AudioState, GameState->Music, 5.0f);
+			}
+			if (Controller->ActionRight.EndedDown)
+			{
+				//ChangeVolume(&GameState->AudioState, GameState->Music, 5.0f, Vector2(0.0f, 1.0f));
+				ChangePitch(&GameState->AudioState, GameState->Music, 0.7f);
+			}
 
 			MoveEntity(GameState->World, Player, Input->dtForFrame, ddPosition);
 		}
@@ -619,7 +584,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	GameState->Time += Input->dtForFrame;
 	render_basis Basis = { GameState->Camera.Position };
-	render_blueprint *RenderBlueprint = CreateRenderBlueprint(&Basis, om_megabytes(4));
+	render_blueprint *RenderBlueprint = CreateRenderBlueprint(TransientState->Assets, &Basis, om_megabytes(4));
 
 	world *World = GameState->World;
 	for (int LayerIndex = OM_ARRAYCOUNT(World->Layers) -1; LayerIndex >= 0; --LayerIndex) 
@@ -634,27 +599,27 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				case EntityType_Hero:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->PlayerBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Player), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_GrassTile:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->GrassBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Grass), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_WaterTile:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->WaterBitmap, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Water), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileLeft:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapLeft, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_SlopeLeft), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_SlopeTileRight:
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
-					PushBitmap(RenderBlueprint, &GameState->SlopeBitmapRight, Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_SlopeRight), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
 				} break;
 				case EntityType_Monster:
 				default:
@@ -663,7 +628,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-	PerformPartitionedRendering(GameState->RenderQueue, RenderBlueprint, Buffer);
+	PerformPartitionedRendering(TransientState->HighPriorityQueue, RenderBlueprint, Buffer);
 
 	DestroyRenderBlueprint(RenderBlueprint);
 
@@ -674,5 +639,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)
 {
 	game_state *GameState = (game_state *)Memory->PermanentStorage;
-	//GameOutputSound(SoundBuffer, GameState->ToneHz);
+	transient_state *TransientState = (transient_state *)Memory->TransientStorage;
+	
+	OutputMixedSounds(&GameState->AudioState, SoundBuffer, TransientState->Assets, &TransientState->TransientArena);
 }

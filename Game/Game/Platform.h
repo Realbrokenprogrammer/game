@@ -62,6 +62,8 @@ struct game_sound_output_buffer
 {
 	int SamplesPerSecond;
 	int SampleCount;
+
+	// IMPORTANT: Samples must be padded to a multiple of 4 samples.
 	i16 *Samples;
 };
 
@@ -144,15 +146,14 @@ IsDown(game_button_state State)
 
 struct game_memory
 {
-	b32 IsInitialized;
-
 	u64 PermanentStorageSize;
 	void *PermanentStorage;			//NOTE: Required to be cleared to zero at startup.
 
-	u64 TransientStorageSize;
+	u64 TransientStorageSize;		//NOTE: Required to be cleared to zero at startup.
 	void *TransientStorage;
 
-	platform_thread_queue *ThreadQueue;
+	platform_thread_queue *HighPriorityQueue;
+	platform_thread_queue *LowPriorityQueue;
 
 	platform_add_thread_entry *PlatformAddThreadEntry;
 	platform_complete_all_work *PlatformCompleteAllThreadWork;

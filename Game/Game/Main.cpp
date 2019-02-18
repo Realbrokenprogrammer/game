@@ -10,8 +10,6 @@
 #include <windows.h>
 #include <stdio.h>
 
-#include "Game.h"
-
 #include "Main.h" //TODO: Main.h should be renamed, same with Main.cpp.
 
 /*
@@ -20,7 +18,6 @@
 		* Saved game locations
 		* Get handle to our own executable file
 		* Asset loading path
-		* Threading (Launch a thread)
 		* Raw Input (support for multiple keyboards
 		* Sleep/timeBeginPeriod
 		* ClipCursor() (Multimonitor support)
@@ -670,8 +667,7 @@ Win32AddThreadQueueEntry(platform_thread_queue *Queue, platform_thread_queue_cal
 	Entry->Data = Data;
 	++Queue->CompletionGoal;
 
-	_WriteBarrier(); 
-	_mm_sfence();
+	_WriteBarrier();
 
 	Queue->NextEntryToWrite = NewNextEntryToWrite;
 	
@@ -728,39 +724,48 @@ PLATFORM_THREAD_QUEUE_CALLBACK(DoThreadQueueWork)
 DWORD WINAPI
 ThreadProc(LPVOID lpParameter)
 {
-	win32_thread_info *ThreadInfo = (win32_thread_info *)lpParameter;
+	platform_thread_queue *Queue = (platform_thread_queue *)lpParameter;
 
 	for (;;)
 	{
-		if (Win32DoNextThreadQueueEntry(ThreadInfo->Queue))
+		if (Win32DoNextThreadQueueEntry(Queue))
 		{
-			WaitForSingleObjectEx(ThreadInfo->Queue->SemaphoreHandle, INFINITE, FALSE);
+			WaitForSingleObjectEx(Queue->SemaphoreHandle, INFINITE, FALSE);
 		}
 	}
 
 //	return (0);
 }
 
+om_internal void
+Win32MakeThreadQueue(platform_thread_queue *Queue, u32 ThreadCount)
+{
+	Queue->CompletionGoal = 0;
+	Queue->CompletionCount = 0;
+
+	Queue->NextEntryToWrite = 0;
+	Queue->NextEntryToRead = 0;
+
+	u32 InitialCount = 0;
+	Queue->SemaphoreHandle = CreateSemaphoreEx(0, InitialCount, ThreadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
+
+	for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
+	{
+		DWORD ThreadID;
+		HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Queue, 0, &ThreadID);
+		CloseHandle(ThreadHandle);
+	}
+}
+
 int main(int argc, char *argv[]) 
 {
 	sdl_state SDLState = {};
 
-	win32_thread_info ThreadInfo[7];
-	platform_thread_queue Queue = {};
-	u32 InitialCount = 0;
-	u32 ThreadCount = OM_ARRAYCOUNT(ThreadInfo);
-	Queue.SemaphoreHandle = CreateSemaphoreEx(0, InitialCount, ThreadCount, 0, 0, SEMAPHORE_ALL_ACCESS);
-	
-	for (u32 ThreadIndex = 0; ThreadIndex < ThreadCount; ++ThreadIndex)
-	{
-		win32_thread_info *Info = ThreadInfo + ThreadIndex;
-		Info->LogicalThreadIndex = ThreadIndex;
-		Info->Queue = &Queue;
+	platform_thread_queue HighPriorityQueue = {};
+	Win32MakeThreadQueue(&HighPriorityQueue, 6);
 
-		DWORD ThreadID;
-		HANDLE ThreadHandle = CreateThread(0, 0, ThreadProc, Info, 0, &ThreadID);
-		CloseHandle(ThreadHandle);
-	}
+	platform_thread_queue LowPriorityQueue = {};
+	Win32MakeThreadQueue(&LowPriorityQueue, 2);
 
 	GlobalPerfCountFrequency = SDL_GetPerformanceFrequency();
 	
@@ -828,7 +833,7 @@ int main(int argc, char *argv[])
 
 			//TODO: Pool with bitmap VirtualAlloc.
 			u32 MaxPossibleOverrun = 2 * 8 * sizeof(u16);
-			i16 *Samples = (i16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			i16 *Samples = (i16 *)VirtualAlloc(0, SoundOutput.SecondaryBufferSize + MaxPossibleOverrun, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 #ifdef OM_DEBUG
 			void *BaseAddress = (void *)om_terabytes(2);
 #else
@@ -837,7 +842,8 @@ int main(int argc, char *argv[])
 			game_memory GameMemory = {};
 			GameMemory.PermanentStorageSize = om_megabytes(64);
 			GameMemory.TransientStorageSize = om_megabytes(100);
-			GameMemory.ThreadQueue = &Queue;
+			GameMemory.HighPriorityQueue = &HighPriorityQueue;
+			GameMemory.LowPriorityQueue = &LowPriorityQueue;
 			GameMemory.PlatformAddThreadEntry = Win32AddThreadQueueEntry;
 			GameMemory.PlatformCompleteAllThreadWork = Win32CompleteAllThreadWork;
 			GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
@@ -874,6 +880,9 @@ int main(int argc, char *argv[])
 					FILETIME NewDLLWriteTime = SDLGetLastWriteTime(SourceGameCodeDLLFullPath);
 					if (CompareFileTime(&NewDLLWriteTime, &Game.DLLLastWriteTime) != 0)
 					{
+						Win32CompleteAllThreadWork(&HighPriorityQueue);
+						Win32CompleteAllThreadWork(&LowPriorityQueue);
+
 						SDLUnloadGameCode(&Game);
 						Game = SDLLoadGameCode(SourceGameCodeDLLFullPath, TempGameCodeDLLFullPath);
 					}

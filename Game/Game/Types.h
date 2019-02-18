@@ -57,6 +57,8 @@ typedef i16 s16;
 typedef i32 s32;
 typedef i64 s64;
 
+typedef size_t memory_index;
+
 #define U16MAX 65535
 #define I32MIN ((i32)0x80000000)
 #define I32MAX ((i32)0x7fffffff)
@@ -86,6 +88,7 @@ typedef i64 s64;
 #define InvalidDefaultCase default: {InvalidCodePath;} break
 
 #define OM_PI32 3.14159265359f
+#define OM_TAU32 6.28318530717958647692f
 
 #define om_kilobytes(Value) ((Value)*1024)
 #define om_megabytes(Value) (om_kilobytes(Value)*1024)
@@ -98,7 +101,10 @@ typedef i64 s64;
 
 #define OM_ARRAYCOUNT(Array) (sizeof(Array) / sizeof((Array)[0]))
 
+// Align macros
+#define Align4(Value) ((Value + 3) & ~3)
 #define Align8(Value) ((Value + 7) & ~7)
+#define Align16(Value) ((Value + 15) & ~15)
 
 #define OM_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define OM_MAX(a, b) ((a) > (b) ? (a) : (b))

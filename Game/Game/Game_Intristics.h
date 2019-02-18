@@ -5,6 +5,28 @@
 #include "math.h"
 #include <xmmintrin.h>
 
+#if COMPILER_MSVC
+#define CompletePreviousWritesBeforeFutureWrites _WriteBarrier();
+
+inline u32 AtomicCompareExchangeUInt32(u32 volatile *Value, u32 New, u32 Expected)
+{
+	u32 Result = _InterlockedCompareExchange((long *)Value, New, Expected);
+
+	return (Result);
+}
+#elif COMPILER_LLVM
+#define CompletePreviousWritesBeforeFutureWrites asm volatile("" ::: "memory")
+
+inline uint32 AtomicCompareExchangeUInt32(uint32 volatile *Value, uint32 New, uint32 Expected)
+{
+	uint32 Result = __sync_val_compare_and_swap(Value, Expected, New);
+
+	return (Result);
+}
+#else
+	//TODO: GCC etc..
+#endif
+
 //Note: Intel intristics helper defines.
 #define OM_MMSquare(A) _mm_mul_ps(A, A)
 #define OM_MMIndexF(A, I) ((r32 *)&(A))[I]
@@ -33,6 +55,30 @@ CeilReal32ToInt32(r32 R32)
 	return(Result);
 }
 
+inline r32
+Sin(r32 Angle)
+{
+	r32 Result = sinf(Angle);
+
+	return (Result);
+}
+
+inline r32
+Cos(r32 Angle)
+{
+	r32 Result = cosf(Angle);
+
+	return (Result);
+}
+
+inline r32
+ATan2(r32 Y, r32 X)
+{
+	r32 Result = atan2f(Y, X);
+
+	return (Result);
+}
+
 struct bit_scan_result
 {
 	b32 Found;
@@ -55,6 +101,14 @@ FindLeastSignificantSetBit(u32 Value)
 		}
 	}
 
+	return (Result);
+}
+
+inline r32
+SignOf(r32 Value)
+{
+	r32 Result = (Value >= 0.0f) ? 1.0f : -1.0f;
+	
 	return (Result);
 }
 
