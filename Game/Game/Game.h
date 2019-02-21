@@ -24,6 +24,14 @@ enum game_mode
 	GameMode_World
 };
 
+struct particle
+{
+	vector2 Position;
+	vector2 dPosition;
+	vector4 Color;
+	vector4 dColor;
+};
+
 struct game_state
 {
 	b32 Initialized;
@@ -43,6 +51,9 @@ struct game_state
 
 	audio_state AudioState;
 	playing_sound *Music;
+
+	u32 NextParticle;
+	particle Particles[64];
 };
 
 struct task_with_memory

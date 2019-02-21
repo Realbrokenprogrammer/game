@@ -552,8 +552,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			if (Controller->ActionUp.EndedDown)
 			{
 				//TODO: Playing long sound on button press. This is for testing purposes and has to be removed.
-				//PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
-				ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(1.0f, 1.0f));
+				PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+				//ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(1.0f, 1.0f));
 			}
 			if (Controller->ActionDown.EndedDown)
 			{
@@ -600,6 +600,46 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
 					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Player), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+
+					for (u32 ParticleIndex = 0; ParticleIndex < 2; ++ParticleIndex)
+					{
+						particle *Particle = GameState->Particles + GameState->NextParticle++;
+						if (GameState->NextParticle >= OM_ARRAYCOUNT(GameState->Particles))
+						{
+							GameState->NextParticle = 0;
+						}
+
+						//TODO: Make use of own implemented random functions to actually set theese for proper testing.
+						Particle->Position = Entity->Position;
+						Particle->dPosition = Vector2(rand() % 1000, -(rand() % 500));
+						Particle->Color = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+						Particle->dColor = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+					}
+
+					// Particle testing
+					for (u32 ParticleIndex = 0; ParticleIndex < OM_ARRAYCOUNT(GameState->Particles); ++ParticleIndex)
+					{
+						particle *Particle = GameState->Particles + ParticleIndex;
+
+						// Simulate the particle forward in time
+						Particle->Position += Input->dtForFrame*Particle->dPosition;
+						Particle->Color += Input->dtForFrame*Particle->dColor;
+
+						// Shouldn't we just clamp colors in the renderer??
+						vector4 Color;
+						Color.R = Clamp01(Particle->Color.R);
+						Color.G = Clamp01(Particle->Color.G);
+						Color.B = Clamp01(Particle->Color.B);
+						Color.A = Clamp01(Particle->Color.A);
+
+						if (Color.A > 0.9f)
+						{
+							Color.A = 0.9f*Clamp01ToRange(1.0f, Color.A, 0.9f);
+						}
+
+						// Render the particle
+						PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Grass), Particle->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+					}
 				} break;
 				case EntityType_GrassTile:
 				{

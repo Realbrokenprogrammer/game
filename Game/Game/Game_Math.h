@@ -333,6 +333,20 @@ Clamp01(r32 Value)
 	return (Result);
 }
 
+inline r32
+Clamp01ToRange(r32 Min, r32 Max, r32 t)
+{
+	r32 Result = 0.0f;
+
+	r32 Range = Max - Min;
+	if (Range != 0.0f)
+	{
+		Result = Clamp01((t - Min) / Range);
+	}
+
+	return (Result);
+}
+
 // Vector3 Operations
 inline vector3
 operator*(r32 A, vector3 B)
