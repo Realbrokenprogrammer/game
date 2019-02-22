@@ -527,7 +527,9 @@ struct random_sequence
 inline random_sequence 
 RandomSeed(u32 Value) 
 {
-
+	random_sequence Result = {};
+	Result.Index = Value % OM_ARRAYCOUNT(RandomNumberTable);
+	return Result;
 }
 
 inline u32 
