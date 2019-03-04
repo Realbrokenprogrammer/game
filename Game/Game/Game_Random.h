@@ -1,6 +1,5 @@
 #ifndef GAME_RANDOM_H
 #define GAME_RANDOM_H
-
 #pragma once
 
 static u32 RandomNumberTable[] = 
@@ -529,7 +528,7 @@ RandomSeed(u32 Value)
 {
 	random_sequence Result = {};
 	Result.Index = Value % OM_ARRAYCOUNT(RandomNumberTable);
-	return Result;
+	return (Result);
 }
 
 inline u32 
@@ -543,23 +542,29 @@ RandomNextU32(random_sequence *Sequence)
 	return (Result);
 }
 
-inline u32 
-RandomBetween(random_sequence *Sequence, u32 Min, u32 Max) 
+inline r32
+RandomSingleNumerical(random_sequence *Sequence)
 {
-	u32 Dif = Max - Min;
-	u32 Seq = RandomNextU32(Sequence);
-	u32 Result = (Seq % Dif) + Min;
+	r32 Divisor = 1.0f / (r32)1000000000;
+	r32 Result = Divisor * (r32)RandomNextU32(Sequence);
+
+	return (Result);
+}
+
+inline i32 
+RandomBetween(random_sequence *Sequence, i32 Min, i32 Max) 
+{
+	i32 Result = Min + (i32)(RandomNextU32(Sequence) % ((Max + 1) - Min));
+
 	return (Result);
 }
 
 inline r32
 RandomBetween(random_sequence *Sequence, r32 Min, r32 Max)
 {
-	r32 Dif = Max - Min;
-	u32 Seq = RandomNextU32(Sequence);
-	r32 K = Seq / 1000000000;
-	r32 Result = Min + Dif * K;
+	r32 Result = Lerp(Min, Max, RandomSingleNumerical(Sequence));
+	
 	return (Result);
 }
 
-#endif // Game_Random
+#endif // GAME_RANDOM_H

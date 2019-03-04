@@ -385,6 +385,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			GameState->World = World;
 		}
 
+		GameState->ParticlesEntropy = RandomSeed(1234);
+
 		// TODO: Should later be loaded from level file.
 		u32 WorldTileWidth = 60;
 		u32 WorldTileHeight = 23;
@@ -609,11 +611,13 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 							GameState->NextParticle = 0;
 						}
 
-						//TODO: Make use of own implemented random functions to actually set theese for proper testing.
 						Particle->Position = Entity->Position;
-						Particle->dPosition = Vector2(rand() % 1000, -(rand() % 500));
-						Particle->Color = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
-						Particle->dColor = Vector4(0.0f, 0.0f, 0.0f, 0.0f);
+						Particle->dPosition = Vector2(RandomBetween(&GameState->ParticlesEntropy, -50.0f, 50.0f), RandomBetween(&GameState->ParticlesEntropy, 70.0f, 100.0f));
+						Particle->Color = Vector4(RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f), 
+							RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f),
+							RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f),
+							1.0f);
+						Particle->dColor = Vector4(0.0f, 0.0f, 0.0f, -0.5f);
 					}
 
 					// Particle testing
@@ -638,7 +642,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 						}
 
 						// Render the particle
-						PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Grass), Particle->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+						PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Grass), Particle->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Color);
 					}
 				} break;
 				case EntityType_GrassTile:

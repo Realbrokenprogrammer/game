@@ -77,5 +77,8 @@
     <ClInclude Include="..\Game\Game_Audio.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\Game\Game_Random.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

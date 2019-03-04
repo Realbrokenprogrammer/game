@@ -13,6 +13,7 @@
 #include "Game_Renderer.h"
 #include "Game_Asset.h"
 #include "Game_Audio.h"
+#include "Game_Random.h"
 
 //TODO: This could be improved, think of the structure of this later.
 enum game_mode
@@ -51,6 +52,8 @@ struct game_state
 
 	audio_state AudioState;
 	playing_sound *Music;
+
+	random_sequence ParticlesEntropy; // NOTE: Entropy for the particles
 
 	u32 NextParticle;
 	particle Particles[64];
