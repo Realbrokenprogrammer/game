@@ -90,6 +90,154 @@ SRGBBilinearBlend(bilinear_sample TexelSample, r32 fX, r32 fY)
 }
 
 om_internal void
+DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation, 
+	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
+{
+	// Degrees to radians.
+	Rotation = Rotation * (OM_PI32 / 180.0f);
+
+	// Premultiply alpha
+	Color.RGB *= Color.A;
+
+	// Note: Currently not dealing with non-scaled rectangle so we'd probably want to scale the Texture width and height.
+	// Scale and rotate Axes based on specified Scale and Rotation.
+	vector2 XAxis = (Scale + 1.0f*cosf(Rotation)) * Vector2(cosf(Rotation), sinf(Rotation));
+	vector2 YAxis = Perp(XAxis);
+
+	r32 XAxisLength = Length(XAxis);
+	r32 YAxisLength = Length(YAxis);
+
+	r32 InvXAxisLengthSq = 1.0f / LengthSquared(XAxis);
+	r32 InvYAxisLengthSq = 1.0f / LengthSquared(YAxis);
+
+	//TODO: Use passed color if there is no Texture passed or separate DrawRectangle and DrawBitmap with scaling?
+	u32 Color32 =
+		((RoundReal32ToInt32(Color.A * 255.0f) << 24) |
+		 (RoundReal32ToInt32(Color.R * 255.0f) << 16) |
+		 (RoundReal32ToInt32(Color.G * 255.0f) << 8) |
+		 (RoundReal32ToInt32(Color.B * 255.0f)));
+
+	int MaxWidth = (Buffer->Width - 1);
+	int MaxHeight = (Buffer->Height - 1);
+
+	rect2I FillRect = InvertedInfinityRectangle();
+
+	vector2 Points[4] = { Position, Position + XAxis, Position + XAxis + YAxis, Position + YAxis };
+	for (int PointIndex = 0; PointIndex < OM_ARRAYCOUNT(Points); ++PointIndex)
+	{
+		vector2 TestPoint = Points[PointIndex];
+		int FloorX = FloorReal32ToInt32(TestPoint.x);
+		int CeilX = CeilReal32ToInt32(TestPoint.x);
+		int FloorY = FloorReal32ToInt32(TestPoint.y);
+		int CeilY = CeilReal32ToInt32(TestPoint.y);
+
+		if (FillRect.MinX > FloorX) { FillRect.MinX = FloorX; }
+		if (FillRect.MinY > FloorY) { FillRect.MinY = FloorY; }
+		if (FillRect.MaxX < CeilX)  { FillRect.MaxX = CeilX; }
+		if (FillRect.MaxY < CeilY)  { FillRect.MaxY = CeilY; }
+	}
+
+	FillRect = Intersection(ClipRect, FillRect);
+	if (!Even == (FillRect.MinY & 1))
+	{
+		FillRect.MinY += 1;
+	}
+
+	if (HasArea(FillRect))
+	{
+		int FillWidth = FillRect.MaxX - FillRect.MinX;
+		int FillWidthAlign = FillWidth & 3;
+		if (FillWidthAlign > 0)
+		{
+			int Adjustment = (3 - FillWidthAlign);
+
+			//TODO: Change into something sane
+			switch (Adjustment)
+			{
+				case 1: {} break;
+				case 2: {} break;
+				case 3: {} break;
+			}
+			FillWidth += Adjustment;
+			FillRect.MinX = FillRect.MaxX - FillWidth;
+		}
+
+		int MinY = FillRect.MinY;
+		int MaxY = FillRect.MaxY;
+		int MinX = FillRect.MinX;
+		int MaxX = FillRect.MaxX;
+
+		if (MinX < 0) { MinX = 0; }
+		if (MinY < 0) { MinY = 0; }
+		if (MaxX > MaxWidth) { MaxX = MaxWidth; }
+		if (MaxY > MaxHeight) { MaxY = MaxHeight; }
+
+		u8 *Row = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
+		for (int Y = MinY; Y <= MaxY; ++Y)
+		{
+			u32 *Pixel = (u32 *)Row;
+			for (int X = MinX; X <= MaxX; ++X)
+			{
+				vector2 PixelPosition = Vector2Int(X, Y);
+				vector2 Distance = PixelPosition - Position;
+
+				r32 Edge0 = Inner(Distance, -Perp(XAxis));
+				r32 Edge1 = Inner(Distance - XAxis, -Perp(YAxis));
+				r32 Edge2 = Inner(Distance - XAxis - YAxis, Perp(XAxis));
+				r32 Edge3 = Inner(Distance - YAxis, Perp(YAxis));
+
+				if ((Edge0 < 0) && (Edge1 < 0) && (Edge2 < 0) && (Edge3 < 0))
+				{
+					// Texture UV coordinates
+					r32 U = InvXAxisLengthSq * Inner(Distance, XAxis);
+					r32 V = InvYAxisLengthSq * Inner(Distance, YAxis);
+
+					// TODO: Formalize texture boundaries
+					r32 tX = ((U*(r32)(Texture->Width - 2)));
+					r32 tY = ((V*(r32)(Texture->Height - 2)));
+
+					i32 X = (i32)tX;
+					i32 Y = (i32)tY;
+
+					r32 fX = tX - (r32)X;
+					r32 fY = tY - (r32)Y;
+
+					bilinear_sample TexelSample = BilinearSample(Texture, X, Y);
+					vector4 Texel = SRGBBilinearBlend(TexelSample, fX, fY);
+
+					Texel = Hadamard(Texel, Color);
+					Texel.R = Clamp01(Texel.R);
+					Texel.G = Clamp01(Texel.G);
+					Texel.B = Clamp01(Texel.B);
+
+					vector4 Dest = { (r32)((*Pixel >> 16) & 0xFF),
+									 (r32)((*Pixel >> 8) & 0xFF),
+									 (r32)((*Pixel >> 0) & 0xFF),
+									 (r32)((*Pixel >> 24) & 0xFF) };
+
+					// NOTE: Going from sRGB to "linear" brightness space
+					Dest = SRGB255ToLinear1(Dest);
+
+					vector4 Blended = (1.0f - Texel.A)*Dest + Texel;
+
+					// NOTE: Going from "linear" brightness space to sRGB
+					vector4 Blended255 = Linear1ToSRGB255(Blended);
+
+					*Pixel = (((u32)(Blended255.A + 0.5f) << 24) |
+						((u32)(Blended255.R + 0.5f) << 16) |
+						((u32)(Blended255.G + 0.5f) << 8) |
+						((u32)(Blended255.B + 0.5f) << 0));
+				}
+
+				++Pixel;
+			}
+
+			Row += Buffer->Pitch;
+		}
+	}
+}
+
+om_internal void
 SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation, 
 	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
 {
@@ -854,8 +1002,12 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 		{
 			render_blueprint_bitmap *Body = (render_blueprint_bitmap *)Header;
 			vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
+
+			//NOTE: THIS IS TO ENABLE / DISABLE THE UNOPTIMIZED OR THE OPTIMIZED RENDERER.
 #if 0
-			DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
+			//DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
+			DEBUGDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
+				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #else
 			SoftwareDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap, 
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
