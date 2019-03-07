@@ -25,10 +25,17 @@ enum game_mode
 	GameMode_World
 };
 
+struct particle_cell
+{
+	r32 Density;
+	vector2 VelocityTimesDensity;
+};
+
 struct particle
 {
 	vector2 Position;
 	vector2 dPosition;
+	vector2 ddPosition;
 	vector4 Color;
 	vector4 dColor;
 };
@@ -55,8 +62,11 @@ struct game_state
 
 	random_sequence ParticlesEntropy; // NOTE: Entropy for the particles
 
+#define PARTICLE_CELL_DIM 32
 	u32 NextParticle;
-	particle Particles[64];
+	particle Particles[256];
+
+	particle_cell ParticleCells[PARTICLE_CELL_DIM][PARTICLE_CELL_DIM];
 };
 
 struct task_with_memory
