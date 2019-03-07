@@ -385,6 +385,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			GameState->World = World;
 		}
 
+		GameState->ParticlesEntropy = RandomSeed(1234);
+
 		// TODO: Should later be loaded from level file.
 		u32 WorldTileWidth = 60;
 		u32 WorldTileHeight = 23;
@@ -552,8 +554,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			if (Controller->ActionUp.EndedDown)
 			{
 				//TODO: Playing long sound on button press. This is for testing purposes and has to be removed.
-				//PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
-				ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(1.0f, 1.0f));
+				PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
+				//ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(1.0f, 1.0f));
 			}
 			if (Controller->ActionDown.EndedDown)
 			{
@@ -600,6 +602,115 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 				{
 					transform Transform = Entity->PhysicsBlueprint.Transform;
 					PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Player), Entity->Position, Transform.Scale, Transform.Rotation, Vector2(0.0f, 0.0f), Vector4(1.0f, 1.0f, 1.0f, 1.0f));
+
+					for (u32 ParticleIndex = 0; ParticleIndex < 3; ++ParticleIndex)
+					{
+						particle *Particle = GameState->Particles + GameState->NextParticle++;
+						if (GameState->NextParticle >= OM_ARRAYCOUNT(GameState->Particles))
+						{
+							GameState->NextParticle = 0;
+						}
+
+						Particle->Position = Entity->Position;
+						Particle->dPosition = Vector2(RandomBetween(&GameState->ParticlesEntropy, -50.0f, 50.0f), RandomBetween(&GameState->ParticlesEntropy, 70.0f, 100.0f));
+						Particle->ddPosition = Vector2(0.0f, -9.8f);
+						Particle->Color = Vector4(RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f), 
+							RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f),
+							RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f),
+							1.0f);
+						Particle->dColor = Vector4(0.0f, 0.0f, 0.0f, -0.25f);
+					}
+
+					// Particle 
+					ZeroStruct(GameState->ParticleCells);
+
+					r32 GridScale = 0.25f;
+					r32 InvertedGridScale = 1.0f / GridScale;
+					vector2 GridOrigin = { -0.5f*GridScale*PARTICLE_CELL_DIM, 0.0f };
+					
+					for (u32 ParticleIndex = 0; ParticleIndex < OM_ARRAYCOUNT(GameState->Particles); ++ParticleIndex)
+					{
+						particle *Particle = GameState->Particles + ParticleIndex;
+
+						vector2 Position = InvertedGridScale * (Particle->Position - GridOrigin);
+
+						i32 X = (i32)Position.x; // TODO: Intristic truncate r32 to i32 function.
+						i32 Y = (i32)Position.y; // TODO: Intristic truncate r32 to i32 function.
+
+						if (X < 0) { X = 0; }
+						if (X > (PARTICLE_CELL_DIM - 1)) { X = (PARTICLE_CELL_DIM - 1); }
+						if (Y < 0) { Y = 0; }
+						if (Y > (PARTICLE_CELL_DIM - 1)) { Y = (PARTICLE_CELL_DIM - 1); }
+
+						particle_cell *Cell = &GameState->ParticleCells[X][Y];
+						r32 Density = Particle->Color.A;
+						Cell->Density += Density;
+						Cell->VelocityTimesDensity += Density * Particle->dPosition;
+
+					}
+					
+#if 0
+					//TODO: Draw helper thingy
+#endif
+
+					for (u32 ParticleIndex = 0; ParticleIndex < OM_ARRAYCOUNT(GameState->Particles); ++ParticleIndex)
+					{
+						particle *Particle = GameState->Particles + ParticleIndex;
+
+						vector2 Position = InvertedGridScale * (Particle->Position - GridOrigin);
+
+						i32 X = (i32)Position.x; // TODO: Intristic truncate r32 to i32 function.
+						i32 Y = (i32)Position.y; // TODO: Intristic truncate r32 to i32 function.
+
+						if (X < 1) { X = 1; }
+						if (X > (PARTICLE_CELL_DIM - 2)) { X = (PARTICLE_CELL_DIM - 2); }
+						if (Y < 1) { Y = 1; }
+						if (Y > (PARTICLE_CELL_DIM - 2)) { Y = (PARTICLE_CELL_DIM - 2); }
+
+						particle_cell *CelCenter = &GameState->ParticleCells[Y][X];
+						particle_cell *CelLeft = &GameState->ParticleCells[Y][X - 1];
+						particle_cell *CelRight = &GameState->ParticleCells[Y][X + 1];
+						particle_cell *CelDown = &GameState->ParticleCells[Y - 1][X];
+						particle_cell *CelUp = &GameState->ParticleCells[Y + 1][X];
+
+						vector2 Dispersion = {};
+						r32 Dc = 1.0f;
+						Dispersion += Dc * (CelCenter->Density - CelLeft->Density)*Vector2(-1.0f, 0.0f);
+						Dispersion += Dc * (CelCenter->Density - CelRight->Density)*Vector2(1.0f, 0.0f);
+						Dispersion += Dc * (CelCenter->Density - CelDown->Density)*Vector2(0.0f, -1.0f);
+						Dispersion += Dc * (CelCenter->Density - CelUp->Density)*Vector2(0.0f, 1.0f);
+
+						vector2 ddPosition = Particle->ddPosition + Dispersion;
+
+						// Simulate the particle forward in time
+						Particle->Position += (0.5f * Square(Input->dtForFrame) * Input->dtForFrame*ddPosition + Input->dtForFrame * Particle->dPosition);
+						Particle->dPosition += Input->dtForFrame * ddPosition;
+						Particle->Color += Input->dtForFrame*Particle->dColor;
+
+						if (Particle->Position.y < 0.0f)
+						{
+							r32 CoefficientOfRestitution = 0.3f;
+							r32 CoefficientOfFriction = 0.7f;
+							Particle->Position.y = -Particle->Position.y;
+							Particle->dPosition.y = -CoefficientOfRestitution * Particle->dPosition.y;
+							Particle->dPosition.x = CoefficientOfFriction * Particle->dPosition.x;
+						}
+
+						// Shouldn't we just clamp colors in the renderer??
+						vector4 Color;
+						Color.R = Clamp01(Particle->Color.R);
+						Color.G = Clamp01(Particle->Color.G);
+						Color.B = Clamp01(Particle->Color.B);
+						Color.A = Clamp01(Particle->Color.A);
+
+						if (Color.A > 0.9f)
+						{
+							Color.A = 0.9f*Clamp01ToRange(1.0f, Color.A, 0.9f);
+						}
+
+						// Render the particle
+						PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Grass), Particle->Position, 18, Transform.Rotation, Vector2(0.0f, 0.0f), Color);
+					}
 				} break;
 				case EntityType_GrassTile:
 				{
