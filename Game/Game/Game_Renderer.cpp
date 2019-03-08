@@ -173,7 +173,9 @@ DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 
 		if (MaxY > MaxHeight) { MaxY = MaxHeight; }
 
 		u8 *Row = ((u8 *)Buffer->Memory + MinX * Buffer->BytesPerPixel + MinY * Buffer->Pitch);
-		for (int Y = MinY; Y <= MaxY; ++Y)
+		i32 RowAdvance = 2 * Buffer->Pitch;
+
+		for (int Y = MinY; Y <= MaxY; Y+=2)
 		{
 			u32 *Pixel = (u32 *)Row;
 			for (int X = MinX; X <= MaxX; ++X)
@@ -232,7 +234,7 @@ DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 
 				++Pixel;
 			}
 
-			Row += Buffer->Pitch;
+			Row += RowAdvance;
 		}
 	}
 }
