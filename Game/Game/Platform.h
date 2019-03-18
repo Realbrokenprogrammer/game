@@ -42,6 +42,29 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 #define DEBUG_LOAD_BITMAP(name) loaded_bitmap name(char *FileName)
 typedef DEBUG_LOAD_BITMAP(debug_load_bitmap);
 
+enum
+{
+	DebugCycleCounter_GameUpdateAndRender,
+	DebugCycleCounter_RenderGroupToOutput, //TODO: Naming.
+	DebugCycleCounter_DEBUGDrawTransformedBitmap,
+	DebugCycleCounter_SoftwareDrawTransformedBitmap,
+	DebugCycleCounter_Count
+};
+typedef struct debug_cycle_counter
+{
+	u64 CycleCount;
+	u32 HitCount;
+} debug_cycle_counter;
+
+extern struct game_memory *DebugGlobalMemory;
+#if _MSC_VER
+#define BEGIN_TIMED_BLOCK(ID) u64 StartCycleCount##ID = __rdtsc();
+#define END_TIMED_BLOCK(ID) DebugGlobalMemory->Counters[DebugCycleCounter_##ID].CycleCount += __rdtsc() - StartCycleCount##ID; ++DebugGlobalMemory->Counters[DebugCycleCounter_##ID].HitCount;
+#else
+#define BEGIN_TIMED_BLOCK(ID) 
+#define END_TIMED_BLOCK(ID) 
+#endif
+
 #endif
 
 /*
@@ -162,6 +185,10 @@ struct game_memory
 	debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
 	debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
 	debug_load_bitmap *DEBUGLoadBitmap;
+
+#if 1 //TODO: Add actual define to use for enabling / Disabling this.
+	debug_cycle_counter Counters[DebugCycleCounter_Count];
+#endif
 };
 
 #define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)

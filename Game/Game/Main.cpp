@@ -757,6 +757,33 @@ Win32MakeThreadQueue(platform_thread_queue *Queue, u32 ThreadCount)
 	}
 }
 
+om_internal void
+HandleDebugCycleCounters(game_memory *Memory)
+{
+#if 1 // TODO: Add actual define to use for enabling / Disabling this.
+	OutputDebugStringA("DEBUG CYCLE COUNTS: \n");
+	for (int CounterIndex = 0; CounterIndex < OM_ARRAYCOUNT(Memory->Counters); ++CounterIndex)
+	{
+		debug_cycle_counter *Counter = Memory->Counters + CounterIndex;
+
+		if (Counter->HitCount)
+		{
+			char TextBuffer[256];
+			//TODO: Make this easier to read.
+			_snprintf_s(TextBuffer, sizeof(TextBuffer), 
+				"  %d: %I64ucy %uh %I64ucy/h\n",
+				CounterIndex,
+				Counter->CycleCount,
+				Counter->HitCount,
+				Counter->CycleCount / Counter->HitCount);
+			OutputDebugStringA(TextBuffer);
+			Counter->HitCount = 0;
+			Counter->CycleCount = 0;
+		}
+	}
+#endif
+}
+
 int main(int argc, char *argv[]) 
 {
 	sdl_state SDLState = {};
@@ -1063,6 +1090,7 @@ int main(int argc, char *argv[])
 						if (Game.UpdateAndRender)
 						{
 							Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
+							HandleDebugCycleCounters(&GameMemory);
 						}
 
 						game_sound_output_buffer SoundBuffer = {};
