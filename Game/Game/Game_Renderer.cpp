@@ -93,6 +93,8 @@ om_internal void
 DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation, 
 	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
 {
+	BEGIN_TIMED_BLOCK(DEBUGDrawTransformedBitmap);
+
 	// Degrees to radians.
 	Rotation = Rotation * (OM_PI32 / 180.0f);
 
@@ -237,12 +239,16 @@ DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 
 			Row += RowAdvance;
 		}
 	}
+
+	END_TIMED_BLOCK(DEBUGDrawTransformedBitmap);
 }
 
 om_internal void
 SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation, 
 	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
 {
+	BEGIN_TIMED_BLOCK(SoftwareDrawTransformedBitmap);
+
 	// Degrees to radians.
 	Rotation = Rotation * (OM_PI32 / 180.0f);
 
@@ -555,6 +561,8 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 			Row += RowAdvance;
 		}
 	}
+
+	END_TIMED_BLOCK(SoftwareDrawTransformedBitmap);
 }
 
 om_internal void
@@ -944,6 +952,8 @@ PushBitmap(render_blueprint *Blueprint, bitmap_id ID, vector2 Position, r32 Scal
 om_internal void
 RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer, rect2I ClipRect, b32 Even)
 {
+	BEGIN_TIMED_BLOCK(RenderToBuffer);
+
 	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
 	{
 		render_blueprint_header *Header = (render_blueprint_header *)(RenderBlueprint->PushBufferBase + BaseAddress);
@@ -1020,6 +1030,8 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 		InvalidDefaultCase;
 		}
 	}
+
+	END_TIMED_BLOCK(RenderToBuffer);
 }
 
 struct partitioned_render_work

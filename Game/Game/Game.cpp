@@ -362,8 +362,18 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 	//TODO: Change the entity world position?
 }
 
+#if 1 //TODO: Add actual define to use for enabling / Disabling this.
+game_memory *DebugGlobalMemory;
+#endif
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+#if 1 //TODO: Add actual define to use for enabling / Disabling this.
+	DebugGlobalMemory = Memory;
+#endif
+
+	BEGIN_TIMED_BLOCK(GameUpdateAndRender);
+
 	PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
 	PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
 	DEBUGPlatformReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
@@ -745,6 +755,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	//TODO: Allow sample offsets here for more robust platform options
 	//RenderGradient(Buffer, 0, 0);
+
+	END_TIMED_BLOCK(GameUpdateAndRender);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

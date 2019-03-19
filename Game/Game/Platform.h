@@ -45,7 +45,7 @@ typedef DEBUG_LOAD_BITMAP(debug_load_bitmap);
 enum
 {
 	DebugCycleCounter_GameUpdateAndRender,
-	DebugCycleCounter_RenderGroupToOutput, //TODO: Naming.
+	DebugCycleCounter_RenderToBuffer,
 	DebugCycleCounter_DEBUGDrawTransformedBitmap,
 	DebugCycleCounter_SoftwareDrawTransformedBitmap,
 	DebugCycleCounter_Count
