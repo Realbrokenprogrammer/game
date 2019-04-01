@@ -565,7 +565,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			{
 				//TODO: Playing long sound on button press. This is for testing purposes and has to be removed.
 				PlaySoundID(&GameState->AudioState, GetFirstSoundID(TransientState->Assets, Asset_Type_Music));
-				//ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(1.0f, 1.0f));
+				ChangeVolume(&GameState->AudioState, GameState->Music, 10.0f, Vector2(1.0f, 1.0f));
 			}
 			if (Controller->ActionDown.EndedDown)
 			{
@@ -586,7 +586,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		}
 	}
 
-#if 1
+#if 0
 	//TODO: Use PushClear to renderer instead of manually clearing.
 	//Clear screen. 
 	SoftwareDrawRect(Buffer, Vector2(0.0f, 0.0f), Vector2((r32)Buffer->Width, (r32)Buffer->Height), 0.0f, 0.0f, 0.0f);
