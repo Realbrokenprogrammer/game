@@ -929,7 +929,7 @@ Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWORD By
 	VOID *Region2;
 	DWORD Region2Size;
 
-	if (SUCCEEDED(GlobalSecondaryBuffer->Lock(0, SoundOutput->SecondaryBufferSize,
+	if (SUCCEEDED(GlobalSecondaryBuffer->Lock(ByteToLock, BytesToWrite,
 		&Region1, &Region1Size,
 		&Region2, &Region2Size,
 		0)))
