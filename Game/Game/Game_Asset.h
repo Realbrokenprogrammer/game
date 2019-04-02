@@ -193,5 +193,6 @@ IsValid(sound_id ID)
 
 om_internal void LoadBitmap(game_assets *Assets, bitmap_id ID);
 om_internal void LoadSound(game_assets *Assets, sound_id ID);
+inline void PrefetchSound(game_assets *Assets, sound_id ID) { LoadSound(Assets, ID); }
 
 #endif GAME_ASSET_H

@@ -533,6 +533,8 @@ AddSoundAsset(game_assets *Assets, char *FileName, u32 FirstSampleIndex = 0, u32
 	Asset->OnePastLastTagIndex = Asset->FirstTagIndex;
 	Asset->SlotID = DEBUGAddSoundInfo(Assets, FileName, FirstSampleIndex, SampleCount).Value;
 
+	Assets->DEBUGAsset = Asset;
+
 	return (Asset);
 }
 
@@ -581,11 +583,11 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	Assets->SoundInfos = PushArray(Arena, Assets->SoundCount, asset_sound_info);
 	Assets->Sounds = PushArray(Arena, Assets->SoundCount, asset_slot);
 
-	Assets->TagCount = 1024 * Asset_Type_Count;
-	Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
-
 	Assets->AssetCount = Assets->SoundCount + Assets->BitmapCount;
 	Assets->Assets = PushArray(Arena, Assets->AssetCount, asset);
+
+	Assets->TagCount = 1024 * Asset_Type_Count;
+	Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
 
 	Assets->DEBUGUsedBitmapCount = 1;
 	Assets->DEBUGUsedSoundCount = 1;

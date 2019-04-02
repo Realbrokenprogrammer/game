@@ -235,7 +235,6 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 {
 	temporary_memory SoundMixerMemory = CreateTemporaryMemory(TemporaryArena);
 
-
 	OM_ASSERT((SoundBuffer->SampleCount & 3) == 0);
 	u32 ChunkCount = SoundBuffer->SampleCount / 4;
 
@@ -276,7 +275,7 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 			if (LoadedSound)
 			{
 				asset_sound_info *Info = GetSoundInfo(Assets, PlayingSound->ID);
-				LoadSound(Assets, Info->NextIDToPlay);
+				PrefetchSound(Assets, Info->NextIDToPlay);
 
 				vector2 Volume = PlayingSound->CurrentVolume;
 				vector2 dVolume = SecondsPerSample * PlayingSound->dCurrentVolume;
