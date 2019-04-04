@@ -11,6 +11,7 @@
 #include "Game_World.h"
 #include "Game_Camera.h"
 #include "Game_Renderer.h"
+#include "Game_Asset_Type_Id.h"
 #include "Game_Asset.h"
 #include "Game_Audio.h"
 #include "Game_Random.h"

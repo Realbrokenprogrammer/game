@@ -27,6 +27,37 @@ struct test_structured_asset
 	loaded_bitmap Legs;
 };
 
+//TODO: The asset tags are currently temporary and will need to be changed into something sane once we know what kind of assets
+// the game will support.
+enum asset_tag_id
+{
+	Asset_Tag_Roundness,
+	Asset_Tag_Flatness,
+
+	Asset_Tag_Count
+};
+
+struct asset_bitmap_info
+{
+	char *FileName;
+	//Note: Additional bitmap information later stored in the asset files could be added here.
+};
+
+struct asset_sound_info
+{
+	char *FileName;
+	u32 FirstSampleIndex;
+	u32 SampleCount;
+	sound_id NextIDToPlay;
+	//Note: Additional sound information later stored in the asset files could be added here.
+};
+
+struct asset_tag
+{
+	u32 ID; //Note: Tag ID.
+	r32 Value;
+};
+
 enum asset_state
 {
 	AssetState_Unloaded,
@@ -45,50 +76,16 @@ struct asset_slot
 	};
 };
 
-//TODO: The asset tags are currently temporary and will need to be changed into something sane once we know what kind of assets
-// the game will support.
-enum asset_tag_id
-{
-	Asset_Tag_Roundness,
-	Asset_Tag_Flatness,
-
-	Asset_Tag_Count
-};
-
-enum asset_type_id
-{
-	Asset_Type_None,
-
-	//Note: Bitmaps
-	Asset_Type_Grass,
-	Asset_Type_Water,
-	Asset_Type_SlopeLeft,
-	Asset_Type_SlopeRight,
-	Asset_Type_Player,
-
-	//Note: Sounds
-	Asset_Type_Music,
-
-	Asset_Type_Count
-};
-
-struct asset_tag
-{
-	u32 ID; //Note: Tag ID.
-	r32 Value;
-};
-
-struct asset_type
-{
-	u32 FirstAssetIndex;		//Note: Range of all the assets to consider for this asset type.
-	u32 OnePastLastAssetIndex;
-};
-
 struct asset
 {
 	u32 FirstTagIndex;			//Note: Range of all the tags to consider for this asset.
 	u32 OnePastLastTagIndex;
-	u32 SlotID;
+
+	union
+	{
+		asset_bitmap_info Bitmap;
+		asset_sound_info Sound;
+	};
 };
 
 struct asset_vector
@@ -96,19 +93,10 @@ struct asset_vector
 	r32 E[Asset_Tag_Count];
 };
 
-struct asset_bitmap_info
+struct asset_type
 {
-	char *FileName;
-	//Note: Additional bitmap information later stored in the asset files could be added here.
-};
-
-struct asset_sound_info
-{
-	char *FileName;
-	u32 FirstSampleIndex;
-	u32 SampleCount;
-	sound_id NextIDToPlay;
-	//Note: Additional sound information later stored in the asset files could be added here.
+	u32 FirstAssetIndex;		//Note: Range of all the assets to consider for this asset type.
+	u32 OnePastLastAssetIndex;
 };
 
 struct game_assets
@@ -119,19 +107,12 @@ struct game_assets
 	
 	r32 TagRange[Asset_Tag_Count];
 
-	u32 BitmapCount;
-	asset_bitmap_info *BitmapInfos;
-	asset_slot *Bitmaps;
-
-	u32 SoundCount;
-	asset_sound_info *SoundInfos;
-	asset_slot *Sounds;
-
 	u32 TagCount;
 	asset_tag *Tags;
 
 	u32 AssetCount;
 	asset *Assets;
+	asset_slot *Slots;
 
 	asset_type AssetTypes[Asset_Type_Count];
 
@@ -151,8 +132,8 @@ struct game_assets
 inline loaded_bitmap *
 GetBitmap(game_assets *Assets, bitmap_id ID)
 {
-	OM_ASSERT(ID.Value <= Assets->BitmapCount);
-	loaded_bitmap *Result = Assets->Bitmaps[ID.Value].Bitmap;
+	OM_ASSERT(ID.Value <= Assets->AssetCount);
+	loaded_bitmap *Result = Assets->Slots[ID.Value].Bitmap;
 
 	return (Result);
 }
@@ -160,8 +141,8 @@ GetBitmap(game_assets *Assets, bitmap_id ID)
 inline loaded_sound *
 GetSound(game_assets *Assets, sound_id ID)
 {
-	OM_ASSERT(ID.Value <= Assets->SoundCount);
-	loaded_sound *Result = Assets->Sounds[ID.Value].Sound;
+	OM_ASSERT(ID.Value <= Assets->AssetCount);
+	loaded_sound *Result = Assets->Slots[ID.Value].Sound;
 
 	return (Result);
 }
@@ -169,8 +150,8 @@ GetSound(game_assets *Assets, sound_id ID)
 inline asset_sound_info *
 GetSoundInfo(game_assets *Assets, sound_id ID)
 {
-	OM_ASSERT(ID.Value <= Assets->SoundCount);
-	asset_sound_info *Result = Assets->SoundInfos + ID.Value;
+	OM_ASSERT(ID.Value <= Assets->AssetCount);
+	asset_sound_info *Result = &Assets->Assets[ID.Value].Sound;
 
 	return (Result);
 }
