@@ -83,5 +83,8 @@
     <ClInclude Include="..\Game\Game_Asset_Type_Id.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\Game\Game_File_Formats.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

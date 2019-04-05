@@ -1,6 +1,16 @@
-#ifndef GAME_ASSET_TYPE_ID
-#define GAME_ASSET_TYPE_ID
+#ifndef GAME_ASSET_TYPE_ID_H
+#define GAME_ASSET_TYPE_ID_H
 #pragma once
+
+//TODO: The asset tags are currently temporary and will need to be changed into something sane once we know what kind of assets
+// the game will support.
+enum asset_tag_id
+{
+	Asset_Tag_Roundness,
+	Asset_Tag_Flatness,
+
+	Asset_Tag_Count
+};
 
 enum asset_type_id
 {
@@ -19,4 +29,4 @@ enum asset_type_id
 	Asset_Type_Count
 };
 
-#endif //GAME_ASSET_TYPE_ID
+#endif //GAME_ASSET_TYPE_ID_H

@@ -27,16 +27,6 @@ struct test_structured_asset
 	loaded_bitmap Legs;
 };
 
-//TODO: The asset tags are currently temporary and will need to be changed into something sane once we know what kind of assets
-// the game will support.
-enum asset_tag_id
-{
-	Asset_Tag_Roundness,
-	Asset_Tag_Flatness,
-
-	Asset_Tag_Count
-};
-
 struct asset_bitmap_info
 {
 	char *FileName;
@@ -121,8 +111,6 @@ struct game_assets
 	test_structured_asset Characters[4];
 
 	//TODO: Temp, should be removed once we load packed asset files.
-	u32 DEBUGUsedBitmapCount;
-	u32 DEBUGUsedSoundCount;
 	u32 DEBUGUsedAssetCount;
 	u32 DEBUGUsedTagCount;
 	asset_type *DEBUGAssetType;

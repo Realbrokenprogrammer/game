@@ -307,18 +307,15 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 				u32 ChunksToMix = TotalChunksToMix;
 				r32 RealChunksRemainingInSound = (LoadedSound->SampleCount - RoundReal32ToInt32(PlayingSound->SamplesPlayed)) / dSampleChunk;
 				u32 ChunksRemainingInSound = RoundReal32ToInt32(RealChunksRemainingInSound);
-				b32 InputSamplesEnded = false;
-
+				
 				if (ChunksToMix > ChunksRemainingInSound)
 				{
 					ChunksToMix = ChunksRemainingInSound;
-					InputSamplesEnded = true;
 				}
 
-				b32 VolumeEnded[AudioStateOutputChannelCount] = {};
-				for (u32 ChannelIndex = 0; ChannelIndex < OM_ARRAYCOUNT(VolumeEnded); ++ChannelIndex)
+				u32 VolumeEndedAt[AudioStateOutputChannelCount] = {};
+				for (u32 ChannelIndex = 0; ChannelIndex < OM_ARRAYCOUNT(VolumeEndedAt); ++ChannelIndex)
 				{
-					// TODO: Fix bug regarding both volumes ending at the same time.
 					if (dVolumeChunk.E[ChannelIndex] != 0.0f)
 					{
 						r32 DeltaVolume = (PlayingSound->TargetVolume.E[ChannelIndex] - Volume.E[ChannelIndex]);
@@ -326,7 +323,7 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 						if (ChunksToMix > VolumeChunkCount)
 						{
 							ChunksToMix = VolumeChunkCount;
-							VolumeEnded[ChannelIndex] = true;
+							VolumeEndedAt[ChannelIndex] = VolumeChunkCount;
 						}
 					}
 				}
@@ -384,9 +381,9 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 				PlayingSound->CurrentVolume.E[0] = ((r32 *)&Volume0)[0];
 				PlayingSound->CurrentVolume.E[1] = ((r32 *)&Volume1)[1];
 
-				for (u32 ChannelIndex = 0; ChannelIndex < OM_ARRAYCOUNT(VolumeEnded); ++ChannelIndex)
+				for (u32 ChannelIndex = 0; ChannelIndex < OM_ARRAYCOUNT(VolumeEndedAt); ++ChannelIndex)
 				{
-					if (VolumeEnded[ChannelIndex])
+					if (ChunksToMix == VolumeEndedAt[ChannelIndex])
 					{
 						PlayingSound->CurrentVolume.E[ChannelIndex] = PlayingSound->TargetVolume.E[ChannelIndex];
 						PlayingSound->dCurrentVolume.E[ChannelIndex] = 0.0f;
@@ -397,7 +394,7 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 				OM_ASSERT(TotalChunksToMix >= ChunksToMix);
 				TotalChunksToMix -= ChunksToMix;
 
-				if (InputSamplesEnded)
+				if (ChunksToMix == ChunksRemainingInSound)
 				{
 					if (IsValid(Info->NextIDToPlay))
 					{

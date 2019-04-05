@@ -558,8 +558,6 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	Assets->TagCount = 1024 * Asset_Type_Count;
 	Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
 
-	Assets->DEBUGUsedBitmapCount = 1;
-	Assets->DEBUGUsedSoundCount = 1;
 	Assets->DEBUGUsedAssetCount = 1;
 
 	BeginAssetType(Assets, Asset_Type_Grass);
