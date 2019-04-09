@@ -20,36 +20,6 @@ Unpack4x8Pixel(u32 Pixel)
 	return (Result);
 }
 
-inline vector4
-SRGB255ToLinear1(vector4 Color)
-{
-	vector4 Result;
-
-	r32 Inv255 = 1.0f / 255.0f;
-
-	Result.R = Square(Inv255*Color.R);
-	Result.G = Square(Inv255*Color.G);
-	Result.B = Square(Inv255*Color.B);
-	Result.A = Inv255 * Color.A;
-
-	return (Result);
-}
-
-inline vector4
-Linear1ToSRGB255(vector4 Color)
-{
-	vector4 Result;
-
-	r32 One255 = 255.0f;
-
-	Result.R = One255 * SquareRoot(Color.R);
-	Result.G = One255 * SquareRoot(Color.G);
-	Result.B = One255 * SquareRoot(Color.B);
-	Result.A = 255.0f*Color.A;
-
-	return (Result);
-}
-
 struct bilinear_sample
 {
 	u32 A, B, C, D;
@@ -89,11 +59,13 @@ SRGBBilinearBlend(bilinear_sample TexelSample, r32 fX, r32 fY)
 	return (Result);
 }
 
+//#include "iacaMarks.h"
+
 om_internal void
 DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation, 
 	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
 {
-	BEGIN_TIMED_BLOCK(DEBUGDrawTransformedBitmap);
+	//BEGIN_TIMED_BLOCK(DEBUGDrawTransformedBitmap);
 
 	// Degrees to radians.
 	Rotation = Rotation * (OM_PI32 / 180.0f);
@@ -182,6 +154,8 @@ DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 
 			u32 *Pixel = (u32 *)Row;
 			for (int X = MinX; X <= MaxX; ++X)
 			{
+				//IACA_START;
+
 				vector2 PixelPosition = Vector2Int(X, Y);
 				vector2 Distance = PixelPosition - Position;
 
@@ -234,20 +208,22 @@ DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 
 				}
 
 				++Pixel;
+
+				//IACA_END;
 			}
 
 			Row += RowAdvance;
 		}
 	}
 
-	END_TIMED_BLOCK(DEBUGDrawTransformedBitmap);
+	//END_TIMED_BLOCK(DEBUGDrawTransformedBitmap);
 }
 
 om_internal void
 SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation, 
 	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
 {
-	BEGIN_TIMED_BLOCK(SoftwareDrawTransformedBitmap);
+	//BEGIN_TIMED_BLOCK(SoftwareDrawTransformedBitmap);
 
 	// Degrees to radians.
 	Rotation = Rotation * (OM_PI32 / 180.0f);
@@ -378,6 +354,8 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 			u32 *Pixel = (u32 *)Row;
 			for (int X = MinX; X < MaxX; X += 4)
 			{
+				//IACA_START;
+
 				__m128 U = _mm_add_ps(_mm_mul_ps(PixelPositionX, nXAxisX_x4), PynX);
 				__m128 V = _mm_add_ps(_mm_mul_ps(PixelPositionX, nYAxisX_x4), PynY);
 
@@ -556,13 +534,15 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 				PixelPositionX = _mm_add_ps(PixelPositionX, Four_x4);
 				Pixel += 4;
 				ClipMask = _mm_set1_epi8(-1);
+
+				//IACA_END;
 			}
 
 			Row += RowAdvance;
 		}
 	}
 
-	END_TIMED_BLOCK(SoftwareDrawTransformedBitmap);
+	//END_TIMED_BLOCK(SoftwareDrawTransformedBitmap);
 }
 
 om_internal void
@@ -952,7 +932,7 @@ PushBitmap(render_blueprint *Blueprint, bitmap_id ID, vector2 Position, r32 Scal
 om_internal void
 RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer, rect2I ClipRect, b32 Even)
 {
-	BEGIN_TIMED_BLOCK(RenderToBuffer);
+	//BEGIN_TIMED_BLOCK(RenderToBuffer);
 
 	for (u32 BaseAddress = 0; BaseAddress < RenderBlueprint->PushBufferSize;)
 	{
@@ -1031,7 +1011,7 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 		}
 	}
 
-	END_TIMED_BLOCK(RenderToBuffer);
+	//END_TIMED_BLOCK(RenderToBuffer);
 }
 
 struct partitioned_render_work

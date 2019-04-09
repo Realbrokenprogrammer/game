@@ -40,9 +40,9 @@ struct ga_bitmap
 
 struct ga_sound
 {
-	u32 FirstSampleIndex;
 	u32 SampleCount;
 	u32 NextIDToPlay;
+	u32 ChannelCount;
 };
 
 struct ga_asset

@@ -106,6 +106,7 @@ struct game_assets
 
 	asset_type AssetTypes[Asset_Type_Count];
 
+#if 0
 	//TODO: Remove these example array'd assets. These are only for example!!!
 	loaded_bitmap Stone[4];
 	test_structured_asset Characters[4];
@@ -115,6 +116,7 @@ struct game_assets
 	u32 DEBUGUsedTagCount;
 	asset_type *DEBUGAssetType;
 	asset *DEBUGAsset;
+#endif
 };
 
 inline loaded_bitmap *

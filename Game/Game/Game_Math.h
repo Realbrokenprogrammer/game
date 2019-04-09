@@ -513,4 +513,34 @@ Lerp(vector4 A, r32 t, vector4 B)
 	return(Result);
 }
 
+inline vector4
+SRGB255ToLinear1(vector4 Color)
+{
+	vector4 Result;
+
+	r32 Inv255 = 1.0f / 255.0f;
+
+	Result.R = Square(Inv255*Color.R);
+	Result.G = Square(Inv255*Color.G);
+	Result.B = Square(Inv255*Color.B);
+	Result.A = Inv255 * Color.A;
+
+	return (Result);
+}
+
+inline vector4
+Linear1ToSRGB255(vector4 Color)
+{
+	vector4 Result;
+
+	r32 One255 = 255.0f;
+
+	Result.R = One255 * SquareRoot(Color.R);
+	Result.G = One255 * SquareRoot(Color.G);
+	Result.B = One255 * SquareRoot(Color.B);
+	Result.A = 255.0f*Color.A;
+
+	return (Result);
+}
+
 #endif // GAME_MATH_H

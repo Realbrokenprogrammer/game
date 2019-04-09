@@ -81,6 +81,8 @@ GetFirstSoundID(game_assets *Assets, asset_type_id TypeID)
 	return (Result);
 }
 
+#if 0
+
 // Packing struct to avoid padding.
 // Source for bitmap header: https://www.fileformat.info/format/bmp/egff.htm
 #pragma pack(push, 1)
@@ -367,6 +369,24 @@ DEBUGLoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount
 	return (Result);
 }
 
+#endif
+
+om_internal loaded_bitmap
+DEBUGLoadBitmap(char *FileName)
+{
+	OM_ASSERT(!"This is no longer allowed.");
+	loaded_bitmap Result = {};
+	return (Result);
+}
+
+om_internal loaded_sound
+DEBUGLoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount)
+{
+	OM_ASSERT(!"This is no longer allowed.");
+	loaded_sound Result = {};
+	return (Result);
+}
+
 struct load_bitmap_work
 {
 	game_assets *Assets;
@@ -468,6 +488,8 @@ LoadSound(game_assets *Assets, sound_id ID)
 	}
 }
 
+#if 0
+
 om_internal void
 BeginAssetType(game_assets *Assets, asset_type_id TypeID)
 {
@@ -536,6 +558,8 @@ EndAssetType(game_assets *Assets)
 	Assets->DEBUGAsset = 0;
 }
 
+#endif
+
 om_internal game_assets *
 CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *TransientState)
 {
@@ -551,12 +575,34 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	//TODO: Example of how to set a tag range for specific tag:
 	//Assets->TagRange[Asset_Tag_PlayerFacingDirection] = Tau32;
 
-	Assets->AssetCount = 2*256*Asset_Type_Count;
-	Assets->Assets = PushArray(Arena, Assets->AssetCount, asset);
-	Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
+	debug_read_file_result ReadResult = DEBUGPlatformReadEntireFile("C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\test.ga");
+	if (ReadResult.ContentsSize != 0)
+	{
+		ga_header *Header = (ga_header *)ReadResult.Contents;
+		OM_ASSERT(Header->MagicValue == GA_MAGIC_VALUE);
+		OM_ASSERT(Header->Version == GA_VERSION);
+		
+		Assets->AssetCount = Header->AssetCount;
+		Assets->Assets = PushArray(Arena, Assets->AssetCount, asset);
+		Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
+		
+		Assets->TagCount = Header->TagCount;
+		Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
 
-	Assets->TagCount = 1024 * Asset_Type_Count;
-	Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
+		//TODO: Decide what should be flat-loaded and what shouldn't.
+
+		ga_tag *GATags = (ga_tag *)((u8 *)ReadResult.Contents + Header->TagsOffset);
+		for (u32 TagIndex = 0; TagIndex < Assets->TagCount; ++TagIndex)
+		{
+			ga_tag *Source = GATags + TagIndex;
+			asset_tag *Destination = Assets->Tags + TagIndex;
+
+			Destination->ID = Source->ID;
+			Destination->Value = Source->Value;
+		}
+	}
+
+#if 0
 
 	Assets->DEBUGUsedAssetCount = 1;
 
@@ -601,7 +647,7 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 		LastMusic = ThisMusic;
 	}
 	EndAssetType(Assets);
-
+#endif
 	/*
 		//TODO: Bellow are just temporary examples of how arary'd and structured assets would be loaded in.
 		BeginAssetType(Assets, Asset_Type_Stone);
