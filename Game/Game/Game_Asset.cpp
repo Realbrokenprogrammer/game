@@ -8,12 +8,12 @@ PickBestAsset(game_assets *Assets, asset_type_id TypeID, asset_vector *MatchVect
 	asset_type *Type = Assets->AssetTypes + TypeID;
 	for (u32 AssetIndex = Type->FirstAssetIndex; AssetIndex < Type->OnePastLastAssetIndex; ++AssetIndex)
 	{
-		asset *Asset = Assets->Assets + AssetIndex;
+		ga_asset *Asset = Assets->Assets + AssetIndex;
 
 		r32 TotalWeightedDifference = 0.0f;
 		for (u32 TagIndex = Asset->FirstTagIndex; TagIndex < Asset->OnePastLastTagIndex; ++TagIndex)
 		{
-			asset_tag *Tag = Assets->Tags + TagIndex;
+			ga_tag *Tag = Assets->Tags + TagIndex;
 			
 			r32 A = MatchVector->E[Tag->ID];
 			r32 B = Tag->Value;
@@ -49,13 +49,13 @@ GetFirstAssetID(game_assets *Assets, asset_type_id TypeID)
 	return (Result);
 }
 
-inline bitmap_id
-PickBestBitmap(game_assets *Assets, asset_type_id TypeID, asset_vector *MatchVector, asset_vector *WeightVector)
-{
-	bitmap_id Result = { PickBestAsset(Assets, TypeID, MatchVector, WeightVector) };
-
-	return (Result);
-}
+//inline bitmap_id
+//PickBestBitmap(game_assets *Assets, asset_type_id TypeID, asset_vector *MatchVector, asset_vector *WeightVector)
+//{
+//	bitmap_id Result = { PickBestAsset(Assets, TypeID, MatchVector, WeightVector) };
+//
+//	return (Result);
+//}
 
 inline bitmap_id
 GetFirstBitmapID(game_assets *Assets, asset_type_id TypeID)
@@ -65,13 +65,13 @@ GetFirstBitmapID(game_assets *Assets, asset_type_id TypeID)
 	return (Result);
 }
 
-inline sound_id
-PickBestSound(game_assets *Assets, asset_type_id TypeID, asset_vector *MatchVector, asset_vector *WeightVector)
-{
-	sound_id Result = { PickBestAsset(Assets, TypeID, MatchVector, WeightVector) };
-
-	return (Result);
-}
+//inline sound_id
+//PickBestSound(game_assets *Assets, asset_type_id TypeID, asset_vector *MatchVector, asset_vector *WeightVector)
+//{
+//	sound_id Result = { PickBestAsset(Assets, TypeID, MatchVector, WeightVector) };
+//
+//	return (Result);
+//}
 
 inline sound_id
 GetFirstSoundID(game_assets *Assets, asset_type_id TypeID)
@@ -371,22 +371,6 @@ DEBUGLoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount
 
 #endif
 
-om_internal loaded_bitmap
-DEBUGLoadBitmap(char *FileName)
-{
-	OM_ASSERT(!"This is no longer allowed.");
-	loaded_bitmap Result = {};
-	return (Result);
-}
-
-om_internal loaded_sound
-DEBUGLoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount)
-{
-	OM_ASSERT(!"This is no longer allowed.");
-	loaded_sound Result = {};
-	return (Result);
-}
-
 struct load_bitmap_work
 {
 	game_assets *Assets;
@@ -401,8 +385,19 @@ PLATFORM_THREAD_QUEUE_CALLBACK(LoadBitmapWork)
 {
 	load_bitmap_work *Work = (load_bitmap_work *)Data;
 
-	asset_bitmap_info *Info = &Work->Assets->Assets[Work->ID.Value].Bitmap;
-	*Work->Bitmap = DEBUGLoadBitmap(Info->FileName);
+	ga_asset *GAAsset = &Work->Assets->Assets[Work->ID.Value];
+	ga_bitmap *Info = &GAAsset->Bitmap;
+	loaded_bitmap *Bitmap = Work->Bitmap;
+
+	Bitmap->Width = Info->Dimension[0];
+	Bitmap->Height = Info->Dimension[1];
+	Bitmap->Pitch = 4 * Info->Dimension[0];
+	Bitmap->Pixels = (u32 *)((u8 *)Work->Assets->GAContents + GAAsset->DataOffset);
+
+#if 1
+	Bitmap->Pixels = (u32 *)((u8 *)Bitmap->Pixels + Bitmap->Pitch*(Bitmap->Height - 1));
+	Bitmap->Pitch = -Bitmap->Pitch;
+#endif
 
 	CompletePreviousWritesBeforeFutureWrites;
 
@@ -452,8 +447,20 @@ PLATFORM_THREAD_QUEUE_CALLBACK(LoadSoundWork)
 {
 	load_sound_work *Work = (load_sound_work *)Data;
 
-	asset_sound_info *Info = &Work->Assets->Assets[Work->ID.Value].Sound;
-	*Work->Sound = DEBUGLoadWAV(Info->FileName, Info->FirstSampleIndex, Info->SampleCount);
+	ga_asset *GAAsset = &Work->Assets->Assets[Work->ID.Value];
+	ga_sound *Info = &GAAsset->Sound;
+	loaded_sound *Sound = Work->Sound;
+
+	Sound->SampleCount = Info->SampleCount;
+	Sound->ChannelCount = Info->ChannelCount;
+	OM_ASSERT(Sound->ChannelCount < OM_ARRAYCOUNT(Sound->Samples));
+	
+	u32 SampleDataOffset = GAAsset->DataOffset;
+	for (u32 ChannelIndex = 0; ChannelIndex < Sound->ChannelCount; ++ChannelIndex)
+	{
+		Sound->Samples[ChannelIndex] = (i16 *)(Work->Assets->GAContents + SampleDataOffset);
+		SampleDataOffset += Sound->SampleCount * sizeof(i16);
+	}
 
 	CompletePreviousWritesBeforeFutureWrites;
 
@@ -575,31 +582,118 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	//TODO: Example of how to set a tag range for specific tag:
 	//Assets->TagRange[Asset_Tag_PlayerFacingDirection] = Tau32;
 
+	Assets->TagCount = 0;
+	Assets->AssetCount = 0;
+
+#if 0
+	{
+		platform_file_group FileGroup = PlatformGetAllFilesOfTypeBegin(".ga");
+		Assets->FileCount = FileGroup.FileCount;
+		Assets->Files = PushArray(Arena, Assets->FileCount, asset_file);
+		for (u32 FileIndex = 0; FileIndex < Assets->FileCount; ++FileIndex)
+		{
+			asset_file *File = Assets->Files + FileIndex;
+
+			u32 AssetTypeArraySize = File->Header.AssetTypeCount * sizeof(ga_asset_type);
+
+			ZeroStruct(File->Header);
+			File->Handle  PlatformOpenFile(FileGroup, FileIndex);
+			PlatformReadDataFromFile(File->Handle, 0, sizeof(File->Header), &File->Header);
+			File->AssetTypeArray = (ga_asset_type *)PushSize(Arena, AssetTypeArraySize);
+			PlatformReadDataFromFile(File->Handle, File->Header.AssetTypes, AssetTypeArraySize, File->AssetTypeArray);
+
+			if (Header->MagicValue != GA_MAGIC_VALUE)
+			{
+				PlatformFileError(File->Handle, "ERROR HERE TODO:::");
+			}
+
+			if (Header->Version != GA_VERSION)
+			{
+				PlatformFileError(File->Handle, "ERROR HERE TOODODODO::");
+			}
+
+			if (PlatformNoFileErrors(File->Handle))
+			{
+				Assets->TagCount += Header->TagCount;
+				Assets->AssetCount += Header->AssetCount;
+			}
+			else
+			{
+				//TODO: Eventuall notify users of corrupt files?
+				InvalidCodePath;
+			}
+		}
+		PlatformGetAllFilesOfTypeEnd(FileGroup);
+	}
+
+	Assets->Assets = PushArray(Arena, Assets->AssetCount, ga_asset);
+	Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
+	Assets->Tags = PushArray(Arena, Assets->TagCount, ga_asset);
+
+	u32 AssetCount = 0;
+	u32 TagCount = 0;
+	for (u32 DestinationTypeID = 0; DestinationTypeID < AssetCount; ++DestinationTypeID)
+	{
+		asset_type *DestinationType = Assets->AssetTypes + DestinationTypeID;
+		DestinationType->FirstAssetIndex = AssetCount;
+
+		for (u32 FileIndex = 0; FileIndex < Assets->FileCount; ++FileIndex)
+		{
+			asset_file *File = Assets->Files + FileIndex;
+			if (PlatformNoFileErrors(File->Handle))
+			{
+				for (u32 SourceIndex = 0; SourceIndex < File->Header.AssetTypeCount; ++SourceIndex)
+				{
+					ga_asset_type *SourceType = File->AssetTypeArray + SourceIndex;
+
+					if (SourceType->TypeID == AssetTypeID)
+					{
+						PlatformReadDataFromFile();
+						AssetCount += ;
+					}
+				}
+			}
+		}
+
+		DestinationType->OnePastLastAssetIndex = AssetCount;
+	}
+
+	OM_ASSERT(AssetCount == Assets->AssetCount);
+	OM_ASSERT(TagCount == Assets->TagCount);
+#endif
+
 	debug_read_file_result ReadResult = DEBUGPlatformReadEntireFile("C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\test.ga");
 	if (ReadResult.ContentsSize != 0)
 	{
 		ga_header *Header = (ga_header *)ReadResult.Contents;
-		OM_ASSERT(Header->MagicValue == GA_MAGIC_VALUE);
-		OM_ASSERT(Header->Version == GA_VERSION);
 		
 		Assets->AssetCount = Header->AssetCount;
-		Assets->Assets = PushArray(Arena, Assets->AssetCount, asset);
+		Assets->Assets = (ga_asset *)((u8 *)ReadResult.Contents + Header->AssetsOffset);
 		Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
 		
 		Assets->TagCount = Header->TagCount;
-		Assets->Tags = PushArray(Arena, Assets->TagCount, asset_tag);
+		Assets->Tags = (ga_tag *)((u8 *)ReadResult.Contents + Header->TagsOffset);
 
-		//TODO: Decide what should be flat-loaded and what shouldn't.
-
-		ga_tag *GATags = (ga_tag *)((u8 *)ReadResult.Contents + Header->TagsOffset);
-		for (u32 TagIndex = 0; TagIndex < Assets->TagCount; ++TagIndex)
+		ga_asset_type *GAAssetTypes = (ga_asset_type *)((u8 *)ReadResult.Contents + Header->AssetTypesOffset);
+		
+		for (u32 Index = 0; Index < Header->AssetTypeCount; ++Index)
 		{
-			ga_tag *Source = GATags + TagIndex;
-			asset_tag *Destination = Assets->Tags + TagIndex;
+			ga_asset_type *Source = GAAssetTypes + Index;
 
-			Destination->ID = Source->ID;
-			Destination->Value = Source->Value;
+			if (Source->TypeID < Asset_Type_Count)
+			{
+				asset_type *Destination = Assets->AssetTypes + Source->TypeID;
+
+				//TODO: Support for merging.
+				OM_ASSERT(Destination->FirstAssetIndex == 0);
+				OM_ASSERT(Destination->OnePastLastAssetIndex == 0);
+
+				Destination->FirstAssetIndex = Source->FirstAssetIndex;
+				Destination->OnePastLastAssetIndex = Source->OnePastLastAssetIndex;
+			}
 		}
+
+		Assets->GAContents = (u8 *)ReadResult.Contents;
 	}
 
 #if 0

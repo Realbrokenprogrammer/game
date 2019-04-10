@@ -112,7 +112,7 @@ DEBUGOutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundB
 			loaded_sound *LoadedSound = GetSound(Assets, PlayingSound->ID);
 			if (LoadedSound)
 			{
-				asset_sound_info *Info = GetSoundInfo(Assets, PlayingSound->ID);
+				ga_sound *Info = GetSoundInfo(Assets, PlayingSound->ID);
 				LoadSound(Assets, Info->NextIDToPlay);
 
 				vector2 Volume = PlayingSound->CurrentVolume;
@@ -274,7 +274,7 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 			loaded_sound *LoadedSound = GetSound(Assets, PlayingSound->ID);
 			if (LoadedSound)
 			{
-				asset_sound_info *Info = GetSoundInfo(Assets, PlayingSound->ID);
+				ga_sound *Info = GetSoundInfo(Assets, PlayingSound->ID);
 				PrefetchSound(Assets, Info->NextIDToPlay);
 
 				vector2 Volume = PlayingSound->CurrentVolume;

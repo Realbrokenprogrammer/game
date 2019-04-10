@@ -2,6 +2,16 @@
 #define GAME_FILE_FORMATS_H
 #pragma once
 
+struct bitmap_id
+{
+	u32 Value;
+};
+
+struct sound_id
+{
+	u32 Value;
+};
+
 #pragma pack(push, 1)
 struct ga_header
 {
@@ -41,7 +51,7 @@ struct ga_bitmap
 struct ga_sound
 {
 	u32 SampleCount;
-	u32 NextIDToPlay;
+	sound_id NextIDToPlay;
 	u32 ChannelCount;
 };
 

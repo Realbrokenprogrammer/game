@@ -770,6 +770,7 @@ SoftwareDrawBitmap(game_offscreen_buffer *Buffer, loaded_bitmap *Bitmap, vector2
 om_internal render_blueprint *
 CreateRenderBlueprint(game_assets *Assets, render_basis *RenderBasis, u32 MaxPushBufferSize)
 {
+	//TODO: This malloc shouldn't be here?!?
 	render_blueprint *Result = (render_blueprint *)malloc(sizeof(render_blueprint));
 	Result->PushBufferBase = (u8 *)malloc(MaxPushBufferSize);
 

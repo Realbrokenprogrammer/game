@@ -2,16 +2,6 @@
 #define GAME_ASSET_H
 #pragma once
 
-struct bitmap_id
-{
-	u32 Value;
-};
-
-struct sound_id
-{
-	u32 Value;
-};
-
 struct loaded_sound
 {
 	u32 SampleCount; // NOTE: This is the sample count divided by 8
@@ -25,27 +15,6 @@ struct test_structured_asset
 	loaded_bitmap Head;
 	loaded_bitmap Torso;
 	loaded_bitmap Legs;
-};
-
-struct asset_bitmap_info
-{
-	char *FileName;
-	//Note: Additional bitmap information later stored in the asset files could be added here.
-};
-
-struct asset_sound_info
-{
-	char *FileName;
-	u32 FirstSampleIndex;
-	u32 SampleCount;
-	sound_id NextIDToPlay;
-	//Note: Additional sound information later stored in the asset files could be added here.
-};
-
-struct asset_tag
-{
-	u32 ID; //Note: Tag ID.
-	r32 Value;
 };
 
 enum asset_state
@@ -66,18 +35,6 @@ struct asset_slot
 	};
 };
 
-struct asset
-{
-	u32 FirstTagIndex;			//Note: Range of all the tags to consider for this asset.
-	u32 OnePastLastTagIndex;
-
-	union
-	{
-		asset_bitmap_info Bitmap;
-		asset_sound_info Sound;
-	};
-};
-
 struct asset_vector
 {
 	r32 E[Asset_Tag_Count];
@@ -89,6 +46,16 @@ struct asset_type
 	u32 OnePastLastAssetIndex;
 };
 
+struct asset_file
+{
+	// platform_file_handle Handle;
+
+	ga_header Header;
+	ga_asset_type *AssetTypes;
+
+	u32 TagBase;
+};
+
 struct game_assets
 {
 	// TODO: This back-pointer is dumb.
@@ -97,14 +64,19 @@ struct game_assets
 	
 	r32 TagRange[Asset_Tag_Count];
 
+	u32 FileCount;
+	asset_file *Files;
+
 	u32 TagCount;
-	asset_tag *Tags;
+	ga_tag *Tags;
 
 	u32 AssetCount;
-	asset *Assets;
+	ga_asset *Assets;
 	asset_slot *Slots;
 
 	asset_type AssetTypes[Asset_Type_Count];
+
+	u8 *GAContents;
 
 #if 0
 	//TODO: Remove these example array'd assets. These are only for example!!!
@@ -137,11 +109,11 @@ GetSound(game_assets *Assets, sound_id ID)
 	return (Result);
 }
 
-inline asset_sound_info *
+inline ga_sound *
 GetSoundInfo(game_assets *Assets, sound_id ID)
 {
 	OM_ASSERT(ID.Value <= Assets->AssetCount);
-	asset_sound_info *Result = &Assets->Assets[ID.Value].Sound;
+	ga_sound *Result = &Assets->Assets[ID.Value].Sound;
 
 	return (Result);
 }
