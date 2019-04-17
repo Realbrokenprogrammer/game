@@ -1063,11 +1063,11 @@ PerformPartitionedRendering(platform_thread_queue *RenderQueue, render_blueprint
 			Work->Buffer = Buffer;
 			Work->ClipRect = ClipRect;
 
-			PlatformAddThreadEntry(RenderQueue, DoPartitionedRenderWork, Work);
+			Platform.AddThreadEntry(RenderQueue, DoPartitionedRenderWork, Work);
 		}
 	}
 
-	PlatformCompleteAllThreadWork(RenderQueue);
+	Platform.CompleteAllThreadWork(RenderQueue);
 }
 
 om_internal void

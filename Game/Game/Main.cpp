@@ -196,38 +196,29 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 	return (Result);
 }
 
-//TODO: Assert its actually a BMP file sent into this function.
-//DEBUG_LOAD_BITMAP(DEBUGLoadBitmap)
-//{
-//	loaded_bitmap Result = {};
-//
-//	SDL_Surface *Image = SDL_LoadBMP(FileName);
-//	if (Image == NULL)
-//	{
-//		//TODO: Logging
-//	}
-//	else
-//	{
-//		SDL_PixelFormat *Format = Image->format;
-//		SDL_Surface *FormattedImage = SDL_ConvertSurfaceFormat(Image, SDL_PIXELFORMAT_ARGB8888, 0);
-//
-//		if (FormattedImage == NULL)
-//		{
-//			//TODO: Logging
-//		}
-//		else
-//		{
-//			Result.Width = FormattedImage->w;
-//			Result.Height = FormattedImage->h;
-//			Result.Pixels = ((u32 *)FormattedImage->pixels);
-//			Result.Pitch = Result.Width * BITMAP_BYTES_PER_PIXEL;
-//		}
-//
-//		SDL_FreeSurface(Image);
-//	}
-//
-//	return (Result);
-//}
+om_internal PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(Win32GetAllFilesOfTypeBegin)
+{
+	platform_file_group FileGroup = {};
+
+	return (FileGroup);
+}
+
+om_internal PLATFORM_GET_ALL_FILE_OF_TYPE_END(Win32GetAllFilesOfTypeEnd)
+{
+}
+
+om_internal PLATFORM_OPEN_FILE(Win32OpenFile)
+{
+	return (0);
+}
+
+om_internal PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
+{
+}
+
+om_internal PLATFORM_FILE_ERROR(Win32FileError)
+{
+}
 
 inline FILETIME
 Win32GetLastWriteTime(const char* FileName)
@@ -1197,14 +1188,22 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
 			game_memory GameMemory = {};
 			GameMemory.PermanentStorageSize = om_megabytes(256);
-			GameMemory.TransientStorageSize = om_gigabytes(1);
+			GameMemory.TransientStorageSize = om_megabytes(500);
 			GameMemory.HighPriorityQueue = &HighPriorityQueue;
 			GameMemory.LowPriorityQueue = &LowPriorityQueue;
-			GameMemory.PlatformAddThreadEntry = Win32AddThreadQueueEntry;
-			GameMemory.PlatformCompleteAllThreadWork = Win32CompleteAllThreadWork;
-			GameMemory.DEBUGPlatformFreeFileMemory = DEBUGPlatformFreeFileMemory;
-			GameMemory.DEBUGPlatformReadEntireFile = DEBUGPlatformReadEntireFile;
-			GameMemory.DEBUGPlatformWriteEntireFile = DEBUGPlatformWriteEntireFile;
+
+			GameMemory.PlatformAPI.AddThreadEntry = Win32AddThreadQueueEntry;
+			GameMemory.PlatformAPI.CompleteAllThreadWork = Win32CompleteAllThreadWork;
+
+			GameMemory.PlatformAPI.GetAllFilesOfTypeBegin = Win32GetAllFilesOfTypeBegin;
+			GameMemory.PlatformAPI.GetAllFilesOfTypeEnd = Win32GetAllFilesOfTypeEnd;
+			GameMemory.PlatformAPI.OpenFile = Win32OpenFile;
+			GameMemory.PlatformAPI.ReadDataFromFile = Win32ReadDataFromFile;
+			GameMemory.PlatformAPI.FileError = Win32FileError;
+
+			GameMemory.PlatformAPI.DEBUGFreeFileMemory = DEBUGPlatformFreeFileMemory;
+			GameMemory.PlatformAPI.DEBUGReadEntireFile = DEBUGPlatformReadEntireFile;
+			GameMemory.PlatformAPI.DEBUGWriteEntireFile = DEBUGPlatformWriteEntireFile;
 			//GameMemory.DEBUGLoadBitmap = DEBUGLoadBitmap;
 
 			// TODO: Handle various memory footprints (USING SYSTEM METRICS)

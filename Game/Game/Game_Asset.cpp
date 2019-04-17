@@ -371,6 +371,41 @@ DEBUGLoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount
 
 #endif
 
+struct load_asset_work
+{
+	task_with_memory *Task;
+	asset_slot *Slot;
+
+	platform_file_handle *Handle;
+	u64 Offset;
+	u64 Size;
+	void *Destination;
+
+	asset_state FinalState;
+};
+
+om_internal PLATFORM_THREAD_QUEUE_CALLBACK(LoadAssetWork)
+{
+	load_asset_work *Work = (load_asset_work *)Data;
+
+#if 0
+	Platform.ReadDataFromFile(Work->Handle, Work->Offset, Work->Size, Work->Destination);
+#endif
+
+	CompletePreviousWritesBeforeFutureWrites;
+
+	// TODO: Should we fill in bs data here if it couldnt read correctly and set it to final state anyway?
+#if 0
+	if (PlatformNoFileErrors(Work->Handle))
+#endif
+	{
+		Work->Slot->State = Work->FinalState;
+	}
+
+	EndTaskWithMemory(Work->Task);
+}
+
+#if 0
 struct load_bitmap_work
 {
 	game_assets *Assets;
@@ -406,6 +441,7 @@ PLATFORM_THREAD_QUEUE_CALLBACK(LoadBitmapWork)
 
 	EndTaskWithMemory(Work->Task);
 }
+#endif
 
 om_internal void
 LoadBitmap(game_assets *Assets, bitmap_id ID)
@@ -416,14 +452,33 @@ LoadBitmap(game_assets *Assets, bitmap_id ID)
 		task_with_memory *Task = BeginTaskWithMemory(Assets->TransientState);
 		if (Task)
 		{
-			load_bitmap_work *Work = PushStruct(&Task->Arena, load_bitmap_work);;
-			Work->Assets = Assets;
-			Work->ID = ID;
-			Work->Task = Task;
-			Work->Bitmap = PushStruct(&Assets->Arena, loaded_bitmap);
-			Work->FinalState = AssetState_Loaded;
+			ga_asset *GAAsset = Assets->Assets + ID.Value;
+			ga_bitmap *Info = &GAAsset->Bitmap;
+			loaded_bitmap *Bitmap = PushStruct(&Assets->Arena, loaded_bitmap);
 
-			PlatformAddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadBitmapWork, Work);
+			Bitmap->Width = Info->Dimension[0];
+			Bitmap->Height = Info->Dimension[1];
+			Bitmap->Pitch = 4 * Info->Dimension[0];
+			u32 MemorySize = Bitmap->Pitch*Bitmap->Height;
+			Bitmap->Pixels = (u32*)((u8 *)PushSize(&Assets->Arena, MemorySize));
+
+			load_asset_work *Work = PushStruct(&Task->Arena, load_asset_work);;
+			Work->Task = Task;
+			Work->Slot = Assets->Slots + ID.Value;
+			Work->Handle = 0;
+			Work->Offset = GAAsset->DataOffset;
+			Work->Destination = Bitmap->Pixels;
+			Work->FinalState = AssetState_Loaded;
+			Work->Slot->Bitmap = Bitmap;
+
+			Bitmap->Pixels = (u32 *)((u8 *)Assets->GAContents + GAAsset->DataOffset);
+
+#if 1
+			Bitmap->Pixels = (u32 *)((u8 *)Bitmap->Pixels + Bitmap->Pitch*(Bitmap->Height - 1));
+			Bitmap->Pitch = -Bitmap->Pitch;
+#endif
+
+			Platform.AddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadAssetWork, Work);
 		}
 		else
 		{
@@ -486,7 +541,7 @@ LoadSound(game_assets *Assets, sound_id ID)
 			Work->Sound = PushStruct(&Assets->Arena, loaded_sound);
 			Work->FinalState = AssetState_Loaded;
 
-			PlatformAddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadSoundWork, Work);
+			Platform.AddThreadEntry(Assets->TransientState->LowPriorityQueue, LoadSoundWork, Work);
 		}
 		else
 		{
@@ -582,40 +637,42 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	//TODO: Example of how to set a tag range for specific tag:
 	//Assets->TagRange[Asset_Tag_PlayerFacingDirection] = Tau32;
 
+#if 0
 	Assets->TagCount = 0;
 	Assets->AssetCount = 0;
 
-#if 0
 	{
-		platform_file_group FileGroup = PlatformGetAllFilesOfTypeBegin(".ga");
+		platform_file_group FileGroup = Platform.GetAllFilesOfTypeBegin(".ga");
 		Assets->FileCount = FileGroup.FileCount;
 		Assets->Files = PushArray(Arena, Assets->FileCount, asset_file);
 		for (u32 FileIndex = 0; FileIndex < Assets->FileCount; ++FileIndex)
 		{
 			asset_file *File = Assets->Files + FileIndex;
 
+			File->TagBase = Assets->TagCount;
+
 			u32 AssetTypeArraySize = File->Header.AssetTypeCount * sizeof(ga_asset_type);
 
 			ZeroStruct(File->Header);
-			File->Handle  PlatformOpenFile(FileGroup, FileIndex);
-			PlatformReadDataFromFile(File->Handle, 0, sizeof(File->Header), &File->Header);
+			File->Handle  Platform.OpenFile(FileGroup, FileIndex);
+			Platform.ReadDataFromFile(File->Handle, 0, sizeof(File->Header), &File->Header);
 			File->AssetTypeArray = (ga_asset_type *)PushSize(Arena, AssetTypeArraySize);
-			PlatformReadDataFromFile(File->Handle, File->Header.AssetTypes, AssetTypeArraySize, File->AssetTypeArray);
+			Platform.ReadDataFromFile(File->Handle, File->Header.AssetTypes, AssetTypeArraySize, File->AssetTypeArray);
 
-			if (Header->MagicValue != GA_MAGIC_VALUE)
+			if (File->Header.MagicValue != GA_MAGIC_VALUE)
 			{
-				PlatformFileError(File->Handle, "ERROR HERE TODO:::");
+				Platform.FileError(File->Handle, "ERROR HERE TODO:::");
 			}
 
-			if (Header->Version != GA_VERSION)
+			if (File->Header.Version != GA_VERSION)
 			{
-				PlatformFileError(File->Handle, "ERROR HERE TOODODODO::");
+				Platform.FileError(File->Handle, "ERROR HERE TOODODODO::");
 			}
 
 			if (PlatformNoFileErrors(File->Handle))
 			{
-				Assets->TagCount += Header->TagCount;
-				Assets->AssetCount += Header->AssetCount;
+				Assets->TagCount += File->Header.TagCount;
+				Assets->AssetCount += File->Header.AssetCount;
 			}
 			else
 			{
@@ -623,15 +680,26 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 				InvalidCodePath;
 			}
 		}
-		PlatformGetAllFilesOfTypeEnd(FileGroup);
+		Platform.GetAllFilesOfTypeEnd(FileGroup);
 	}
 
+	// NOTE: Allocate all metadata space here.
 	Assets->Assets = PushArray(Arena, Assets->AssetCount, ga_asset);
 	Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
 	Assets->Tags = PushArray(Arena, Assets->TagCount, ga_asset);
 
+	// NOTE: Load tags
+	for (u32 FileIndex = 0; FileIndex < Assets->FileCount; ++FileIndex)
+	{
+		asset_file *File = Assets->Files + FileIndex;
+		if (PlatformNoFileErrors(File->Handle))
+		{
+			u32 TagArraySize = sizeof(ga_tag)*File->Header.TagCount;
+			Platform.ReadDataFromFile(File->Handle, File->Header.Tags, TagArraySize, Assets->Tags + File->TagBase);
+		}
+	}
+
 	u32 AssetCount = 0;
-	u32 TagCount = 0;
 	for (u32 DestinationTypeID = 0; DestinationTypeID < AssetCount; ++DestinationTypeID)
 	{
 		asset_type *DestinationType = Assets->AssetTypes + DestinationTypeID;
@@ -646,10 +714,24 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 				{
 					ga_asset_type *SourceType = File->AssetTypeArray + SourceIndex;
 
-					if (SourceType->TypeID == AssetTypeID)
+					if (SourceType->TypeID == DestinationType)
 					{
-						PlatformReadDataFromFile();
-						AssetCount += ;
+						u32 AssetCountForType = (SourceType->OnePastLastAssetIndex - SourceType->FirstAssetIndex);
+						Platform.ReadDataFromFile(File->Handle, 
+												  File->Header.Assets + 
+												  SourceType->FirstAssetIndex * sizeof(ga_asset), 
+												  AssetCountForType * sizeof(ga_asset), 
+												  Assets->Assets + AssetCount);
+						
+						for (u32 AssetIndex = AssetCount; AssetIndex < (AssetCount + AssetCountForType); ++AssetIndex)
+						{
+							ga_asset *Asset = Assets->Assets + AssetIndex;
+							Asset->FirstTagIndex += File->TagBase;
+							Asset->OnePastLastTagIndex += File->TagBase;
+						}
+
+						AssetCount += AssetCountForType;
+						OM_ASSERT(AssetCount < Assets->AssetCount);
 					}
 				}
 			}
@@ -659,10 +741,10 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	}
 
 	OM_ASSERT(AssetCount == Assets->AssetCount);
-	OM_ASSERT(TagCount == Assets->TagCount);
 #endif
 
-	debug_read_file_result ReadResult = DEBUGPlatformReadEntireFile("C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\test.ga");
+#if 1
+	debug_read_file_result ReadResult = Platform.DEBUGReadEntireFile("C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\test.ga");
 	if (ReadResult.ContentsSize != 0)
 	{
 		ga_header *Header = (ga_header *)ReadResult.Contents;
@@ -695,6 +777,7 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 
 		Assets->GAContents = (u8 *)ReadResult.Contents;
 	}
+#endif
 
 #if 0
 

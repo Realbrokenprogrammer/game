@@ -92,9 +92,7 @@ struct transient_state
 	platform_thread_queue *LowPriorityQueue;
 };
 
-om_global_variable platform_add_thread_entry *PlatformAddThreadEntry;
-om_global_variable platform_complete_all_work *PlatformCompleteAllThreadWork;
-om_global_variable debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
+om_global_variable platform_api Platform;
 
 om_internal task_with_memory *BeginTaskWithMemory(transient_state *TransientState);
 om_internal void EndTaskWithMemory(task_with_memory *Task);

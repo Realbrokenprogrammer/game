@@ -368,15 +368,12 @@ game_memory *DebugGlobalMemory;
 
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
+	Platform = Memory->PlatformAPI;
+
 #if 1 //TODO: Add actual define to use for enabling / Disabling this.
 	DebugGlobalMemory = Memory;
 #endif
-
 	//BEGIN_TIMED_BLOCK(GameUpdateAndRender);
-
-	PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
-	PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
-	DEBUGPlatformReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
 
 	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
 
