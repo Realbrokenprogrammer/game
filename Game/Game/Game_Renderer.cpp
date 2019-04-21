@@ -65,7 +65,7 @@ om_internal void
 DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation, 
 	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
 {
-	//BEGIN_TIMED_BLOCK(DEBUGDrawTransformedBitmap);
+	//BEGIN_TIMED_MILLISECOND_BLOCK(DEBUGDrawTransformedBitmap);
 
 	// Degrees to radians.
 	Rotation = Rotation * (OM_PI32 / 180.0f);
@@ -215,15 +215,14 @@ DEBUGDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 
 			Row += RowAdvance;
 		}
 	}
-
-	//END_TIMED_BLOCK(DEBUGDrawTransformedBitmap);
+	//END_TIMED_MILLISECOND_BLOCK(DEBUGDrawTransformedBitmap);
 }
 
 om_internal void
 SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation, 
 	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
 {
-	//BEGIN_TIMED_BLOCK(SoftwareDrawTransformedBitmap);
+	//BEGIN_TIMED_MILLISECOND_BLOCK(SoftwareDrawTransformedBitmap);
 
 	// Degrees to radians.
 	Rotation = Rotation * (OM_PI32 / 180.0f);
@@ -542,7 +541,7 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 		}
 	}
 
-	//END_TIMED_BLOCK(SoftwareDrawTransformedBitmap);
+	//END_TIMED_MILLISECOND_BLOCK(SoftwareDrawTransformedBitmap);
 }
 
 om_internal void
@@ -997,7 +996,7 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 			vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
 
 			//NOTE: THIS IS TO ENABLE / DISABLE THE UNOPTIMIZED OR THE OPTIMIZED RENDERER.
-#if 0
+#if 1
 			//DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
 			DEBUGDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
@@ -1037,6 +1036,7 @@ PLATFORM_THREAD_QUEUE_CALLBACK(DoPartitionedRenderWork)
 om_internal void
 PerformPartitionedRendering(platform_thread_queue *RenderQueue, render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer)
 {
+	BEGIN_TIMED_MILLISECOND_BLOCK(Rendering);
 	int const PartitionCountX = 4;
 	int const PartitionCountY = 4;
 	partitioned_render_work WorkArray[PartitionCountX * PartitionCountY];
@@ -1068,6 +1068,7 @@ PerformPartitionedRendering(platform_thread_queue *RenderQueue, render_blueprint
 	}
 
 	Platform.CompleteAllThreadWork(RenderQueue);
+	END_TIMED_MILLISECOND_BLOCK(Rendering);
 }
 
 om_internal void

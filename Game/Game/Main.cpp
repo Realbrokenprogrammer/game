@@ -947,6 +947,23 @@ HandleDebugCycleCounters(game_memory *Memory)
 #endif
 }
 
+om_internal void
+HandleDebugTimeCounters(game_memory *Memory)
+{
+#if 1
+	OutputDebugStringA("DEBUG TIME COUNTS: \n");
+	for (u32 TimerIndex = 0; TimerIndex < OM_ARRAYCOUNT(Memory->TimeCounters); ++TimerIndex)
+	{
+		debug_time_counter *Counter = Memory->TimeCounters + TimerIndex;
+
+		char TextBuffer[256];
+		_snprintf_s(TextBuffer, sizeof(TextBuffer), "%d: %I64ums\n", TimerIndex, Counter->Time);
+		OutputDebugStringA(TextBuffer);
+		Counter->Time = 0;
+	}
+#endif
+}
+
 struct platform_thread_queue_entry
 {
 	platform_thread_queue_callback *Callback;
@@ -1446,6 +1463,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						{
 							Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
 							//HandleDebugCycleCounters(&GameMemory);
+							HandleDebugTimeCounters(&GameMemory);
 						}
 
 						LARGE_INTEGER AudioWallClock = Win32GetWallClock();
@@ -1572,35 +1590,35 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						r32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
 
 						// TODO: Not tested and this is probably buggy.
-						r32 SecondsElapsedForFrame = WorkSecondsElapsed;
-						if (SecondsElapsedForFrame < TargetSecondsPerFrame)
-						{
-							if (SleepIsGranular)
-							{
-								DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+						//r32 SecondsElapsedForFrame = WorkSecondsElapsed;
+						//if (SecondsElapsedForFrame < TargetSecondsPerFrame)
+						//{
+						//	if (SleepIsGranular)
+						//	{
+						//		DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
 
-								if (SleepMS > 0)
-								{
-									Sleep(SleepMS);
-								}
-							}
+						//		if (SleepMS > 0)
+						//		{
+						//			Sleep(SleepMS);
+						//		}
+						//	}
 
-							r32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
-							if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
-							{
-								// TODO: Log missed sleep.
-							}
+						//	r32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+						//	if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
+						//	{
+						//		// TODO: Log missed sleep.
+						//	}
 
-							while (SecondsElapsedForFrame < TargetSecondsPerFrame)
-							{
-								SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
-							}
-						}
-						else
-						{
-							// TODO: MISSED FRAME RATE!
-							// TODO: Logging
-						}
+						//	while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+						//	{
+						//		SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+						//	}
+						//}
+						//else
+						//{
+						//	// TODO: MISSED FRAME RATE!
+						//	// TODO: Logging
+						//}
 
 						LARGE_INTEGER EndCounter = Win32GetWallClock();
 						r32 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);

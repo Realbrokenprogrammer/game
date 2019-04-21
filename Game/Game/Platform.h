@@ -4,6 +4,8 @@
 
 #include "Types.h"
 
+#include "windows.h"  //TODO: ABSOLUTELY REMOVE THIS!!!!!!!!!!
+
 /*
 	Services that the platform provides to the game
 */
@@ -50,16 +52,30 @@ enum
 	DebugCycleCounter_SoftwareDrawTransformedBitmap,
 	DebugCycleCounter_Count
 };
+
+enum
+{
+	DebugMsCounter_Rendering,
+	DebugMsCounter_Count
+};
+
 typedef struct debug_cycle_counter
 {
 	u64 CycleCount;
 	u32 HitCount;
 } debug_cycle_counter;
 
+typedef struct debug_time_counter
+{
+	u64 Time;
+} debug_time_counter;
+
 extern struct game_memory *DebugGlobalMemory;
 #if _MSC_VER
 #define BEGIN_TIMED_BLOCK(ID) u64 StartCycleCount##ID = __rdtsc();
 #define END_TIMED_BLOCK(ID) DebugGlobalMemory->Counters[DebugCycleCounter_##ID].CycleCount += __rdtsc() - StartCycleCount##ID; ++DebugGlobalMemory->Counters[DebugCycleCounter_##ID].HitCount;
+#define BEGIN_TIMED_MILLISECOND_BLOCK(ID) SYSTEMTIME StartMsCount##ID; GetSystemTime(&StartMsCount##ID);
+#define END_TIMED_MILLISECOND_BLOCK(ID) SYSTEMTIME EndMsCount##ID; GetSystemTime(&EndMsCount##ID); DebugGlobalMemory->TimeCounters[DebugMsCounter_##ID].Time += ((EndMsCount##ID.wSecond * 1000) + EndMsCount##ID.wMilliseconds) - (((StartMsCount##ID.wSecond * 1000) + StartMsCount##ID.wMilliseconds));
 #else
 #define BEGIN_TIMED_BLOCK(ID) 
 #define END_TIMED_BLOCK(ID) 
@@ -227,6 +243,7 @@ struct game_memory
 
 #if 1 //TODO: Add actual define to use for enabling / Disabling this.
 	debug_cycle_counter Counters[DebugCycleCounter_Count];
+	debug_time_counter TimeCounters[DebugMsCounter_Count];
 #endif
 };
 
