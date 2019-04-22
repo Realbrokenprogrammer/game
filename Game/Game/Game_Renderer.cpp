@@ -996,7 +996,7 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 			vector2 Position = Body->Position - RenderBlueprint->Basis->Position;
 
 			//NOTE: THIS IS TO ENABLE / DISABLE THE UNOPTIMIZED OR THE OPTIMIZED RENDERER.
-#if 1
+#if 0
 			//DrawBitmap(Buffer, Body->Bitmap, Position, Body->A);
 			DEBUGDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);

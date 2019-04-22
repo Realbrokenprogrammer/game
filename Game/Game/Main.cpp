@@ -196,9 +196,18 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 	return (Result);
 }
 
+struct win32_platform_file_handle
+{
+	platform_file_handle Handle;
+	HANDLE Win32Handle;
+};
+
 om_internal PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(Win32GetAllFilesOfTypeBegin)
 {
 	platform_file_group FileGroup = {};
+
+	//TODO: Implement this.
+	FileGroup.FileCount = 1;
 
 	return (FileGroup);
 }
@@ -207,17 +216,56 @@ om_internal PLATFORM_GET_ALL_FILE_OF_TYPE_END(Win32GetAllFilesOfTypeEnd)
 {
 }
 
+om_internal PLATFORM_FILE_ERROR(Win32FileError)
+{
+#if 1
+	OutputDebugString("WIN32 FILE ERROR: ");
+	OutputDebugString(Message);
+	OutputDebugString("\n");
+#endif
+
+	Handle->NoErrors = false;
+
+	//CloseHandle(FileHandle);
+}
+
 om_internal PLATFORM_OPEN_FILE(Win32OpenFile)
 {
-	return (0);
+	//TODO: Implement this.
+	char *FileName = "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\test.ga";
+
+	win32_platform_file_handle *Result = (win32_platform_file_handle *)VirtualAlloc(0, sizeof(win32_platform_file_handle), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+	if (Result)
+	{
+		Result->Win32Handle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+		Result->Handle.NoErrors = (Result->Win32Handle != INVALID_HANDLE_VALUE);
+	}
+
+	return ((platform_file_handle *)Result);
 }
 
 om_internal PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
 {
-}
+	if (PlatformNoFileErrors(Source))
+	{
+		win32_platform_file_handle *Handle = (win32_platform_file_handle *)Source;
+		OVERLAPPED Overlapped = {};
+		Overlapped.Offset = (u32)((Offset >> 0) & 0xFFFFFFFF);
+		Overlapped.OffsetHigh = (u32)((Offset >> 32) & 0xFFFFFFFF);
 
-om_internal PLATFORM_FILE_ERROR(Win32FileError)
-{
+		u32 FileSize32 = SafeTruncateUInt64(Size);
+
+		DWORD BytesRead;
+		if (ReadFile(Handle->Win32Handle, Destination, FileSize32, &BytesRead, &Overlapped) && (FileSize32 == BytesRead))
+		{
+			// NOTE: File read success.
+		}
+		else
+		{
+			Win32FileError(&Handle->Handle, "Read file failed.");
+		}
+	}
 }
 
 inline FILETIME
@@ -1656,8 +1704,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						u64 CyclesElapsed = EndCycleCount - LastCycleCount;
 						LastCycleCount = EndCycleCount;
 
-						r64 FPS = 0.0f;
 						r64 MCPF = ((r64)CyclesElapsed / (1000.0f * 1000.0f));
+						r64 FPS = 1000.0f / MSPerFrame;
 
 						char FPSBuffer[256];
 						_snprintf_s(FPSBuffer, sizeof(FPSBuffer),
