@@ -365,7 +365,7 @@ AddSoundAsset(game_assets *Assets, char *FileName, u32 FirstSampleIndex = 0, u32
 	GA->FirstTagIndex = Assets->TagCount;
     GA->OnePastLastTagIndex = GA->FirstTagIndex;
     GA->Sound.SampleCount = SampleCount;
-    GA->Sound.NextIDToPlay = {0};
+    GA->Sound.Chain = GASoundChain_None;
 
     Source->Type = AssetType_Sound;
     Source->FileName = FileName;
@@ -398,62 +398,12 @@ EndAssetType(game_assets *Assets)
     Assets->AssetIndex = 0;
 }
 
-int
-main (int ArgCount, char **Args)
+om_internal void
+WriteGA(game_assets *Assets, char *FileName)
 {
-    game_assets Assets_;
-    game_assets *Assets = &Assets_;
-
-    Assets->TagCount = 1;
-    Assets->AssetCount = 1;
-    Assets->DEBUGAssetType = 0;
-    Assets->AssetIndex = 0;
-
-    BeginAssetType(Assets, Asset_Type_Grass);
-    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp");
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Type_Water);
-    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp");
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Type_SlopeLeft);
-    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp");
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Type_SlopeRight);
-    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
-    EndAssetType(Assets);
-
-    BeginAssetType(Assets, Asset_Type_Player);
-    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
-    EndAssetType(Assets);	
-
-    //TODO: This is temporary code for testing. Should be removed once we load this in from asset files.
-	u32 SingleMusicChunk = 10 * 48000;
-	u32 TotalMusicSampleCount = 7468095;
-
-	BeginAssetType(Assets, Asset_Type_Music);
-	sound_id LastMusic = { 0 };
-	for (u32 FirstSampleIndex = 0; FirstSampleIndex < TotalMusicSampleCount; FirstSampleIndex += SingleMusicChunk)
-	{
-		u32 SampleCount = TotalMusicSampleCount - FirstSampleIndex;
-		if (SampleCount > SingleMusicChunk)
-		{
-			SampleCount = SingleMusicChunk;
-		}
-		sound_id ThisMusic = AddSoundAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\music_test.wav", FirstSampleIndex, SampleCount);
-		if (IsValid(LastMusic))
-		{
-			Assets->Assets[LastMusic.Value].Sound.NextIDToPlay = ThisMusic;
-		}
-		LastMusic = ThisMusic;
-	}
-	EndAssetType(Assets);
-
     FILE *Out = 0;
 
-    Out = fopen("test.ga", "wb");
+    Out = fopen(FileName, "wb");
     if (Out)
     {
         ga_header Header = {};
@@ -519,4 +469,96 @@ main (int ArgCount, char **Args)
     {
         printf("ERROR: Couldn't open file.");
     }
+}
+
+om_internal void
+Initialize(game_assets *Assets)
+{
+    Assets->TagCount = 1;
+    Assets->AssetCount = 1;
+    Assets->DEBUGAssetType = 0;
+    Assets->AssetIndex = 0;
+
+    Assets->AssetTypeCount = Asset_Type_Count;
+    memset(Assets->AssetTypes, 0, sizeof(Assets->AssetTypes));
+}
+
+om_internal void
+WritePlayer(void)
+{
+    game_assets Assets_;
+    game_assets *Assets = &Assets_;
+    Initialize(Assets);
+
+    BeginAssetType(Assets, Asset_Type_Player);
+    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
+    EndAssetType(Assets);
+
+    WriteGA(Assets, "test1.ga");
+}
+
+om_internal void
+WriteNonPlayer(void)
+{
+    game_assets Assets_;
+    game_assets *Assets = &Assets_;
+    Initialize(Assets);
+
+    BeginAssetType(Assets, Asset_Type_Grass);
+    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp");
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Type_Water);
+    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp");
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Type_SlopeLeft);
+    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp");
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Type_SlopeRight);
+    AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
+    EndAssetType(Assets);
+
+    WriteGA(Assets, "test2.ga");
+}
+
+om_internal void
+WriteSounds(void)
+{
+    game_assets Assets_;
+    game_assets *Assets = &Assets_;
+    Initialize(Assets);
+
+    //TODO: This is temporary code for testing. Should be removed once we load this in from asset files.
+    u32 SingleMusicChunk = 10 * 48000;
+    u32 TotalMusicSampleCount = 7468095;
+
+    BeginAssetType(Assets, Asset_Type_Music);
+    for (u32 FirstSampleIndex = 0; FirstSampleIndex < TotalMusicSampleCount; FirstSampleIndex += SingleMusicChunk)
+    {
+        u32 SampleCount = TotalMusicSampleCount - FirstSampleIndex;
+        if (SampleCount > SingleMusicChunk)
+        {
+            SampleCount = SingleMusicChunk;
+        }
+        sound_id ThisMusic = AddSoundAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\music_test.wav", FirstSampleIndex, SampleCount);
+        if ((FirstSampleIndex + SingleMusicChunk) < TotalMusicSampleCount)
+        {
+            Assets->Assets[ThisMusic.Value].Sound.Chain = GASoundChain_Advance;
+        }
+    }
+    EndAssetType(Assets);
+
+	WriteGA(Assets, "test3.ga");
+}
+
+int
+main (int ArgCount, char **Args)
+{
+    WritePlayer();
+    WriteNonPlayer();
+    WriteSounds();
+
+    printf("Finished.");
 }

@@ -43,6 +43,13 @@ struct ga_asset_type
 	u32 OnePastLastAssetIndex;
 };
 
+enum ga_sound_chain
+{
+	GASoundChain_None,
+	GASoundChain_Loop,
+	GASoundChain_Advance,
+};
+
 struct ga_bitmap
 {
 	u32 Dimension[2]; // NOTE: Bitmap width and height.
@@ -51,8 +58,8 @@ struct ga_bitmap
 struct ga_sound
 {
 	u32 SampleCount;
-	sound_id NextIDToPlay;
 	u32 ChannelCount;
+	u32 Chain;
 };
 
 struct ga_asset

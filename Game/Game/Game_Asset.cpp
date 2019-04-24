@@ -265,12 +265,12 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	//TODO: Example of how to set a tag range for specific tag:
 	//Assets->TagRange[Asset_Tag_PlayerFacingDirection] = Tau32;
 
-	Assets->TagCount = 0;
-	Assets->AssetCount = 0;
+	Assets->TagCount = 1;
+	Assets->AssetCount = 1;
 
 	{
-		platform_file_group FileGroup = Platform.GetAllFilesOfTypeBegin("ga");
-		Assets->FileCount = FileGroup.FileCount;
+		platform_file_group *FileGroup = Platform.GetAllFilesOfTypeBegin("ga");
+		Assets->FileCount = FileGroup->FileCount;
 		Assets->Files = PushArray(Arena, Assets->FileCount, asset_file);
 		for (u32 FileIndex = 0; FileIndex < Assets->FileCount; ++FileIndex)
 		{
@@ -280,7 +280,7 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 
 
 			ZeroStruct(File->Header);
-			File->Handle = Platform.OpenFile(FileGroup, FileIndex);
+			File->Handle = Platform.OpenNextFile(FileGroup);
 			Platform.ReadDataFromFile(File->Handle, 0, sizeof(File->Header), &File->Header);
 
 			u32 AssetTypeArraySize = File->Header.AssetTypeCount * sizeof(ga_asset_type);
@@ -299,8 +299,11 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 
 			if (PlatformNoFileErrors(File->Handle))
 			{
-				Assets->TagCount += File->Header.TagCount;
-				Assets->AssetCount += File->Header.AssetCount;
+				// NOTE: The first asset and tag slots in the GA file format
+				// is a null (reserved) asset hence we don't count it as
+				// something we will need space for.
+				Assets->TagCount += (File->Header.TagCount - 1);
+				Assets->AssetCount += (File->Header.AssetCount - 1);
 			}
 			else
 			{
@@ -316,18 +319,27 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 	Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
 	Assets->Tags = PushArray(Arena, Assets->TagCount, ga_tag);
 
+	// NOTE: Reserve one null tag at the start.
+	ZeroStruct(Assets->Tags[0]);
+
 	// NOTE: Load tags
 	for (u32 FileIndex = 0; FileIndex < Assets->FileCount; ++FileIndex)
 	{
 		asset_file *File = Assets->Files + FileIndex;
 		if (PlatformNoFileErrors(File->Handle))
 		{
-			u32 TagArraySize = sizeof(ga_tag)*File->Header.TagCount;
-			Platform.ReadDataFromFile(File->Handle, File->Header.TagsOffset, TagArraySize, Assets->Tags + File->TagBase);
+			// NOTE: Skipping first tag since its null.
+			u32 TagArraySize = sizeof(ga_tag)*(File->Header.TagCount - 1);
+			Platform.ReadDataFromFile(File->Handle, File->Header.TagsOffset + sizeof(ga_tag), 
+				TagArraySize, Assets->Tags + File->TagBase);
 		}
 	}
 
+	// NOTE: Reserve one null asset at the start.
 	u32 AssetCount = 0;
+	ZeroStruct(*(Assets->Assets + AssetCount));
+	++AssetCount;
+
 	for (u32 DestinationTypeID = 0; DestinationTypeID < Asset_Type_Count; ++DestinationTypeID)
 	{
 		asset_type *DestinationType = Assets->AssetTypes + DestinationTypeID;
@@ -364,8 +376,16 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 
 							Asset->FileIndex = FileIndex;
 							Asset->GA = *GAAsset;
-							Asset->GA.FirstTagIndex += File->TagBase;
-							Asset->GA.OnePastLastTagIndex += File->TagBase;
+
+							if (Asset->GA.FirstTagIndex == 0)
+							{
+								Asset->GA.FirstTagIndex = Asset->GA.OnePastLastTagIndex = 0;
+							}
+							else
+							{
+								Asset->GA.FirstTagIndex += (File->TagBase - 1);
+								Asset->GA.OnePastLastTagIndex += (File->TagBase - 1);
+							}
 						}
 
 						DestroyTemporaryMemory(TemporaryMemory);
@@ -379,88 +399,6 @@ CreateGameAssets(memory_arena *Arena, memory_index Size, transient_state *Transi
 
 	OM_ASSERT(AssetCount == Assets->AssetCount);
 
-#if 0
-	debug_read_file_result ReadResult = Platform.DEBUGReadEntireFile("C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\test.ga");
-	if (ReadResult.ContentsSize != 0)
-	{
-		ga_header *Header = (ga_header *)ReadResult.Contents;
-		
-		Assets->AssetCount = Header->AssetCount;
-		Assets->Assets = (ga_asset *)((u8 *)ReadResult.Contents + Header->AssetsOffset);
-		Assets->Slots = PushArray(Arena, Assets->AssetCount, asset_slot);
-		
-		Assets->TagCount = Header->TagCount;
-		Assets->Tags = (ga_tag *)((u8 *)ReadResult.Contents + Header->TagsOffset);
-
-		ga_asset_type *GAAssetTypes = (ga_asset_type *)((u8 *)ReadResult.Contents + Header->AssetTypesOffset);
-		
-		for (u32 Index = 0; Index < Header->AssetTypeCount; ++Index)
-		{
-			ga_asset_type *Source = GAAssetTypes + Index;
-
-			if (Source->TypeID < Asset_Type_Count)
-			{
-				asset_type *Destination = Assets->AssetTypes + Source->TypeID;
-
-				//TODO: Support for merging.
-				OM_ASSERT(Destination->FirstAssetIndex == 0);
-				OM_ASSERT(Destination->OnePastLastAssetIndex == 0);
-
-				Destination->FirstAssetIndex = Source->FirstAssetIndex;
-				Destination->OnePastLastAssetIndex = Source->OnePastLastAssetIndex;
-			}
-		}
-
-		Assets->GAContents = (u8 *)ReadResult.Contents;
-	}
-#endif
-
-#if 0
-
-	Assets->DEBUGUsedAssetCount = 1;
-
-	BeginAssetType(Assets, Asset_Type_Grass);
-	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundTile.bmp");
-	EndAssetType(Assets);
-
-	BeginAssetType(Assets, Asset_Type_Water);
-	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\waterTile.bmp");
-	EndAssetType(Assets);
-
-	BeginAssetType(Assets, Asset_Type_SlopeLeft);
-	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_left.bmp");
-	EndAssetType(Assets);
-
-	BeginAssetType(Assets, Asset_Type_SlopeRight);
-	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
-	EndAssetType(Assets);
-
-	BeginAssetType(Assets, Asset_Type_Player);
-	AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\playerBitmap.bmp");
-	EndAssetType(Assets);
-
-	//TODO: This is temporary code for testing. Should be removed once we load this in from asset files.
-	u32 SingleMusicChunk = 10 * 48000;
-	u32 TotalMusicSampleCount = 7468095;
-
-	BeginAssetType(Assets, Asset_Type_Music);
-	sound_id LastMusic = { 0 };
-	for (u32 FirstSampleIndex = 0; FirstSampleIndex < TotalMusicSampleCount; FirstSampleIndex += SingleMusicChunk)
-	{
-		u32 SampleCount = TotalMusicSampleCount - FirstSampleIndex;
-		if (SampleCount > SingleMusicChunk)
-		{
-			SampleCount = SingleMusicChunk;
-		}
-		sound_id ThisMusic = AddSoundAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\music_test.wav", FirstSampleIndex, SampleCount);
-		if (IsValid(LastMusic))
-		{
-			Assets->Assets[LastMusic.Value].Sound.NextIDToPlay= ThisMusic;
-		}
-		LastMusic = ThisMusic;
-	}
-	EndAssetType(Assets);
-#endif
 	/*
 		//TODO: Bellow are just temporary examples of how arary'd and structured assets would be loaded in.
 		BeginAssetType(Assets, Asset_Type_Stone);
