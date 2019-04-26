@@ -2,16 +2,6 @@
 #define GAME_ASSET_H
 #pragma once
 
-struct bitmap_id
-{
-	u32 Value;
-};
-
-struct sound_id
-{
-	u32 Value;
-};
-
 struct loaded_sound
 {
 	u32 SampleCount; // NOTE: This is the sample count divided by 8
@@ -45,37 +35,15 @@ struct asset_slot
 	};
 };
 
-//TODO: The asset tags are currently temporary and will need to be changed into something sane once we know what kind of assets
-// the game will support.
-enum asset_tag_id
+struct asset
 {
-	Asset_Tag_Roundness,
-	Asset_Tag_Flatness,
-
-	Asset_Tag_Count
+	ga_asset GA;
+	u32 FileIndex;
 };
 
-enum asset_type_id
+struct asset_vector
 {
-	Asset_Type_None,
-
-	//Note: Bitmaps
-	Asset_Type_Grass,
-	Asset_Type_Water,
-	Asset_Type_SlopeLeft,
-	Asset_Type_SlopeRight,
-	Asset_Type_Player,
-
-	//Note: Sounds
-	Asset_Type_Music,
-
-	Asset_Type_Count
-};
-
-struct asset_tag
-{
-	u32 ID; //Note: Tag ID.
-	r32 Value;
+	r32 E[Asset_Tag_Count];
 };
 
 struct asset_type
@@ -84,31 +52,14 @@ struct asset_type
 	u32 OnePastLastAssetIndex;
 };
 
-struct asset
+struct asset_file
 {
-	u32 FirstTagIndex;			//Note: Range of all the tags to consider for this asset.
-	u32 OnePastLastTagIndex;
-	u32 SlotID;
-};
+	platform_file_handle *Handle;
 
-struct asset_vector
-{
-	r32 E[Asset_Tag_Count];
-};
+	ga_header Header;
+	ga_asset_type *AssetTypeArray;
 
-struct asset_bitmap_info
-{
-	char *FileName;
-	//Note: Additional bitmap information later stored in the asset files could be added here.
-};
-
-struct asset_sound_info
-{
-	char *FileName;
-	u32 FirstSampleIndex;
-	u32 SampleCount;
-	sound_id NextIDToPlay;
-	//Note: Additional sound information later stored in the asset files could be added here.
+	u32 TagBase;
 };
 
 struct game_assets
@@ -119,40 +70,45 @@ struct game_assets
 	
 	r32 TagRange[Asset_Tag_Count];
 
-	u32 BitmapCount;
-	asset_bitmap_info *BitmapInfos;
-	asset_slot *Bitmaps;
-
-	u32 SoundCount;
-	asset_sound_info *SoundInfos;
-	asset_slot *Sounds;
+	u32 FileCount;
+	asset_file *Files;
 
 	u32 TagCount;
-	asset_tag *Tags;
+	ga_tag *Tags;
 
 	u32 AssetCount;
 	asset *Assets;
+	asset_slot *Slots;
 
 	asset_type AssetTypes[Asset_Type_Count];
 
+	u8 *GAContents;
+
+#if 0
 	//TODO: Remove these example array'd assets. These are only for example!!!
 	loaded_bitmap Stone[4];
 	test_structured_asset Characters[4];
 
 	//TODO: Temp, should be removed once we load packed asset files.
-	u32 DEBUGUsedBitmapCount;
-	u32 DEBUGUsedSoundCount;
 	u32 DEBUGUsedAssetCount;
 	u32 DEBUGUsedTagCount;
 	asset_type *DEBUGAssetType;
 	asset *DEBUGAsset;
+#endif
 };
 
 inline loaded_bitmap *
 GetBitmap(game_assets *Assets, bitmap_id ID)
 {
-	OM_ASSERT(ID.Value <= Assets->BitmapCount);
-	loaded_bitmap *Result = Assets->Bitmaps[ID.Value].Bitmap;
+	OM_ASSERT(ID.Value <= Assets->AssetCount);
+	asset_slot *Slot = Assets->Slots + ID.Value;
+	
+	loaded_bitmap *Result = 0;
+	if (Slot->State >= AssetState_Loaded)
+	{
+		CompletePreviousReadsBeforeFutureReads;
+		Result = Slot->Bitmap;
+	}
 
 	return (Result);
 }
@@ -160,17 +116,24 @@ GetBitmap(game_assets *Assets, bitmap_id ID)
 inline loaded_sound *
 GetSound(game_assets *Assets, sound_id ID)
 {
-	OM_ASSERT(ID.Value <= Assets->SoundCount);
-	loaded_sound *Result = Assets->Sounds[ID.Value].Sound;
+	OM_ASSERT(ID.Value <= Assets->AssetCount);
+	asset_slot *Slot = Assets->Slots + ID.Value;
+	
+	loaded_sound *Result = 0;
+	if (Slot->State >= AssetState_Loaded)
+	{
+		CompletePreviousReadsBeforeFutureReads;
+		Result = Slot->Sound;
+	}
 
 	return (Result);
 }
 
-inline asset_sound_info *
+inline ga_sound *
 GetSoundInfo(game_assets *Assets, sound_id ID)
 {
-	OM_ASSERT(ID.Value <= Assets->SoundCount);
-	asset_sound_info *Result = Assets->SoundInfos + ID.Value;
+	OM_ASSERT(ID.Value <= Assets->AssetCount);
+	ga_sound *Result = &Assets->Assets[ID.Value].GA.Sound;
 
 	return (Result);
 }
@@ -193,5 +156,38 @@ IsValid(sound_id ID)
 
 om_internal void LoadBitmap(game_assets *Assets, bitmap_id ID);
 om_internal void LoadSound(game_assets *Assets, sound_id ID);
+inline void PrefetchSound(game_assets *Assets, sound_id ID) { LoadSound(Assets, ID); }
+
+inline sound_id 
+GetNextSoundInChain(game_assets *Assets, sound_id ID)
+{
+	sound_id Result = {};
+
+	ga_sound *Info = GetSoundInfo(Assets, ID);
+	switch (Info->Chain)
+	{
+		case GASoundChain_None:
+		{
+			// NOTE: Nothing to do.
+		} break;
+		
+		case GASoundChain_Loop:
+		{
+			Result = ID;
+		} break;
+		
+		case GASoundChain_Advance:
+		{
+			Result.Value = ID.Value + 1;
+		} break;
+		
+		default:
+		{
+			InvalidCodePath;
+		} break;
+	}
+
+	return (Result);
+}
 
 #endif GAME_ASSET_H

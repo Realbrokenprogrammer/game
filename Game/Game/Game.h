@@ -5,12 +5,14 @@
 #include "Platform.h"
 #include "Game_Intristics.h"
 #include "Game_Math.h"
+#include "Game_File_Formats.h"
 #include "Game_Memory.h"
 #include "Game_Physics.h"
 #include "Game_Entity.h"
 #include "Game_World.h"
 #include "Game_Camera.h"
 #include "Game_Renderer.h"
+#include "Game_Asset_Type_Id.h"
 #include "Game_Asset.h"
 #include "Game_Audio.h"
 #include "Game_Random.h"
@@ -90,9 +92,7 @@ struct transient_state
 	platform_thread_queue *LowPriorityQueue;
 };
 
-om_global_variable platform_add_thread_entry *PlatformAddThreadEntry;
-om_global_variable platform_complete_all_work *PlatformCompleteAllThreadWork;
-om_global_variable debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
+om_global_variable platform_api Platform;
 
 om_internal task_with_memory *BeginTaskWithMemory(transient_state *TransientState);
 om_internal void EndTaskWithMemory(task_with_memory *Task);

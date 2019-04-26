@@ -362,11 +362,18 @@ MoveEntity(world *World, entity *Entity, r32 DeltaTime, vector2 ddPosition)
 	//TODO: Change the entity world position?
 }
 
+#if 1 //TODO: Add actual define to use for enabling / Disabling this.
+game_memory *DebugGlobalMemory;
+#endif
+
 extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 {
-	PlatformAddThreadEntry = Memory->PlatformAddThreadEntry;
-	PlatformCompleteAllThreadWork = Memory->PlatformCompleteAllThreadWork;
-	DEBUGPlatformReadEntireFile = Memory->DEBUGPlatformReadEntireFile;
+	Platform = Memory->PlatformAPI;
+
+#if 1 //TODO: Add actual define to use for enabling / Disabling this.
+	DebugGlobalMemory = Memory;
+#endif
+	//BEGIN_TIMED_BLOCK(GameUpdateAndRender);
 
 	OM_ASSERT(sizeof(game_state) <= Memory->PermanentStorageSize);
 
@@ -485,6 +492,8 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 		InitializeMemoryArena(&TransientState->TransientArena, Memory->TransientStorageSize - sizeof(transient_state),
 			(u8 *)Memory->TransientStorage + sizeof(transient_state));
 
+		TransientState->HighPriorityQueue = Memory->HighPriorityQueue;
+		TransientState->LowPriorityQueue = Memory->LowPriorityQueue;
 		for (uint32_t TaskIndex = 0; TaskIndex < OM_ARRAYCOUNT(TransientState->Tasks); ++TaskIndex)
 		{
 			task_with_memory *Task = TransientState->Tasks + TaskIndex;
@@ -492,9 +501,6 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 			Task->BeingUsed = false;
 			CreateSubArena(&Task->Arena, &TransientState->TransientArena, om_megabytes(1));
 		}
-
-		TransientState->HighPriorityQueue = Memory->HighPriorityQueue;
-		TransientState->LowPriorityQueue = Memory->LowPriorityQueue;
 
 		// Creating the game_asset structure that manages all the assets for the game.
 		TransientState->Assets = CreateGameAssets(&TransientState->TransientArena, om_megabytes(64), TransientState);
@@ -743,8 +749,12 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 
 	DestroyRenderBlueprint(RenderBlueprint);
 
+	CheckMemoryArena(&GameState->WorldArena);
+	CheckMemoryArena(&TransientState->TransientArena);
 	//TODO: Allow sample offsets here for more robust platform options
 	//RenderGradient(Buffer, 0, 0);
+
+	//END_TIMED_BLOCK(GameUpdateAndRender);
 }
 
 extern "C" GAME_GET_SOUND_SAMPLES(GameGetSoundSamples)

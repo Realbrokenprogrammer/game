@@ -4,6 +4,8 @@
 
 #include "Types.h"
 
+#include "windows.h"  //TODO: ABSOLUTELY REMOVE THIS!!!!!!!!!!
+
 /*
 	Services that the platform provides to the game
 */
@@ -41,6 +43,43 @@ typedef DEBUG_PLATFORM_WRITE_ENTIRE_FILE(debug_platform_write_entire_file);
 //loaded_bitmap DEBUGLoadBitmap(char * FileName);
 #define DEBUG_LOAD_BITMAP(name) loaded_bitmap name(char *FileName)
 typedef DEBUG_LOAD_BITMAP(debug_load_bitmap);
+
+enum
+{
+	DebugCycleCounter_GameUpdateAndRender,
+	DebugCycleCounter_RenderToBuffer,
+	DebugCycleCounter_DEBUGDrawTransformedBitmap,
+	DebugCycleCounter_SoftwareDrawTransformedBitmap,
+	DebugCycleCounter_Count
+};
+
+enum
+{
+	DebugMsCounter_Rendering,
+	DebugMsCounter_Count
+};
+
+typedef struct debug_cycle_counter
+{
+	u64 CycleCount;
+	u32 HitCount;
+} debug_cycle_counter;
+
+typedef struct debug_time_counter
+{
+	u64 Time;
+} debug_time_counter;
+
+extern struct game_memory *DebugGlobalMemory;
+#if _MSC_VER
+#define BEGIN_TIMED_BLOCK(ID) u64 StartCycleCount##ID = __rdtsc();
+#define END_TIMED_BLOCK(ID) DebugGlobalMemory->Counters[DebugCycleCounter_##ID].CycleCount += __rdtsc() - StartCycleCount##ID; ++DebugGlobalMemory->Counters[DebugCycleCounter_##ID].HitCount;
+#define BEGIN_TIMED_MILLISECOND_BLOCK(ID) SYSTEMTIME StartMsCount##ID; GetSystemTime(&StartMsCount##ID);
+#define END_TIMED_MILLISECOND_BLOCK(ID) SYSTEMTIME EndMsCount##ID; GetSystemTime(&EndMsCount##ID); DebugGlobalMemory->TimeCounters[DebugMsCounter_##ID].Time += ((EndMsCount##ID.wSecond * 1000) + EndMsCount##ID.wMilliseconds) - (((StartMsCount##ID.wSecond * 1000) + StartMsCount##ID.wMilliseconds));
+#else
+#define BEGIN_TIMED_BLOCK(ID) 
+#define END_TIMED_BLOCK(ID) 
+#endif
 
 #endif
 
@@ -111,12 +150,56 @@ struct game_input
 	game_controller_input Controllers[5];
 };
 
+typedef struct platform_file_handle
+{
+	b32 NoErrors;
+} platform_file_handle;
+
+typedef struct platform_file_group
+{
+	u32 FileCount;
+} platform_file_group;
+
+#define PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(name) platform_file_group *name(char *Type)
+typedef PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(platform_get_all_files_of_type_begin);
+
+#define PLATFORM_GET_ALL_FILE_OF_TYPE_END(name) void name(platform_file_group *FileGroup)
+typedef PLATFORM_GET_ALL_FILE_OF_TYPE_END(platform_get_all_files_of_type_end);
+
+#define PLATFORM_OPEN_FILE(name) platform_file_handle *name(platform_file_group *FileGroup)
+typedef PLATFORM_OPEN_FILE(platform_open_next_file);
+
+#define PLATFORM_READ_DATA_FROM_FILE(name) void name(platform_file_handle *Source, u64 Offset, u64 Size, void *Destination)
+typedef PLATFORM_READ_DATA_FROM_FILE(platform_read_data_from_file);
+
+#define PLATFORM_FILE_ERROR(name) void name(platform_file_handle *Handle, char *Message)
+typedef PLATFORM_FILE_ERROR(platform_file_error);
+
+#define PlatformNoFileErrors(Handle) ((Handle)->NoErrors)
+
 struct platform_thread_queue;
 #define PLATFORM_THREAD_QUEUE_CALLBACK(name) void name(platform_thread_queue *Queue, void *Data)
 typedef PLATFORM_THREAD_QUEUE_CALLBACK(platform_thread_queue_callback);
 
 typedef void platform_add_thread_entry(platform_thread_queue *Queue, platform_thread_queue_callback *Callback, void *Data);
 typedef void platform_complete_all_work(platform_thread_queue *Queue);
+
+typedef struct platform_api
+{
+	platform_add_thread_entry *AddThreadEntry;
+	platform_complete_all_work *CompleteAllThreadWork;
+
+	platform_get_all_files_of_type_begin *GetAllFilesOfTypeBegin;
+	platform_get_all_files_of_type_end *GetAllFilesOfTypeEnd;
+	platform_open_next_file *OpenNextFile;
+	platform_read_data_from_file *ReadDataFromFile;
+	platform_file_error *FileError;
+
+	debug_platform_read_entire_file *DEBUGReadEntireFile;
+	debug_platform_free_file_memory *DEBUGFreeFileMemory;
+	debug_platform_write_entire_file *DEBUGWriteEntireFile;
+	debug_load_bitmap *DEBUGLoadBitmap;
+};
 
 inline game_controller_input *
 GetController(game_input *Input, int ControllerIndex)
@@ -155,13 +238,12 @@ struct game_memory
 	platform_thread_queue *HighPriorityQueue;
 	platform_thread_queue *LowPriorityQueue;
 
-	platform_add_thread_entry *PlatformAddThreadEntry;
-	platform_complete_all_work *PlatformCompleteAllThreadWork;
+	platform_api PlatformAPI;
 
-	debug_platform_read_entire_file *DEBUGPlatformReadEntireFile;
-	debug_platform_free_file_memory *DEBUGPlatformFreeFileMemory;
-	debug_platform_write_entire_file *DEBUGPlatformWriteEntireFile;
-	debug_load_bitmap *DEBUGLoadBitmap;
+#if 1 //TODO: Add actual define to use for enabling / Disabling this.
+	debug_cycle_counter Counters[DebugCycleCounter_Count];
+	debug_time_counter TimeCounters[DebugMsCounter_Count];
+#endif
 };
 
 #define GAME_UPDATE_AND_RENDER(name) void name(game_memory *Memory, game_input *Input, game_offscreen_buffer *Buffer)

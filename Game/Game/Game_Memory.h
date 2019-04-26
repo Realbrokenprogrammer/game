@@ -143,4 +143,13 @@ ZeroSize(memory_index Size, void *Pointer)
 	}
 }
 
+inline void
+Copy(memory_index Size, void *SourceInit, void *DestinationInit)
+{
+	u8 *Source = (u8 *)SourceInit;
+	u8 *Destination = (u8 *)DestinationInit;
+
+	while (Size--) { *Destination++ = *Source++; }
+}
+
 #endif // GAME_MEMORY_H
