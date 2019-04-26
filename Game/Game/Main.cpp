@@ -196,28 +196,134 @@ DEBUG_PLATFORM_WRITE_ENTIRE_FILE(DEBUGPlatformWriteEntireFile)
 	return (Result);
 }
 
+struct win32_platform_file_handle
+{
+	platform_file_handle Handle;
+	HANDLE Win32Handle;
+};
+
+struct win32_platform_file_group
+{
+	platform_file_group Group;
+	HANDLE FindHandle;
+	WIN32_FIND_DATAA FindData;
+};
+
 om_internal PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(Win32GetAllFilesOfTypeBegin)
 {
-	platform_file_group FileGroup = {};
+	win32_platform_file_group *Win32FileGroup = (win32_platform_file_group *)VirtualAlloc(
+		0, sizeof(win32_platform_file_group), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	return (FileGroup);
+	char *TypeAt = Type;
+	char WildCard[32] = "*.";
+	
+	// NOTE: Copying filetype to the end of wildcard.
+	for (u32 WildCardIndex = 2; WildCardIndex < sizeof(WildCard); ++WildCardIndex)
+	{
+		WildCard[WildCardIndex] = *TypeAt;
+		if (*TypeAt == 0)
+		{
+			break;
+		}
+
+		++TypeAt;
+	}
+	WildCard[sizeof(WildCard) - 1] = 0;
+
+	Win32FileGroup->Group.FileCount = 0;
+
+	WIN32_FIND_DATAA FindData;
+	HANDLE FindHandle = FindFirstFileA(WildCard, &FindData);
+	while (FindHandle != INVALID_HANDLE_VALUE)
+	{
+		++Win32FileGroup->Group.FileCount;
+
+		if (!FindNextFileA(FindHandle, &FindData))
+		{
+			break;
+		}
+	}
+	FindClose(FindHandle);
+
+	Win32FileGroup->FindHandle = FindFirstFileA(WildCard, &Win32FileGroup->FindData);
+
+	return ((platform_file_group *)Win32FileGroup);
 }
 
 om_internal PLATFORM_GET_ALL_FILE_OF_TYPE_END(Win32GetAllFilesOfTypeEnd)
 {
-}
+	win32_platform_file_group *Win32FileGroup = (win32_platform_file_group *)FileGroup;
 
-om_internal PLATFORM_OPEN_FILE(Win32OpenFile)
-{
-	return (0);
-}
+	if (Win32FileGroup)
+	{
+		FindClose(Win32FileGroup->FindHandle);
 
-om_internal PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
-{
+		VirtualFree(Win32FileGroup, 0, MEM_RELEASE);
+	}
 }
 
 om_internal PLATFORM_FILE_ERROR(Win32FileError)
 {
+#if 1
+	OutputDebugString("WIN32 FILE ERROR: ");
+	OutputDebugString(Message);
+	OutputDebugString("\n");
+#endif
+
+	Handle->NoErrors = false;
+
+	//CloseHandle(FileHandle);
+}
+
+om_internal PLATFORM_OPEN_FILE(Win32OpenNextFile)
+{
+	
+	win32_platform_file_group *Win32FileGroup = (win32_platform_file_group *)FileGroup;
+	win32_platform_file_handle *Result = 0;
+
+	
+	if (Win32FileGroup->FindHandle != INVALID_HANDLE_VALUE)
+	{
+		Result = (win32_platform_file_handle *)VirtualAlloc(0, sizeof(win32_platform_file_handle), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		
+		if (Result)
+		{
+			char *FileName = Win32FileGroup->FindData.cFileName;
+			Result->Win32Handle = CreateFileA(FileName, GENERIC_READ, FILE_SHARE_READ, 0, OPEN_EXISTING, 0, 0);
+			Result->Handle.NoErrors = (Result->Win32Handle != INVALID_HANDLE_VALUE);
+		}
+
+		if (!FindNextFileA(Win32FileGroup->FindHandle, &Win32FileGroup->FindData))
+		{
+			FindClose(Win32FileGroup->FindHandle);
+			Win32FileGroup->FindHandle = INVALID_HANDLE_VALUE;
+		}
+	}
+
+	return ((platform_file_handle *)Result);
+}
+
+om_internal PLATFORM_READ_DATA_FROM_FILE(Win32ReadDataFromFile)
+{
+	if (PlatformNoFileErrors(Source))
+	{
+		win32_platform_file_handle *Handle = (win32_platform_file_handle *)Source;
+		OVERLAPPED Overlapped = {};
+		Overlapped.Offset = (u32)((Offset >> 0) & 0xFFFFFFFF);
+		Overlapped.OffsetHigh = (u32)((Offset >> 32) & 0xFFFFFFFF);
+
+		u32 FileSize32 = SafeTruncateUInt64(Size);
+
+		DWORD BytesRead;
+		if (ReadFile(Handle->Win32Handle, Destination, FileSize32, &BytesRead, &Overlapped) && (FileSize32 == BytesRead))
+		{
+			// NOTE: File read success.
+		}
+		else
+		{
+			Win32FileError(&Handle->Handle, "Read file failed.");
+		}
+	}
 }
 
 inline FILETIME
@@ -947,6 +1053,23 @@ HandleDebugCycleCounters(game_memory *Memory)
 #endif
 }
 
+om_internal void
+HandleDebugTimeCounters(game_memory *Memory)
+{
+#if 1
+	OutputDebugStringA("DEBUG TIME COUNTS: \n");
+	for (u32 TimerIndex = 0; TimerIndex < OM_ARRAYCOUNT(Memory->TimeCounters); ++TimerIndex)
+	{
+		debug_time_counter *Counter = Memory->TimeCounters + TimerIndex;
+
+		char TextBuffer[256];
+		_snprintf_s(TextBuffer, sizeof(TextBuffer), "%d: %I64ums\n", TimerIndex, Counter->Time);
+		OutputDebugStringA(TextBuffer);
+		Counter->Time = 0;
+	}
+#endif
+}
+
 struct platform_thread_queue_entry
 {
 	platform_thread_queue_callback *Callback;
@@ -1197,7 +1320,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 
 			GameMemory.PlatformAPI.GetAllFilesOfTypeBegin = Win32GetAllFilesOfTypeBegin;
 			GameMemory.PlatformAPI.GetAllFilesOfTypeEnd = Win32GetAllFilesOfTypeEnd;
-			GameMemory.PlatformAPI.OpenFile = Win32OpenFile;
+			GameMemory.PlatformAPI.OpenNextFile = Win32OpenNextFile;
 			GameMemory.PlatformAPI.ReadDataFromFile = Win32ReadDataFromFile;
 			GameMemory.PlatformAPI.FileError = Win32FileError;
 
@@ -1446,6 +1569,7 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						{
 							Game.UpdateAndRender(&GameMemory, NewInput, &Buffer);
 							//HandleDebugCycleCounters(&GameMemory);
+							HandleDebugTimeCounters(&GameMemory);
 						}
 
 						LARGE_INTEGER AudioWallClock = Win32GetWallClock();
@@ -1572,35 +1696,35 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						r32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
 
 						// TODO: Not tested and this is probably buggy.
-						r32 SecondsElapsedForFrame = WorkSecondsElapsed;
-						if (SecondsElapsedForFrame < TargetSecondsPerFrame)
-						{
-							if (SleepIsGranular)
-							{
-								DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+						//r32 SecondsElapsedForFrame = WorkSecondsElapsed;
+						//if (SecondsElapsedForFrame < TargetSecondsPerFrame)
+						//{
+						//	if (SleepIsGranular)
+						//	{
+						//		DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
 
-								if (SleepMS > 0)
-								{
-									Sleep(SleepMS);
-								}
-							}
+						//		if (SleepMS > 0)
+						//		{
+						//			Sleep(SleepMS);
+						//		}
+						//	}
 
-							r32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
-							if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
-							{
-								// TODO: Log missed sleep.
-							}
+						//	r32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+						//	if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
+						//	{
+						//		// TODO: Log missed sleep.
+						//	}
 
-							while (SecondsElapsedForFrame < TargetSecondsPerFrame)
-							{
-								SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
-							}
-						}
-						else
-						{
-							// TODO: MISSED FRAME RATE!
-							// TODO: Logging
-						}
+						//	while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+						//	{
+						//		SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+						//	}
+						//}
+						//else
+						//{
+						//	// TODO: MISSED FRAME RATE!
+						//	// TODO: Logging
+						//}
 
 						LARGE_INTEGER EndCounter = Win32GetWallClock();
 						r32 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);
@@ -1638,8 +1762,8 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						u64 CyclesElapsed = EndCycleCount - LastCycleCount;
 						LastCycleCount = EndCycleCount;
 
-						r64 FPS = 0.0f;
 						r64 MCPF = ((r64)CyclesElapsed / (1000.0f * 1000.0f));
+						r64 FPS = 1000.0f / MSPerFrame;
 
 						char FPSBuffer[256];
 						_snprintf_s(FPSBuffer, sizeof(FPSBuffer),

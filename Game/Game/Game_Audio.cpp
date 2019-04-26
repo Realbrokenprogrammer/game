@@ -112,8 +112,9 @@ DEBUGOutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundB
 			loaded_sound *LoadedSound = GetSound(Assets, PlayingSound->ID);
 			if (LoadedSound)
 			{
-				ga_sound *Info = GetSoundInfo(Assets, PlayingSound->ID);
-				LoadSound(Assets, Info->NextIDToPlay);
+				//ga_sound *Info = GetSoundInfo(Assets, PlayingSound->ID);
+				sound_id NextSoundInChain = GetNextSoundInChain(Assets, PlayingSound->ID);
+				LoadSound(Assets, NextSoundInChain);
 
 				vector2 Volume = PlayingSound->CurrentVolume;
 				vector2 dVolume = SecondsPerSample * PlayingSound->dCurrentVolume;
@@ -183,9 +184,9 @@ DEBUGOutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundB
 
 				if ((u32)PlayingSound->SamplesPlayed == LoadedSound->SampleCount)
 				{
-					if (IsValid(Info->NextIDToPlay))
+					if (IsValid(NextSoundInChain))
 					{
-						PlayingSound->ID = Info->NextIDToPlay;
+						PlayingSound->ID = NextSoundInChain;
 						PlayingSound->SamplesPlayed = 0;
 					}
 					else
@@ -274,8 +275,10 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 			loaded_sound *LoadedSound = GetSound(Assets, PlayingSound->ID);
 			if (LoadedSound)
 			{
-				ga_sound *Info = GetSoundInfo(Assets, PlayingSound->ID);
-				PrefetchSound(Assets, Info->NextIDToPlay);
+				//ga_sound *Info = GetSoundInfo(Assets, PlayingSound->ID);
+				sound_id NextSoundInChain = GetNextSoundInChain(Assets, PlayingSound->ID);
+				PrefetchSound(Assets, NextSoundInChain);
+				
 
 				vector2 Volume = PlayingSound->CurrentVolume;
 				vector2 dVolume = SecondsPerSample * PlayingSound->dCurrentVolume;
@@ -396,9 +399,9 @@ OutputMixedSounds(audio_state *AudioState, game_sound_output_buffer *SoundBuffer
 
 				if (ChunksToMix == ChunksRemainingInSound)
 				{
-					if (IsValid(Info->NextIDToPlay))
+					if (IsValid(NextSoundInChain))
 					{
-						PlayingSound->ID = Info->NextIDToPlay;
+						PlayingSound->ID = NextSoundInChain;
 						OM_ASSERT(PlayingSound->SamplesPlayed >= LoadedSound->SampleCount);
 						PlayingSound->SamplesPlayed -= (r32)LoadedSound->SampleCount;
 						if (PlayingSound->SamplesPlayed < 0)

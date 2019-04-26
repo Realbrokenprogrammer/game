@@ -4,6 +4,8 @@
 
 #include "Types.h"
 
+#include "windows.h"  //TODO: ABSOLUTELY REMOVE THIS!!!!!!!!!!
+
 /*
 	Services that the platform provides to the game
 */
@@ -50,16 +52,30 @@ enum
 	DebugCycleCounter_SoftwareDrawTransformedBitmap,
 	DebugCycleCounter_Count
 };
+
+enum
+{
+	DebugMsCounter_Rendering,
+	DebugMsCounter_Count
+};
+
 typedef struct debug_cycle_counter
 {
 	u64 CycleCount;
 	u32 HitCount;
 } debug_cycle_counter;
 
+typedef struct debug_time_counter
+{
+	u64 Time;
+} debug_time_counter;
+
 extern struct game_memory *DebugGlobalMemory;
 #if _MSC_VER
 #define BEGIN_TIMED_BLOCK(ID) u64 StartCycleCount##ID = __rdtsc();
 #define END_TIMED_BLOCK(ID) DebugGlobalMemory->Counters[DebugCycleCounter_##ID].CycleCount += __rdtsc() - StartCycleCount##ID; ++DebugGlobalMemory->Counters[DebugCycleCounter_##ID].HitCount;
+#define BEGIN_TIMED_MILLISECOND_BLOCK(ID) SYSTEMTIME StartMsCount##ID; GetSystemTime(&StartMsCount##ID);
+#define END_TIMED_MILLISECOND_BLOCK(ID) SYSTEMTIME EndMsCount##ID; GetSystemTime(&EndMsCount##ID); DebugGlobalMemory->TimeCounters[DebugMsCounter_##ID].Time += ((EndMsCount##ID.wSecond * 1000) + EndMsCount##ID.wMilliseconds) - (((StartMsCount##ID.wSecond * 1000) + StartMsCount##ID.wMilliseconds));
 #else
 #define BEGIN_TIMED_BLOCK(ID) 
 #define END_TIMED_BLOCK(ID) 
@@ -136,23 +152,22 @@ struct game_input
 
 typedef struct platform_file_handle
 {
-	b32 HasErrors;
+	b32 NoErrors;
 } platform_file_handle;
 
 typedef struct platform_file_group
 {
 	u32 FileCount;
-	void *Data;
 } platform_file_group;
 
-#define PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(name) platform_file_group name(char *Type)
+#define PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(name) platform_file_group *name(char *Type)
 typedef PLATFORM_GET_ALL_FILE_OF_TYPE_BEGIN(platform_get_all_files_of_type_begin);
 
-#define PLATFORM_GET_ALL_FILE_OF_TYPE_END(name) void name(platform_file_group FileGroup)
+#define PLATFORM_GET_ALL_FILE_OF_TYPE_END(name) void name(platform_file_group *FileGroup)
 typedef PLATFORM_GET_ALL_FILE_OF_TYPE_END(platform_get_all_files_of_type_end);
 
-#define PLATFORM_OPEN_FILE(name) platform_file_handle *name(platform_file_group FileGroup, u32 FileIndex)
-typedef PLATFORM_OPEN_FILE(platform_open_file);
+#define PLATFORM_OPEN_FILE(name) platform_file_handle *name(platform_file_group *FileGroup)
+typedef PLATFORM_OPEN_FILE(platform_open_next_file);
 
 #define PLATFORM_READ_DATA_FROM_FILE(name) void name(platform_file_handle *Source, u64 Offset, u64 Size, void *Destination)
 typedef PLATFORM_READ_DATA_FROM_FILE(platform_read_data_from_file);
@@ -160,7 +175,7 @@ typedef PLATFORM_READ_DATA_FROM_FILE(platform_read_data_from_file);
 #define PLATFORM_FILE_ERROR(name) void name(platform_file_handle *Handle, char *Message)
 typedef PLATFORM_FILE_ERROR(platform_file_error);
 
-#define PlatformNoFileErrors(Handle) (!(Handle)->HasErrors)
+#define PlatformNoFileErrors(Handle) ((Handle)->NoErrors)
 
 struct platform_thread_queue;
 #define PLATFORM_THREAD_QUEUE_CALLBACK(name) void name(platform_thread_queue *Queue, void *Data)
@@ -176,7 +191,7 @@ typedef struct platform_api
 
 	platform_get_all_files_of_type_begin *GetAllFilesOfTypeBegin;
 	platform_get_all_files_of_type_end *GetAllFilesOfTypeEnd;
-	platform_open_file *OpenFile;
+	platform_open_next_file *OpenNextFile;
 	platform_read_data_from_file *ReadDataFromFile;
 	platform_file_error *FileError;
 
@@ -227,6 +242,7 @@ struct game_memory
 
 #if 1 //TODO: Add actual define to use for enabling / Disabling this.
 	debug_cycle_counter Counters[DebugCycleCounter_Count];
+	debug_time_counter TimeCounters[DebugMsCounter_Count];
 #endif
 };
 

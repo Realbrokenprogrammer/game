@@ -35,6 +35,12 @@ struct asset_slot
 	};
 };
 
+struct asset
+{
+	ga_asset GA;
+	u32 FileIndex;
+};
+
 struct asset_vector
 {
 	r32 E[Asset_Tag_Count];
@@ -51,7 +57,7 @@ struct asset_file
 	platform_file_handle *Handle;
 
 	ga_header Header;
-	ga_asset_type *AssetTypes;
+	ga_asset_type *AssetTypeArray;
 
 	u32 TagBase;
 };
@@ -71,7 +77,7 @@ struct game_assets
 	ga_tag *Tags;
 
 	u32 AssetCount;
-	ga_asset *Assets;
+	asset *Assets;
 	asset_slot *Slots;
 
 	asset_type AssetTypes[Asset_Type_Count];
@@ -96,7 +102,13 @@ GetBitmap(game_assets *Assets, bitmap_id ID)
 {
 	OM_ASSERT(ID.Value <= Assets->AssetCount);
 	asset_slot *Slot = Assets->Slots + ID.Value;
-	loaded_bitmap *Result = (Slot->State >= AssetState_Loaded) ? Slot->Bitmap : 0;
+	
+	loaded_bitmap *Result = 0;
+	if (Slot->State >= AssetState_Loaded)
+	{
+		CompletePreviousReadsBeforeFutureReads;
+		Result = Slot->Bitmap;
+	}
 
 	return (Result);
 }
@@ -106,7 +118,13 @@ GetSound(game_assets *Assets, sound_id ID)
 {
 	OM_ASSERT(ID.Value <= Assets->AssetCount);
 	asset_slot *Slot = Assets->Slots + ID.Value;
-	loaded_sound *Result = (Slot->State >= AssetState_Loaded) ? Slot->Sound : 0;
+	
+	loaded_sound *Result = 0;
+	if (Slot->State >= AssetState_Loaded)
+	{
+		CompletePreviousReadsBeforeFutureReads;
+		Result = Slot->Sound;
+	}
 
 	return (Result);
 }
@@ -115,7 +133,7 @@ inline ga_sound *
 GetSoundInfo(game_assets *Assets, sound_id ID)
 {
 	OM_ASSERT(ID.Value <= Assets->AssetCount);
-	ga_sound *Result = &Assets->Assets[ID.Value].Sound;
+	ga_sound *Result = &Assets->Assets[ID.Value].GA.Sound;
 
 	return (Result);
 }
@@ -139,5 +157,37 @@ IsValid(sound_id ID)
 om_internal void LoadBitmap(game_assets *Assets, bitmap_id ID);
 om_internal void LoadSound(game_assets *Assets, sound_id ID);
 inline void PrefetchSound(game_assets *Assets, sound_id ID) { LoadSound(Assets, ID); }
+
+inline sound_id 
+GetNextSoundInChain(game_assets *Assets, sound_id ID)
+{
+	sound_id Result = {};
+
+	ga_sound *Info = GetSoundInfo(Assets, ID);
+	switch (Info->Chain)
+	{
+		case GASoundChain_None:
+		{
+			// NOTE: Nothing to do.
+		} break;
+		
+		case GASoundChain_Loop:
+		{
+			Result = ID;
+		} break;
+		
+		case GASoundChain_Advance:
+		{
+			Result.Value = ID.Value + 1;
+		} break;
+		
+		default:
+		{
+			InvalidCodePath;
+		} break;
+	}
+
+	return (Result);
+}
 
 #endif GAME_ASSET_H
