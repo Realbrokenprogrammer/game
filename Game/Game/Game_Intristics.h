@@ -31,6 +31,7 @@ inline uint32 AtomicCompareExchangeUInt32(uint32 volatile *Value, uint32 New, ui
 
 //Note: Intel intristics helper defines.
 #define OM_MMSquare(A) _mm_mul_ps(A, A)
+#define OM_MMSquare256(A) _mm256_mul_ps(A, A)
 #define OM_MMIndexF(A, I) ((r32 *)&(A))[I]
 #define OM_MMIndexI(A, I) ((u32 *)&(A))[I]
 

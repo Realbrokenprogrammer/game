@@ -545,6 +545,359 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 }
 
 om_internal void
+SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position, r32 Scale, r32 Rotation,
+	loaded_bitmap *Texture, vector4 Color, rect2I ClipRect, b32 Even)
+{
+	// Degrees to radians.
+	Rotation = Rotation * (OM_PI32 / 180.0f);
+
+	// Premultiply alpha
+	Color.RGB *= Color.A;
+
+	// Note: Currently not dealing with non-scaled rectangle so we'd probably want to scale the Texture width and height.
+	// Scale and rotate Axes based on specified Scale and Rotation.
+	vector2 XAxis = (Scale + 1.0f*cosf(Rotation)) * Vector2(cosf(Rotation), sinf(Rotation));
+	vector2 YAxis = Perp(XAxis);
+
+	r32 XAxisLength = Length(XAxis);
+	r32 YAxisLength = Length(YAxis);
+
+	vector2 NXAxis = (YAxisLength / XAxisLength) * XAxis;
+	vector2 NYAxis = (XAxisLength / YAxisLength) * YAxis;
+
+	r32 InvXAxisLengthSq = 1.0f / LengthSquared(XAxis);
+	r32 InvYAxisLengthSq = 1.0f / LengthSquared(YAxis);
+
+	//TODO: Use passed color if there is no Texture passed or separate DrawRectangle and DrawBitmap with scaling?
+	u32 Color32 =
+		((RoundReal32ToInt32(Color.A * 255.0f) << 24) |
+		(RoundReal32ToInt32(Color.R * 255.0f) << 16) |
+			(RoundReal32ToInt32(Color.G * 255.0f) << 8) |
+			(RoundReal32ToInt32(Color.B * 255.0f)));
+
+	rect2I FillRect = InvertedInfinityRectangle();
+
+	vector2 Points[4] = { Position, Position + XAxis, Position + XAxis + YAxis, Position + YAxis };
+	for (int PointIndex = 0; PointIndex < OM_ARRAYCOUNT(Points); ++PointIndex)
+	{
+		vector2 TestPoint = Points[PointIndex];
+		int FloorX = FloorReal32ToInt32(TestPoint.x);
+		int CeilX = CeilReal32ToInt32(TestPoint.x) + 1;
+		int FloorY = FloorReal32ToInt32(TestPoint.y);
+		int CeilY = CeilReal32ToInt32(TestPoint.y) + 1;
+
+		if (FillRect.MinX > FloorX) { FillRect.MinX = FloorX; }
+		if (FillRect.MinY > FloorY) { FillRect.MinY = FloorY; }
+		if (FillRect.MaxX < CeilX) { FillRect.MaxX = CeilX; }
+		if (FillRect.MaxY < CeilY) { FillRect.MaxY = CeilY; }
+	}
+
+	FillRect = Intersection(ClipRect, FillRect);
+	if (!Even == (FillRect.MinY & 1))
+	{
+		FillRect.MinY += 1;
+	}
+
+	if (HasArea(FillRect))
+	{
+		__m256i StartupClipMask = _mm256_set1_epi8(-1);
+		int FillWidth = FillRect.MaxX - FillRect.MinX;
+		int FillWidthAlign = FillWidth & 3;
+		if (FillWidthAlign > 0)
+		{
+			int Adjustment = (4 - FillWidthAlign);
+
+			//TODO: Change this into something sane.
+			switch (Adjustment)
+			{
+			case 1: {StartupClipMask = _mm256_slli_si256(StartupClipMask, 1 * 4); } break;
+			case 2: {StartupClipMask = _mm256_slli_si256(StartupClipMask, 2 * 4); } break;
+			case 3: {StartupClipMask = _mm256_slli_si256(StartupClipMask, 3 * 4); } break;
+			}
+			FillWidth += Adjustment;
+			FillRect.MinX = FillRect.MaxX - FillWidth;
+		}
+
+		vector2 nXAxis = InvXAxisLengthSq * XAxis;
+		vector2 nYAxis = InvYAxisLengthSq * YAxis;
+
+		//Note: 8 Wide values to use operating through SIMD.
+		r32 Inv255 = 1.0f / 255.0f;
+		r32 One255 = 255.0f;
+
+		__m256 Inv255_x8 = _mm256_set1_ps(Inv255);
+		__m256 One255_x8 = _mm256_set1_ps(One255);
+
+		__m256 One_x8 = _mm256_set1_ps(1.0f);
+		__m256 Four_x8 = _mm256_set1_ps(4.0f);
+		__m256 Eight_x8 = _mm256_set1_ps(8.0f);
+		__m256 Zero_x8 = _mm256_set1_ps(0.0f);
+		__m256i Mask255_x4 = _mm256_set1_epi32(0xFF);
+		__m256i MaskFFFF = _mm256_set1_epi32(0xFFFF);
+		__m256i MaskFF00FF = _mm256_set1_epi32(0x00FF00FF);
+		__m256 ColorR_x4 = _mm256_set1_ps(Color.R);
+		__m256 ColorG_x4 = _mm256_set1_ps(Color.G);
+		__m256 ColorB_x4 = _mm256_set1_ps(Color.B);
+		__m256 ColorA_x4 = _mm256_set1_ps(Color.A);
+		__m256 nXAxisX_x8 = _mm256_set1_ps(nXAxis.x);
+		__m256 nXAxisY_x8 = _mm256_set1_ps(nXAxis.y);
+		__m256 nYAxisX_x8 = _mm256_set1_ps(nYAxis.x);
+		__m256 nYAxisY_x8 = _mm256_set1_ps(nYAxis.y);
+		__m256 PositionX_x8 = _mm256_set1_ps(Position.x);
+		__m256 PositionY_x8 = _mm256_set1_ps(Position.y);
+		__m256 MaxColorValue = _mm256_set1_ps(255.0f*255.0f);
+		__m256i TexturePitch_x8 = _mm256_set1_epi32(Texture->Pitch);
+
+		__m256 WidthSub2 = _mm256_set1_ps((r32)(Texture->Width - 2));
+		__m256 HeightSub2 = _mm256_set1_ps((r32)(Texture->Height - 2));
+
+		u8 *Row = ((u8 *)Buffer->Memory + FillRect.MinX * Buffer->BytesPerPixel + FillRect.MinY * Buffer->Pitch);
+		i32 RowAdvance = 2 * Buffer->Pitch;
+
+		void *TextureMemory = Texture->Pixels;
+		i32 TexturePitch = Texture->Pitch;
+
+		int MinY = FillRect.MinY;
+		int MaxY = FillRect.MaxY;
+		int MinX = FillRect.MinX;
+		int MaxX = FillRect.MaxX;
+		for (int Y = MinY; Y < MaxY; Y += 2)
+		{
+			__m256 PixelPositionY = _mm256_set1_ps((r32)Y);
+			PixelPositionY = _mm256_sub_ps(PixelPositionY, PositionY_x8);
+			__m256 PynX = _mm256_mul_ps(PixelPositionY, nXAxisY_x8);
+			__m256 PynY = _mm256_mul_ps(PixelPositionY, nYAxisY_x8);
+
+			__m256 PixelPositionX = _mm256_set_ps((r32)(MinX + 7),
+												  (r32)(MinX + 6),
+												  (r32)(MinX + 5),
+												  (r32)(MinX + 4),
+												  (r32)(MinX + 3),
+												  (r32)(MinX + 2),
+												  (r32)(MinX + 1),
+												  (r32)(MinX + 0));
+			PixelPositionX = _mm256_sub_ps(PixelPositionX, PositionX_x8);
+
+			__m256i ClipMask = StartupClipMask;
+
+			u32 *Pixel = (u32 *)Row;
+
+			for (int X = MinX; X < MaxX; X += 8)
+			{
+				__m256 U = _mm256_add_ps(_mm256_mul_ps(PixelPositionX, nXAxisX_x8), PynX);
+				__m256 V = _mm256_add_ps(_mm256_mul_ps(PixelPositionX, nYAxisX_x8), PynY);
+
+				__m256i WriteMask = _mm256_castps_si256(_mm256_and_ps(_mm256_and_ps(_mm256_cmp_ps(U, Zero_x8, _CMP_GE_OS),
+					_mm256_cmp_ps(U, One_x8, _CMP_LE_OS)),
+					_mm256_and_ps(_mm256_cmp_ps(V, Zero_x8, _CMP_GE_OS),
+						_mm256_cmp_ps(V, One_x8, _CMP_LE_OS))));
+
+				WriteMask = _mm256_and_si256(WriteMask, ClipMask);
+
+				{
+					__m256i OriginalDestination = _mm256_loadu_si256((__m256i *)Pixel);
+
+					U = _mm256_min_ps(_mm256_max_ps(U, Zero_x8), One_x8);
+					V = _mm256_min_ps(_mm256_max_ps(V, Zero_x8), One_x8);
+
+					__m256 tX = _mm256_mul_ps(U, WidthSub2);
+					__m256 tY = _mm256_mul_ps(V, HeightSub2);
+
+					__m256i FetchX_x8 = _mm256_cvttps_epi32(tX);
+					__m256i FetchY_x8 = _mm256_cvttps_epi32(tY);
+
+					__m256 fX = _mm256_sub_ps(tX, _mm256_cvtepi32_ps(FetchX_x8));
+					__m256 fY = _mm256_sub_ps(tY, _mm256_cvtepi32_ps(FetchY_x8));
+
+					FetchX_x8 = _mm256_slli_epi32(FetchX_x8, 2);
+					FetchY_x8 = _mm256_or_si256(_mm256_mullo_epi16(FetchY_x8, TexturePitch_x8),
+						_mm256_slli_epi32(_mm256_mulhi_epi16(FetchY_x8, TexturePitch_x8), 16));
+					__m256i Fetch_x8 = _mm256_add_epi32(FetchX_x8, FetchY_x8);
+
+					i32 Fetch0 = OM_MMIndexI(Fetch_x8, 0);
+					i32 Fetch1 = OM_MMIndexI(Fetch_x8, 1);
+					i32 Fetch2 = OM_MMIndexI(Fetch_x8, 2);
+					i32 Fetch3 = OM_MMIndexI(Fetch_x8, 3);
+					i32 Fetch4 = OM_MMIndexI(Fetch_x8, 4);
+					i32 Fetch5 = OM_MMIndexI(Fetch_x8, 5);
+					i32 Fetch6 = OM_MMIndexI(Fetch_x8, 6);
+					i32 Fetch7 = OM_MMIndexI(Fetch_x8, 7);
+
+					u8 *TexelPtr0 = ((u8 *)TextureMemory) + Fetch0;
+					u8 *TexelPtr1 = ((u8 *)TextureMemory) + Fetch1;
+					u8 *TexelPtr2 = ((u8 *)TextureMemory) + Fetch2;
+					u8 *TexelPtr3 = ((u8 *)TextureMemory) + Fetch3;
+					u8 *TexelPtr4 = ((u8 *)TextureMemory) + Fetch4;
+					u8 *TexelPtr5 = ((u8 *)TextureMemory) + Fetch5;
+					u8 *TexelPtr6 = ((u8 *)TextureMemory) + Fetch6;
+					u8 *TexelPtr7 = ((u8 *)TextureMemory) + Fetch7;
+					
+					__m256i SampleA = _mm256_setr_epi32(
+						*(u32 *)(TexelPtr0),
+						*(u32 *)(TexelPtr1),
+						*(u32 *)(TexelPtr2),
+						*(u32 *)(TexelPtr3),
+						*(u32 *)(TexelPtr4),
+						*(u32 *)(TexelPtr5),
+						*(u32 *)(TexelPtr6),
+						*(u32 *)(TexelPtr7));
+
+					__m256i SampleB = _mm256_setr_epi32(
+						*(u32 *)(TexelPtr0 + sizeof(u32)),
+						*(u32 *)(TexelPtr1 + sizeof(u32)),
+						*(u32 *)(TexelPtr2 + sizeof(u32)),
+						*(u32 *)(TexelPtr3 + sizeof(u32)),
+						*(u32 *)(TexelPtr4 + sizeof(u32)),
+						*(u32 *)(TexelPtr5 + sizeof(u32)),
+						*(u32 *)(TexelPtr6 + sizeof(u32)),
+						*(u32 *)(TexelPtr7 + sizeof(u32)));
+
+					__m256i SampleC = _mm256_setr_epi32(
+						*(u32 *)(TexelPtr0 + TexturePitch),
+						*(u32 *)(TexelPtr1 + TexturePitch),
+						*(u32 *)(TexelPtr2 + TexturePitch),
+						*(u32 *)(TexelPtr3 + TexturePitch),
+						*(u32 *)(TexelPtr4 + TexturePitch),
+						*(u32 *)(TexelPtr5 + TexturePitch),
+						*(u32 *)(TexelPtr6 + TexturePitch),
+						*(u32 *)(TexelPtr7 + TexturePitch));
+
+					__m256i SampleD = _mm256_setr_epi32(
+						*(u32 *)(TexelPtr0 + TexturePitch + sizeof(u32)),
+						*(u32 *)(TexelPtr1 + TexturePitch + sizeof(u32)),
+						*(u32 *)(TexelPtr2 + TexturePitch + sizeof(u32)),
+						*(u32 *)(TexelPtr3 + TexturePitch + sizeof(u32)),
+						*(u32 *)(TexelPtr4 + TexturePitch + sizeof(u32)),
+						*(u32 *)(TexelPtr5 + TexturePitch + sizeof(u32)),
+						*(u32 *)(TexelPtr6 + TexturePitch + sizeof(u32)),
+						*(u32 *)(TexelPtr7 + TexturePitch + sizeof(u32)));
+
+					// Note: Unpacking bilinear samples
+					__m256i TexelArb = _mm256_and_si256(SampleA, MaskFF00FF);
+					__m256i TexelAag = _mm256_and_si256(_mm256_srli_epi32(SampleA, 8), MaskFF00FF);
+					TexelArb = _mm256_mullo_epi16(TexelArb, TexelArb);
+					__m256 TexelAa = _mm256_cvtepi32_ps(_mm256_srli_epi32(TexelAag, 16));
+					TexelAag = _mm256_mullo_epi16(TexelAag, TexelAag);
+
+					__m256i TexelBrb = _mm256_and_si256(SampleB, MaskFF00FF);
+					__m256i TexelBag = _mm256_and_si256(_mm256_srli_epi32(SampleB, 8), MaskFF00FF);
+					TexelBrb = _mm256_mullo_epi16(TexelBrb, TexelBrb);
+					__m256 TexelBa = _mm256_cvtepi32_ps(_mm256_srli_epi32(TexelBag, 16));
+					TexelBag = _mm256_mullo_epi16(TexelBag, TexelBag);
+
+					__m256i TexelCrb = _mm256_and_si256(SampleC, MaskFF00FF);
+					__m256i TexelCag = _mm256_and_si256(_mm256_srli_epi32(SampleC, 8), MaskFF00FF);
+					TexelCrb = _mm256_mullo_epi16(TexelCrb, TexelCrb);
+					__m256 TexelCa = _mm256_cvtepi32_ps(_mm256_srli_epi32(TexelCag, 16));
+					TexelCag = _mm256_mullo_epi16(TexelCag, TexelCag);
+
+					__m256i TexelDrb = _mm256_and_si256(SampleD, MaskFF00FF);
+					__m256i TexelDag = _mm256_and_si256(_mm256_srli_epi32(SampleD, 8), MaskFF00FF);
+					TexelDrb = _mm256_mullo_epi16(TexelDrb, TexelDrb);
+					__m256 TexelDa = _mm256_cvtepi32_ps(_mm256_srli_epi32(TexelDag, 16));
+					TexelDag = _mm256_mullo_epi16(TexelDag, TexelDag);
+
+					//Note: Load the destination colors.
+					__m256 Destb = _mm256_cvtepi32_ps(_mm256_and_si256(OriginalDestination, Mask255_x4));
+					__m256 Destg = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(OriginalDestination, 8), Mask255_x4));
+					__m256 Destr = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(OriginalDestination, 16), Mask255_x4));
+					__m256 Desta = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(OriginalDestination, 24), Mask255_x4));
+
+					//Note: Going from sRGB to "linear" brightness space. Equiv to call to SRGB255ToLinear1.
+					__m256 TexelAr = _mm256_cvtepi32_ps(_mm256_srli_epi32(TexelArb, 16));
+					__m256 TexelAg = _mm256_cvtepi32_ps(_mm256_and_si256(TexelAag, MaskFFFF));
+					__m256 TexelAb = _mm256_cvtepi32_ps(_mm256_and_si256(TexelArb, MaskFFFF));
+
+					__m256 TexelBr = _mm256_cvtepi32_ps(_mm256_srli_epi32(TexelBrb, 16));
+					__m256 TexelBg = _mm256_cvtepi32_ps(_mm256_and_si256(TexelBag, MaskFFFF));
+					__m256 TexelBb = _mm256_cvtepi32_ps(_mm256_and_si256(TexelBrb, MaskFFFF));
+
+					__m256 TexelCr = _mm256_cvtepi32_ps(_mm256_srli_epi32(TexelCrb, 16));
+					__m256 TexelCg = _mm256_cvtepi32_ps(_mm256_and_si256(TexelCag, MaskFFFF));
+					__m256 TexelCb = _mm256_cvtepi32_ps(_mm256_and_si256(TexelCrb, MaskFFFF));
+
+					__m256 TexelDr = _mm256_cvtepi32_ps(_mm256_srli_epi32(TexelDrb, 16));
+					__m256 TexelDg = _mm256_cvtepi32_ps(_mm256_and_si256(TexelDag, MaskFFFF));
+					__m256 TexelDb = _mm256_cvtepi32_ps(_mm256_and_si256(TexelDrb, MaskFFFF));
+
+					//Note: Perform Bilinear blend on texture. 
+					__m256 ifX = _mm256_sub_ps(One_x8, fX);
+					__m256 ifY = _mm256_sub_ps(One_x8, fY);
+
+					__m256 l0 = _mm256_mul_ps(ifY, ifX);
+					__m256 l1 = _mm256_mul_ps(ifY, fX);
+					__m256 l2 = _mm256_mul_ps(fY, ifX);
+					__m256 l3 = _mm256_mul_ps(fY, fX);
+
+					__m256 Texelr = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(l0, TexelAr), _mm256_mul_ps(l1, TexelBr)),
+						_mm256_add_ps(_mm256_mul_ps(l2, TexelCr), _mm256_mul_ps(l3, TexelDr)));
+					__m256 Texelg = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(l0, TexelAg), _mm256_mul_ps(l1, TexelBg)),
+						_mm256_add_ps(_mm256_mul_ps(l2, TexelCg), _mm256_mul_ps(l3, TexelDg)));
+					__m256 Texelb = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(l0, TexelAb), _mm256_mul_ps(l1, TexelBb)),
+						_mm256_add_ps(_mm256_mul_ps(l2, TexelCb), _mm256_mul_ps(l3, TexelDb)));
+					__m256 Texela = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(l0, TexelAa), _mm256_mul_ps(l1, TexelBa)),
+						_mm256_add_ps(_mm256_mul_ps(l2, TexelCa), _mm256_mul_ps(l3, TexelDa)));
+
+					//Note: Modulate inoming color
+					Texelr = _mm256_mul_ps(Texelr, ColorR_x4);
+					Texelg = _mm256_mul_ps(Texelg, ColorG_x4);
+					Texelb = _mm256_mul_ps(Texelb, ColorB_x4);
+					Texela = _mm256_mul_ps(Texela, ColorA_x4);
+
+					//Note: Clamp RGB values
+					Texelr = _mm256_min_ps(_mm256_max_ps(Texelr, Zero_x8), MaxColorValue);
+					Texelg = _mm256_min_ps(_mm256_max_ps(Texelg, Zero_x8), MaxColorValue);
+					Texelb = _mm256_min_ps(_mm256_max_ps(Texelb, Zero_x8), MaxColorValue);
+
+					//Note: Going from sRGB to "linear" brightness space. Equiv to call to SRGB255ToLinear1.
+					Destr = OM_MMSquare256(Destr);
+					Destg = OM_MMSquare256(Destg);
+					Destb = OM_MMSquare256(Destb);
+
+					//Note: Performing blend on destination
+					__m256 InvTexelA = _mm256_sub_ps(One_x8, _mm256_mul_ps(Inv255_x8, Texela));
+					__m256 Blendedr = _mm256_add_ps(_mm256_mul_ps(InvTexelA, Destr), Texelr);
+					__m256 Blendedg = _mm256_add_ps(_mm256_mul_ps(InvTexelA, Destg), Texelg);
+					__m256 Blendedb = _mm256_add_ps(_mm256_mul_ps(InvTexelA, Destb), Texelb);
+					__m256 Blendeda = _mm256_add_ps(_mm256_mul_ps(InvTexelA, Desta), Texela);
+
+					//Note: Going from "linear" brightness space to sRGB
+					Blendedr = _mm256_mul_ps(Blendedr, _mm256_rsqrt_ps(Blendedr));
+					Blendedg = _mm256_mul_ps(Blendedg, _mm256_rsqrt_ps(Blendedg));
+					Blendedb = _mm256_mul_ps(Blendedb, _mm256_rsqrt_ps(Blendedb));
+					Blendeda = Blendeda;
+
+					//Note: Conversion to integer values.
+					__m256i Intr = _mm256_cvtps_epi32(Blendedr);
+					__m256i Intg = _mm256_cvtps_epi32(Blendedg);
+					__m256i Intb = _mm256_cvtps_epi32(Blendedb);
+					__m256i Inta = _mm256_cvtps_epi32(Blendeda);
+
+					//Note: Shifts into right slots.
+					__m256i Sr = _mm256_slli_epi32(Intr, 16);
+					__m256i Sg = _mm256_slli_epi32(Intg, 8);
+					__m256i Sb = Intb;
+					__m256i Sa = _mm256_slli_epi32(Inta, 24);
+
+					__m256i Out = _mm256_or_si256(_mm256_or_si256(Sr, Sg), _mm256_or_si256(Sb, Sa));
+
+					__m256i MaskedOut = _mm256_or_si256(_mm256_and_si256(WriteMask, Out),
+						_mm256_andnot_si256(WriteMask, OriginalDestination));
+
+					_mm256_storeu_si256((__m256i *)Pixel, MaskedOut);
+				}
+
+				PixelPositionX = _mm256_add_ps(PixelPositionX, Eight_x8);
+				Pixel += 8;
+				ClipMask = _mm256_set1_epi8(-1);
+			}
+
+			Row += RowAdvance;
+		}
+	}
+}
+
+om_internal void
 SoftwareDrawRect(game_offscreen_buffer *Buffer, vector2 Min, vector2 Max, r32 R, r32 G, r32 B)
 {
 	i32 MinX = RoundReal32ToInt32(Min.x);
@@ -1001,7 +1354,10 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 			DEBUGDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #else
-			SoftwareDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap, 
+			//SoftwareDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap, 
+				//Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
+
+			SoftwareDrawTransformedBitmap256(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #endif
 			BaseAddress += sizeof(*Body);
