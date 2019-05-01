@@ -600,22 +600,35 @@ SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position
 
 	if (HasArea(FillRect))
 	{
-		__m256i StartupClipMask = _mm256_set1_epi8(-1);
-		int FillWidth = FillRect.MaxX - FillRect.MinX;
-		int FillWidthAlign = FillWidth & 3;
-		if (FillWidthAlign > 0)
-		{
-			int Adjustment = (4 - FillWidthAlign);
+		__m256i StartClipMask = _mm256_set1_epi8(-1);
+		__m256i EndClipMask = _mm256_set1_epi8(-1);
 
-			//TODO: Change this into something sane.
-			switch (Adjustment)
-			{
-			case 1: {StartupClipMask = _mm256_slli_si256(StartupClipMask, 1 * 4); } break;
-			case 2: {StartupClipMask = _mm256_slli_si256(StartupClipMask, 2 * 4); } break;
-			case 3: {StartupClipMask = _mm256_slli_si256(StartupClipMask, 3 * 4); } break;
-			}
-			FillWidth += Adjustment;
-			FillRect.MinX = FillRect.MaxX - FillWidth;
+		__m256i StartClipMasks[] =
+		{
+			_mm256_slli_si256(StartClipMask, 0 * 0),
+			_mm256_slli_si256(StartClipMask, 1 * 0),
+			_mm256_slli_si256(StartClipMask, 2 * 0),
+			_mm256_slli_si256(StartClipMask, 3 * 0),
+		};
+
+		__m256i EndClipMasks[] =
+		{
+			_mm256_srli_si256(EndClipMask, 0 * 0),
+			_mm256_srli_si256(EndClipMask, 3 * 0),
+			_mm256_srli_si256(EndClipMask, 2 * 0),
+			_mm256_srli_si256(EndClipMask, 1 * 0),
+		};
+		
+		if (FillRect.MinX & 7)
+		{
+			StartClipMask = StartClipMasks[FillRect.MinX & 3];
+			FillRect.MinX = FillRect.MinX & ~7;
+		}
+
+		if (FillRect.MaxX & 7)
+		{
+			EndClipMask = EndClipMasks[FillRect.MaxX & 3];
+			FillRect.MaxX = (FillRect.MaxX & ~7) + 8;
 		}
 
 		vector2 nXAxis = InvXAxisLengthSq * XAxis;
@@ -678,7 +691,7 @@ SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position
 												  (r32)(MinX + 0));
 			PixelPositionX = _mm256_sub_ps(PixelPositionX, PositionX_x8);
 
-			__m256i ClipMask = StartupClipMask;
+			__m256i ClipMask = StartClipMask;
 
 			u32 *Pixel = (u32 *)Row;
 
@@ -688,14 +701,14 @@ SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position
 				__m256 V = _mm256_add_ps(_mm256_mul_ps(PixelPositionX, nYAxisX_x8), PynY);
 
 				__m256i WriteMask = _mm256_castps_si256(_mm256_and_ps(_mm256_and_ps(_mm256_cmp_ps(U, Zero_x8, _CMP_GE_OS),
-					_mm256_cmp_ps(U, One_x8, _CMP_LE_OS)),
-					_mm256_and_ps(_mm256_cmp_ps(V, Zero_x8, _CMP_GE_OS),
-						_mm256_cmp_ps(V, One_x8, _CMP_LE_OS))));
+																					_mm256_cmp_ps(U, One_x8, _CMP_LE_OS)),
+																	  _mm256_and_ps(_mm256_cmp_ps(V, Zero_x8, _CMP_GE_OS),
+																					_mm256_cmp_ps(V, One_x8, _CMP_LE_OS))));
 
 				WriteMask = _mm256_and_si256(WriteMask, ClipMask);
 
 				{
-					__m256i OriginalDestination = _mm256_loadu_si256((__m256i *)Pixel);
+					__m256i OriginalDestination = _mm256_load_si256((__m256i *)Pixel);
 
 					U = _mm256_min_ps(_mm256_max_ps(U, Zero_x8), One_x8);
 					V = _mm256_min_ps(_mm256_max_ps(V, Zero_x8), One_x8);
@@ -830,13 +843,13 @@ SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position
 					__m256 l3 = _mm256_mul_ps(fY, fX);
 
 					__m256 Texelr = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(l0, TexelAr), _mm256_mul_ps(l1, TexelBr)),
-						_mm256_add_ps(_mm256_mul_ps(l2, TexelCr), _mm256_mul_ps(l3, TexelDr)));
+												  _mm256_add_ps(_mm256_mul_ps(l2, TexelCr), _mm256_mul_ps(l3, TexelDr)));
 					__m256 Texelg = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(l0, TexelAg), _mm256_mul_ps(l1, TexelBg)),
-						_mm256_add_ps(_mm256_mul_ps(l2, TexelCg), _mm256_mul_ps(l3, TexelDg)));
+												  _mm256_add_ps(_mm256_mul_ps(l2, TexelCg), _mm256_mul_ps(l3, TexelDg)));
 					__m256 Texelb = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(l0, TexelAb), _mm256_mul_ps(l1, TexelBb)),
-						_mm256_add_ps(_mm256_mul_ps(l2, TexelCb), _mm256_mul_ps(l3, TexelDb)));
+												  _mm256_add_ps(_mm256_mul_ps(l2, TexelCb), _mm256_mul_ps(l3, TexelDb)));
 					__m256 Texela = _mm256_add_ps(_mm256_add_ps(_mm256_mul_ps(l0, TexelAa), _mm256_mul_ps(l1, TexelBa)),
-						_mm256_add_ps(_mm256_mul_ps(l2, TexelCa), _mm256_mul_ps(l3, TexelDa)));
+												  _mm256_add_ps(_mm256_mul_ps(l2, TexelCa), _mm256_mul_ps(l3, TexelDa)));
 
 					//Note: Modulate inoming color
 					Texelr = _mm256_mul_ps(Texelr, ColorR_x4);
@@ -861,6 +874,12 @@ SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position
 					__m256 Blendedb = _mm256_add_ps(_mm256_mul_ps(InvTexelA, Destb), Texelb);
 					__m256 Blendeda = _mm256_add_ps(_mm256_mul_ps(InvTexelA, Desta), Texela);
 
+					/* MIGHT BE FASTER.
+					__m256 Blendedr = _mm256_fmadd_ps(InvTexelA, Destr, Texelr);
+					__m256 Blendedg = _mm256_fmadd_ps(InvTexelA, Destg, Texelg);
+					__m256 Blendedb = _mm256_fmadd_ps(InvTexelA, Destb, Texelb);
+					__m256 Blendeda = _mm256_fmadd_ps(InvTexelA, Desta, Texela);*/
+
 					//Note: Going from "linear" brightness space to sRGB
 					Blendedr = _mm256_mul_ps(Blendedr, _mm256_rsqrt_ps(Blendedr));
 					Blendedg = _mm256_mul_ps(Blendedg, _mm256_rsqrt_ps(Blendedg));
@@ -882,14 +901,23 @@ SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position
 					__m256i Out = _mm256_or_si256(_mm256_or_si256(Sr, Sg), _mm256_or_si256(Sb, Sa));
 
 					__m256i MaskedOut = _mm256_or_si256(_mm256_and_si256(WriteMask, Out),
-						_mm256_andnot_si256(WriteMask, OriginalDestination));
+														_mm256_andnot_si256(WriteMask, OriginalDestination));
 
-					_mm256_storeu_si256((__m256i *)Pixel, MaskedOut);
+					_mm256_store_si256((__m256i *)Pixel, MaskedOut);
 				}
 
 				PixelPositionX = _mm256_add_ps(PixelPositionX, Eight_x8);
 				Pixel += 8;
-				ClipMask = _mm256_set1_epi8(-1);
+				//ClipMask = _mm256_set1_epi8(-1);
+
+				if ((X + 8) < MaxX)
+				{
+					ClipMask = _mm256_set1_epi8(-1);
+				}
+				else
+				{
+					ClipMask = EndClipMask;
+				}
 			}
 
 			Row += RowAdvance;
@@ -1400,6 +1428,12 @@ PerformPartitionedRendering(platform_thread_queue *RenderQueue, render_blueprint
 	int PartitionWidth = Buffer->Width / PartitionCountX;
 	int PartitionHeight = Buffer->Height / PartitionCountY;
 	
+#if 1
+	PartitionWidth = ((PartitionWidth + 7) / 8) * 8; // For AVX
+#elif 0
+	PartitionWidth = ((PartitionWidth + 3) / 4) * 4; // For SSE
+#endif
+
 	int WorkCount = 0;
 	for (int PartitionY = 0; PartitionY < PartitionCountY; ++PartitionY)
 	{
@@ -1410,10 +1444,20 @@ PerformPartitionedRendering(platform_thread_queue *RenderQueue, render_blueprint
 			//TODO: Buffers can overflow. Needs fixing.
 			rect2I ClipRect;
 
-			ClipRect.MinX = PartitionX * PartitionWidth + 4;
-			ClipRect.MaxX = ClipRect.MinX + PartitionWidth - 4;
-			ClipRect.MinY = PartitionY * PartitionHeight + 4;
-			ClipRect.MaxY = ClipRect.MinY + PartitionHeight - 4;
+			ClipRect.MinX = PartitionX * PartitionWidth;
+			ClipRect.MaxX = ClipRect.MinX + PartitionWidth;
+			ClipRect.MinY = PartitionY * PartitionHeight;
+			ClipRect.MaxY = ClipRect.MinY + PartitionHeight;
+
+			if (PartitionX == (PartitionCountX - 1))
+			{
+				ClipRect.MaxX = Buffer->Width;
+			}
+
+			if (PartitionY == (PartitionCountY - 1))
+			{
+				ClipRect.MaxY = Buffer->Height;
+			}
 
 			Work->RenderBlueprint = RenderBlueprint;
 			Work->Buffer = Buffer;
