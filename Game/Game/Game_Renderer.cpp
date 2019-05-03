@@ -276,22 +276,35 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 
 	if (HasArea(FillRect))
 	{
-		__m128i StartupClipMask = _mm_set1_epi8(-1);
-		int FillWidth = FillRect.MaxX - FillRect.MinX;
-		int FillWidthAlign = FillWidth & 3;
-		if (FillWidthAlign > 0)
-		{
-			int Adjustment = (4 - FillWidthAlign);
+		__m128i StartClipMask = _mm_set1_epi8(-1);
+		__m128i EndClipMask = _mm_set1_epi8(-1);
 
-			//TODO: Change this into something sane.
-			switch (Adjustment)
-			{
-				case 1: {StartupClipMask = _mm_slli_si128(StartupClipMask, 1 * 4); } break;
-				case 2: {StartupClipMask = _mm_slli_si128(StartupClipMask, 2 * 4); } break;
-				case 3: {StartupClipMask = _mm_slli_si128(StartupClipMask, 3 * 4); } break;
-			}
-			FillWidth += Adjustment;
-			FillRect.MinX = FillRect.MaxX - FillWidth;
+		__m128i StartClipMasks[] = 
+		{
+			_mm_slli_si128(StartClipMask, 0 * 4),
+			_mm_slli_si128(StartClipMask, 1 * 4),
+			_mm_slli_si128(StartClipMask, 2 * 4),
+			_mm_slli_si128(StartClipMask, 3 * 4),
+		};
+
+		__m128i EndClipMasks[] =
+		{
+			_mm_srli_si128(EndClipMask, 0 * 4),
+			_mm_srli_si128(EndClipMask, 3 * 4),
+			_mm_srli_si128(EndClipMask, 2 * 4),
+			_mm_srli_si128(EndClipMask, 1 * 4),
+		};
+
+		if (FillRect.MinX & 3)
+		{
+			StartClipMask = StartClipMasks[FillRect.MinX & 3];
+			FillRect.MinX = FillRect.MinX & ~3;
+		}
+
+		if (FillRect.MaxX & 3)
+		{
+			EndClipMask = EndClipMasks[FillRect.MaxX & 3];
+			FillRect.MaxX = (FillRect.MaxX & ~3) + 4;
 		}
 
 		vector2 nXAxis = InvXAxisLengthSq * XAxis;
@@ -348,7 +361,7 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 											   (r32)(MinX + 0));
 			PixelPositionX = _mm_sub_ps(PixelPositionX, PositionX_x4);
 
-			__m128i ClipMask = StartupClipMask;
+			__m128i ClipMask = StartClipMask;
 
 			u32 *Pixel = (u32 *)Row;
 			for (int X = MinX; X < MaxX; X += 4)
@@ -366,7 +379,7 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 				WriteMask = _mm_and_si128(WriteMask, ClipMask);
 
 				{
-					__m128i OriginalDestination = _mm_loadu_si128((__m128i *)Pixel);
+					__m128i OriginalDestination = _mm_load_si128((__m128i *)Pixel);
 
 					U = _mm_min_ps(_mm_max_ps(U, Zero_x4), One_x4);
 					V = _mm_min_ps(_mm_max_ps(V, Zero_x4), One_x4);
@@ -527,12 +540,20 @@ SoftwareDrawTransformedBitmap(game_offscreen_buffer *Buffer, vector2 Position, r
 					__m128i MaskedOut = _mm_or_si128(_mm_and_si128(WriteMask, Out),
 						_mm_andnot_si128(WriteMask, OriginalDestination));
 
-					_mm_storeu_si128((__m128i *)Pixel, MaskedOut);
+					_mm_store_si128((__m128i *)Pixel, MaskedOut);
 				}
 
 				PixelPositionX = _mm_add_ps(PixelPositionX, Four_x4);
 				Pixel += 4;
-				ClipMask = _mm_set1_epi8(-1);
+				
+				if ((X + 8) < MaxX)
+				{
+					ClipMask = _mm_set1_epi8(-1);
+				}
+				else
+				{
+					ClipMask = EndClipMask;
+				}
 
 				//IACA_END;
 			}
@@ -603,6 +624,8 @@ SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position
 		__m256i StartClipMask = _mm256_set1_epi8(-1);
 		__m256i EndClipMask = _mm256_set1_epi8(-1);
 
+		// TODO: This masks are not calculated correctly. This is because the register is treated as 2 128-bit instead of a single
+		// 256-bit register.
 		__m256i StartClipMasks[] =
 		{
 			_mm256_slli_si256(StartClipMask, 0 * 0),
@@ -908,8 +931,7 @@ SoftwareDrawTransformedBitmap256(game_offscreen_buffer *Buffer, vector2 Position
 
 				PixelPositionX = _mm256_add_ps(PixelPositionX, Eight_x8);
 				Pixel += 8;
-				//ClipMask = _mm256_set1_epi8(-1);
-
+				
 				if ((X + 8) < MaxX)
 				{
 					ClipMask = _mm256_set1_epi8(-1);
@@ -1382,11 +1404,11 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 			DEBUGDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #else
-			//SoftwareDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap, 
-				//Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
-
-			SoftwareDrawTransformedBitmap256(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
+			SoftwareDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap, 
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
+
+			//SoftwareDrawTransformedBitmap256(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
+				//Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #endif
 			BaseAddress += sizeof(*Body);
 		} break;
@@ -1428,9 +1450,10 @@ PerformPartitionedRendering(platform_thread_queue *RenderQueue, render_blueprint
 	int PartitionWidth = Buffer->Width / PartitionCountX;
 	int PartitionHeight = Buffer->Height / PartitionCountY;
 	
-#if 1
+#if 0
 	PartitionWidth = ((PartitionWidth + 7) / 8) * 8; // For AVX
-#elif 0
+#endif
+#if 1
 	PartitionWidth = ((PartitionWidth + 3) / 4) * 4; // For SSE
 #endif
 
