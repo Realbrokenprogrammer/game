@@ -1057,14 +1057,20 @@ om_internal void
 HandleDebugTimeCounters(game_memory *Memory)
 {
 #if 1
-	OutputDebugStringA("DEBUG TIME COUNTS: \n");
+	//OutputDebugStringA("DEBUG TIME COUNTS: \n");
 	for (u32 TimerIndex = 0; TimerIndex < OM_ARRAYCOUNT(Memory->TimeCounters); ++TimerIndex)
 	{
 		debug_time_counter *Counter = Memory->TimeCounters + TimerIndex;
 
 		char TextBuffer[256];
-		_snprintf_s(TextBuffer, sizeof(TextBuffer), "%d: %I64ums\n", TimerIndex, Counter->Time);
-		OutputDebugStringA(TextBuffer);
+		
+		//_snprintf_s(TextBuffer, sizeof(TextBuffer), "%d: %I64ums\n", TimerIndex, Counter->Time);
+		_snprintf_s(TextBuffer, sizeof(TextBuffer), "%I64ums ", Counter->Time);
+
+
+		//OutputDebugStringA(TextBuffer);
+		printf(TextBuffer);
+
 		Counter->Time = 0;
 	}
 #endif
@@ -1198,6 +1204,11 @@ Win32MakeThreadQueue(platform_thread_queue *Queue, u32 ThreadCount)
 int CALLBACK
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
+	// The important lines:
+	//AllocConsole();
+	AttachConsole(ATTACH_PARENT_PROCESS);
+	freopen("CON", "w", stdout);
+
 	win32_state Win32State = {};
 
 	platform_thread_queue HighPriorityQueue = {};
@@ -1766,9 +1777,12 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						r64 FPS = 1000.0f / MSPerFrame;
 
 						char FPSBuffer[256];
-						_snprintf_s(FPSBuffer, sizeof(FPSBuffer),
-							"%.02fms/f,  %.02ff/s,  %.02fmc/f\n", MSPerFrame, FPS, MCPF);
-						OutputDebugStringA(FPSBuffer);
+						//_snprintf_s(FPSBuffer, sizeof(FPSBuffer), "%.02fms/f,  %.02ff/s,  %.02fmc/f\n", MSPerFrame, FPS, MCPF);
+						_snprintf_s(FPSBuffer, sizeof(FPSBuffer), "%.02fms/f %.02ff/s %.02fmc/f\n", MSPerFrame, FPS, MCPF);
+
+
+						//OutputDebugStringA(FPSBuffer);
+						printf(FPSBuffer);
 #endif
 
 #if 0
