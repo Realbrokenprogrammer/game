@@ -1204,10 +1204,7 @@ Win32MakeThreadQueue(platform_thread_queue *Queue, u32 ThreadCount)
 int CALLBACK
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCode)
 {
-	// The important lines:
-	//AllocConsole();
-	AttachConsole(ATTACH_PARENT_PROCESS);
-	freopen("CON", "w", stdout);
+	freopen("Test.txt", "w", stdout);
 
 	win32_state Win32State = {};
 
