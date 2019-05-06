@@ -78,6 +78,7 @@
       <ConformanceMode>false</ConformanceMode>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
     </ClCompile>
     <Link>
       <AdditionalOptions>/EXPORT:GameGetSoundSamples /EXPORT:GameUpdateAndRender %(AdditionalOptions)</AdditionalOptions>

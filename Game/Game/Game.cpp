@@ -119,7 +119,7 @@ AddPlayer(world_layer *Layer, vector2 Position)
 	PhysicsBlueprint.CollisionShape = CollisionShape_Rectangle;
 	PhysicsBlueprint.Transform = {};
 	PhysicsBlueprint.Transform.Translation = Entity->Position;
-	PhysicsBlueprint.Transform.Scale = 64.0f; // TODO: Scale according to Player later.
+	PhysicsBlueprint.Transform.Scale = 32.0f; // TODO: Scale according to Player later.
 	PhysicsBlueprint.Transform.Rotation = 0.0f;
 	
 	entity_movement_blueprint MovementBlueprint = DefaultMovementBlueprint();
