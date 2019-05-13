@@ -618,13 +618,24 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 						}
 
 						Particle->Position = Entity->Position;
-						Particle->dPosition = Vector2(RandomBetween(&GameState->ParticlesEntropy, -50.0f, 50.0f), RandomBetween(&GameState->ParticlesEntropy, 70.0f, 100.0f));
-						Particle->ddPosition = Vector2(0.0f, -9.8f);
+						Particle->dPosition = Vector2(RandomBetween(&GameState->ParticlesEntropy, -50.0f, 50.0f), RandomBetween(&GameState->ParticlesEntropy, -70.0f, -100.0f));
+						Particle->ddPosition = Vector2(0.0f, 9.8f);
 						Particle->Color = Vector4(RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f), 
 							RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f),
 							RandomBetween(&GameState->ParticlesEntropy, 0.75f, 1.0f),
 							1.0f);
 						Particle->dColor = Vector4(0.0f, 0.0f, 0.0f, -0.25f);
+						
+						asset_vector MatchVector = {};
+						asset_vector WeightVector = {};
+						char Oskar[] = "OSKAR";
+						MatchVector.E[Asset_Tag_UnicodeCodepoint] = (r32)Oskar[RandomChoice(&GameState->ParticlesEntropy, OM_ARRAYCOUNT(Oskar) - 1)];
+						WeightVector.E[Asset_Tag_UnicodeCodepoint] = 1.0f;
+						Particle->BitmapID.Value = PickBestAsset(TransientState->Assets, Asset_Type_Font, &MatchVector, &WeightVector);
+
+
+						// NOTE: Pick random bitmap from Fonts.
+						//Particle->BitmapID = GetRandomBitmapID(TransientState->Assets, Asset_Type_Font, &GameState->ParticlesEntropy);
 					}
 
 					// Particle 
@@ -715,7 +726,7 @@ extern "C" GAME_UPDATE_AND_RENDER(GameUpdateAndRender)
 						}
 
 						// Render the particle
-						PushBitmap(RenderBlueprint, GetFirstBitmapID(TransientState->Assets, Asset_Type_Grass), Particle->Position, 18, Transform.Rotation, Vector2(0.0f, 0.0f), Color);
+						PushBitmap(RenderBlueprint, Particle->BitmapID, Particle->Position, 14, Transform.Rotation, Vector2(0.0f, 0.0f), Color);
 					}
 				} break;
 				case EntityType_GrassTile:

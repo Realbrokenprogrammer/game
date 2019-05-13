@@ -322,6 +322,51 @@ LoadWAV(char *FileName, u32 SectionFirstSampleIndex, u32 SectionSampleCount)
 	return (Result);
 }
 
+om_internal loaded_bitmap
+LoadGlyphBitmap(char *FileName, u32 Codepoint)
+{
+    loaded_bitmap Result = {};
+
+    read_file_result TTFFile = ReadEntireFile(FileName);
+    if (TTFFile.ContentsSize != 0)
+    {
+        stbtt_fontinfo Font;
+        stbtt_InitFont(&Font, (u8 *)TTFFile.Contents, stbtt_GetFontOffsetForIndex((u8 *)TTFFile.Contents, 0));
+
+        int Width, Height, XOffset, YOffset;
+        u8 *MonoBitmap = stbtt_GetCodepointBitmap(&Font, 0, stbtt_ScaleForPixelHeight(&Font, 128.0f), 
+                                                  Codepoint, &Width, &Height, &XOffset, &YOffset); 
+
+        Result.Width = Width;
+        Result.Height = Height; 
+        Result.Pitch = Result.Width * BITMAP_BYTES_PER_PIXEL;
+        Result.Memory = malloc(Height*Result.Pitch);
+        Result.Free = Result.Memory;
+
+        u8 *Source = MonoBitmap;
+        u8 *DestinationRow = (u8 *)Result.Memory + (Height - 1)*Result.Pitch;
+        for (s32 Y = 0; Y < Height; ++Y)
+        {
+            u32 *Destination = (u32 *)DestinationRow;
+            for (s32 X = 0; X < Width; ++X)
+            {
+                u8 Alpha = *Source++;
+                *Destination++ = ((Alpha << 24)|
+                                  (Alpha << 16)|
+                                  (Alpha << 8) |
+                                  (Alpha << 0));
+            }
+
+            DestinationRow -= Result.Pitch;
+        }
+
+        stbtt_FreeBitmap(MonoBitmap, 0);
+        free(TTFFile.Contents);
+    }
+
+    return (Result);
+}
+
 om_internal void
 BeginAssetType(game_assets *Assets, asset_type_id TypeID)
 {
@@ -351,6 +396,27 @@ AddBitmapAsset(game_assets *Assets, char *FileName)
     Assets->AssetIndex = Result.Value;
 
 	return (Result);
+}
+
+om_internal bitmap_id
+AddCharacterAsset(game_assets *Assets, char *FontFile, u32 Codepoint)
+{
+    OM_ASSERT(Assets->DEBUGAssetType);
+    OM_ASSERT(Assets->DEBUGAssetType->OnePastLastAssetIndex < OM_ARRAYCOUNT(Assets->Assets));
+
+    bitmap_id Result = { Assets->DEBUGAssetType->OnePastLastAssetIndex++ };
+    asset_source *Source = Assets->AssetSources + Result.Value;
+    ga_asset *GA = Assets->Assets + Result.Value;
+    GA->FirstTagIndex = Assets->TagCount;
+    GA->OnePastLastTagIndex = GA->FirstTagIndex;
+
+    Source->Type = AssetType_Font;
+    Source->FileName = FontFile;
+    Source->Codepoint = Codepoint;
+
+    Assets->AssetIndex = Result.Value;
+
+    return (Result);
 }
 
 om_internal sound_id
@@ -448,8 +514,15 @@ WriteGA(game_assets *Assets, char *FileName)
             }
             else
             {
-                OM_ASSERT(Source->Type == AssetType_Bitmap);
-                loaded_bitmap Bitmap = LoadBitmap(Source->FileName);
+                loaded_bitmap Bitmap;
+                if (Source->Type == AssetType_Font)
+                {
+                    Bitmap = LoadGlyphBitmap(Source->FileName, Source->Codepoint);
+                } 
+                else
+                {
+                    Bitmap = LoadBitmap(Source->FileName);
+                }
 
                 Destination->Bitmap.Dimension[0] = Bitmap.Width;
                 Destination->Bitmap.Dimension[1] = Bitmap.Height;
@@ -518,6 +591,14 @@ WriteNonPlayer(void)
 
     BeginAssetType(Assets, Asset_Type_SlopeRight);
     AddBitmapAsset(Assets, "C:\\Users\\Oskar\\Documents\\GitHub\\game\\Data\\groundSlope_right.bmp");
+    EndAssetType(Assets);
+
+    BeginAssetType(Assets, Asset_Type_Font);
+    for (u32 Character = 'A'; Character <= 'Z'; ++Character)
+    {
+        AddCharacterAsset(Assets, "C:/Windows/Fonts/arial.ttf", Character);
+        AddAssetTag(Assets, Asset_Tag_UnicodeCodepoint, (r32)Character);
+    }
     EndAssetType(Assets);
 
     WriteGA(Assets, "test2.ga");

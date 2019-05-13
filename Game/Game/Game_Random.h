@@ -542,6 +542,14 @@ RandomNextU32(random_sequence *Sequence)
 	return (Result);
 }
 
+inline u32
+RandomChoice(random_sequence *Sequence, u32 ChoiceCount)
+{
+	u32 Result = (RandomNextU32(Sequence) % ChoiceCount);
+
+	return (Result);
+}
+
 inline r32
 RandomSingleNumerical(random_sequence *Sequence)
 {
