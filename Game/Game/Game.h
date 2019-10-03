@@ -35,6 +35,7 @@ struct particle_cell
 
 struct particle
 {
+	bitmap_id BitmapID;
 	vector2 Position;
 	vector2 dPosition;
 	vector2 ddPosition;

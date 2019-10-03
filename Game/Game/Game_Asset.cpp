@@ -49,6 +49,22 @@ GetFirstAssetID(game_assets *Assets, asset_type_id TypeID)
 	return (Result);
 }
 
+om_internal u32
+GetRandomAssetID(game_assets *Assets, asset_type_id TypeID, random_sequence *Sequence)
+{
+	u32 Result = 0;
+
+	asset_type *Type = Assets->AssetTypes + TypeID;
+	if (Type->FirstAssetIndex != Type->OnePastLastAssetIndex)
+	{
+		u32 Count = (Type->OnePastLastAssetIndex - Type->FirstAssetIndex);
+		u32 Choice = RandomChoice(Sequence, Count);
+		Result = Type->FirstAssetIndex + Choice;
+	}
+
+	return (Result);
+}
+
 //inline bitmap_id
 //PickBestBitmap(game_assets *Assets, asset_type_id TypeID, asset_vector *MatchVector, asset_vector *WeightVector)
 //{
@@ -61,6 +77,14 @@ inline bitmap_id
 GetFirstBitmapID(game_assets *Assets, asset_type_id TypeID)
 {
 	bitmap_id Result = { GetFirstAssetID(Assets, TypeID) };
+
+	return (Result);
+}
+
+inline bitmap_id
+GetRandomBitmapID(game_assets *Assets, asset_type_id TypeID, random_sequence *Sequence)
+{
+	bitmap_id Result = { GetRandomAssetID(Assets, TypeID, Sequence) };
 
 	return (Result);
 }

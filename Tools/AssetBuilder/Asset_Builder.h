@@ -11,12 +11,11 @@
 #include "../../Game/Game/Game_Intristics.h"
 #include "../../Game/Game/Game_Math.h"
 
-#define USE_WINDOWS_API 1
+//#define USE_WINDOWS_API 0
 #define LARGE_NUMBER 4096
 
 #ifdef USE_WINDOWS_API
 #include <windows.h>
-
 #else
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -60,13 +59,18 @@ enum asset_type
 {
     AssetType_Bitmap,
     AssetType_Sound,
+	AssetType_Font,
 };
 
 struct asset_source
 {
     asset_type Type;
     char *FileName;
-    u32 FirstSampleIndex;
+    union
+    {
+        u32 FirstSampleIndex;
+        u32 Codepoint;
+    };
 };
 
 struct game_assets

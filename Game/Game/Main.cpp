@@ -1704,35 +1704,35 @@ WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowC
 						r32 WorkSecondsElapsed = Win32GetSecondsElapsed(LastCounter, WorkCounter);
 
 						// TODO: Not tested and this is probably buggy.
-						//r32 SecondsElapsedForFrame = WorkSecondsElapsed;
-						//if (SecondsElapsedForFrame < TargetSecondsPerFrame)
-						//{
-						//	if (SleepIsGranular)
-						//	{
-						//		DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
+						r32 SecondsElapsedForFrame = WorkSecondsElapsed;
+						if (SecondsElapsedForFrame < TargetSecondsPerFrame)
+						{
+							if (SleepIsGranular)
+							{
+								DWORD SleepMS = (DWORD)(1000.0f * (TargetSecondsPerFrame - SecondsElapsedForFrame));
 
-						//		if (SleepMS > 0)
-						//		{
-						//			Sleep(SleepMS);
-						//		}
-						//	}
+								if (SleepMS > 0)
+								{
+									Sleep(SleepMS);
+								}
+							}
 
-						//	r32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
-						//	if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
-						//	{
-						//		// TODO: Log missed sleep.
-						//	}
+							r32 TestSecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+							if (TestSecondsElapsedForFrame < TargetSecondsPerFrame)
+							{
+								// TODO: Log missed sleep.
+							}
 
-						//	while (SecondsElapsedForFrame < TargetSecondsPerFrame)
-						//	{
-						//		SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
-						//	}
-						//}
-						//else
-						//{
-						//	// TODO: MISSED FRAME RATE!
-						//	// TODO: Logging
-						//}
+							while (SecondsElapsedForFrame < TargetSecondsPerFrame)
+							{
+								SecondsElapsedForFrame = Win32GetSecondsElapsed(LastCounter, Win32GetWallClock());
+							}
+						}
+						else
+						{
+							// TODO: MISSED FRAME RATE!
+							// TODO: Logging
+						}
 
 						LARGE_INTEGER EndCounter = Win32GetWallClock();
 						r32 MSPerFrame = 1000.0f * Win32GetSecondsElapsed(LastCounter, EndCounter);

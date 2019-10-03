@@ -1404,11 +1404,11 @@ RenderToBuffer(render_blueprint *RenderBlueprint, game_offscreen_buffer *Buffer,
 			DEBUGDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #else
-			//SoftwareDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap, 
-				//Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
-
-			SoftwareDrawTransformedBitmap256(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
+			SoftwareDrawTransformedBitmap(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap, 
 				Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
+
+			//SoftwareDrawTransformedBitmap256(Buffer, Position, Body->Scale, Body->Rotation, Body->Bitmap,
+				//Vector4(Body->R, Body->G, Body->B, Body->A), ClipRect, Even);
 #endif
 			BaseAddress += sizeof(*Body);
 		} break;
